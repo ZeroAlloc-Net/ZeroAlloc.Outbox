@@ -1,66 +1,45 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using ZeroAlloc.Outbox.Generator;
 
 namespace ZeroAlloc.Outbox.Generator.Tests;
 
 internal static class GeneratorTestHelper
 {
-    private static readonly CSharpParseOptions ParseOptions =
-        CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
+    private static readonly MetadataReference[] s_references =
+        Basic.Reference.Assemblies.Net80.References.All
+            .Append(MetadataReference.CreateFromFile(
+                typeof(ZeroAlloc.Outbox.OutboxMessageAttribute).Assembly.Location))
+            .ToArray();
 
-    private static IEnumerable<MetadataReference> GetReferences()
-        => AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .Select(a => MetadataReference.CreateFromFile(a.Location))
-            .Cast<MetadataReference>()
-            .Append(MetadataReference.CreateFromFile(typeof(ZeroAlloc.Outbox.OutboxMessageAttribute).Assembly.Location));
-
-    public static (Compilation Output, IReadOnlyList<Diagnostic> Diagnostics) Run(string source)
+    public static (Compilation Output, System.Collections.Generic.IReadOnlyList<Diagnostic> Diagnostics) Run(string source)
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
-            new[] { syntaxTree },
-            GetReferences(),
+            new[] { CSharpSyntaxTree.ParseText(source) },
+            s_references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new OutboxGenerator();
         CSharpGeneratorDriver
             .Create(generator)
-            .WithUpdatedParseOptions(ParseOptions)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
 
-        var result = CSharpGeneratorDriver.Create(generator)
-            .WithUpdatedParseOptions(ParseOptions)
-            .RunGenerators(compilation)
-            .GetRunResult();
-
-        var allDiags = result.Diagnostics
-            .Concat(diagnostics)
-            .ToList();
-
-        return (output, allDiags);
+        return (output, (System.Collections.Generic.IReadOnlyList<Diagnostic>)diagnostics);
     }
 
-    public static Task VerifyGenerator(string source)
+    public static System.Threading.Tasks.Task VerifyGenerator(string source)
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
-            new[] { syntaxTree },
-            GetReferences(),
+            new[] { CSharpSyntaxTree.ParseText(source) },
+            s_references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new OutboxGenerator();
-        var driver = CSharpGeneratorDriver
-            .Create(generator)
-            .WithUpdatedParseOptions(ParseOptions)
+        var driver = CSharpGeneratorDriver.Create(generator)
             .RunGenerators(compilation);
 
-        return VerifyXunit.Verifier.Verify(driver).UseDirectory("Snapshots");
+        return Verifier.Verify(driver);
     }
 }
