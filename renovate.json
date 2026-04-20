@@ -39,6 +39,11 @@
       "groupName": "Microsoft.CodeAnalysis"
     },
     {
+      "description": "Group Entity Framework Core packages",
+      "matchPackagePrefixes": ["Microsoft.EntityFrameworkCore"],
+      "groupName": "Entity Framework Core"
+    },
+    {
       "description": "Group GitHub Actions",
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions"
