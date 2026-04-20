@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZeroAlloc.Outbox/ZeroAlloc.Outbox.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.Generator/ZeroAlloc.Outbox.Generator.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.EfCore/ZeroAlloc.Outbox.EfCore.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.InMemory/ZeroAlloc.Outbox.InMemory.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ZeroAlloc.Outbox.Generator.Tests/ZeroAlloc.Outbox.Generator.Tests.csproj" />
+    <Project Path="tests/ZeroAlloc.Outbox.Tests/ZeroAlloc.Outbox.Tests.csproj" />
+  </Folder>
+</Solution>
