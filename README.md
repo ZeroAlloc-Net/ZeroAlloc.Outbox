@@ -60,11 +60,13 @@ public class OrderService(IOutboxWriter<OrderPlaced> writer, AppDbContext db)
     public async Task PlaceOrderAsync(Order order, CancellationToken ct)
     {
         db.Orders.Add(order);
-        await db.SaveChangesAsync(ct);                          // within the same transaction
+        await db.SaveChangesAsync(ct);
         await writer.WriteAsync(new OrderPlaced(order.Id, order.Total), ct: ct);
     }
 }
 ```
+
+> For atomic writes (both or neither commit), pass the `DbTransaction` explicitly. See [EF Core Transaction](docs/cookbook/01-ef-core-transaction.md).
 
 **4. Implement a dispatcher:**
 
