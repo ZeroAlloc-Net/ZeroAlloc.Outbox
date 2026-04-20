@@ -1,7 +1,7 @@
 namespace ZeroAlloc.Outbox;
 
 /// <summary>
-/// Internal interface implemented by the source generator per [OutboxMessage] type.
+/// Implemented by the source generator per [OutboxMessage] type and registered with DI.
 /// The background worker resolves all registered implementations to build a dispatch registry.
 /// </summary>
 public interface IOutboxTypeDispatcher
