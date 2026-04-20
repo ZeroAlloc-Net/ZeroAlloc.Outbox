@@ -18,12 +18,13 @@ public sealed class OutboxGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(models, static (ctx, model) =>
         {
-            foreach (var d in model.Diagnostics)
-                ctx.ReportDiagnostic(d);
-
             bool hasErrors = false;
             foreach (var d in model.Diagnostics)
-                if (d.Severity == DiagnosticSeverity.Error) { hasErrors = true; break; }
+            {
+                ctx.ReportDiagnostic(d);
+                if (d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                    hasErrors = true;
+            }
 
             if (!hasErrors && !model.IsInterface && !model.IsStatic)
                 OutboxCodeWriter.Write(ctx, model);

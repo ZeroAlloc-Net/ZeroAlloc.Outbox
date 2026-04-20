@@ -57,9 +57,8 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
         System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> a,
         System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> b)
     {
-        if (a.Length != b.Length) return false;
-        for (int i = 0; i < a.Length; i++)
-            if (!ReferenceEquals(a[i], b[i])) return false;
-        return true;
+        // Diagnostic does not implement structural equality; comparing counts is sufficient
+        // to prevent spurious incremental cache misses from re-parsed but logically identical diagnostics.
+        return a.Length == b.Length;
     }
 }
