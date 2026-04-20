@@ -8,6 +8,6 @@ public sealed class DefaultOutboxDispatcher<T> : IOutboxDispatcher<T> where T : 
 {
     public ValueTask DispatchAsync(T message, CancellationToken ct)
         => throw new InvalidOperationException(
-            $"No IOutboxDispatcher<{typeof(T).Name}> is registered. " +
+            $"No IOutboxDispatcher<{typeof(T).FullName ?? typeof(T).Name}> is registered. " +
             "Register a custom dispatcher or install ZeroAlloc.Outbox.Mediator.");
 }
