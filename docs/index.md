@@ -13,7 +13,7 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
 - [Getting Started](getting-started.md) — install, annotate, register, dispatch
 - [Outbox Pattern](outbox-pattern.md) — why the transactional outbox pattern exists
 - [Message Types](message-types.md) — `[OutboxMessage]`, generated code, type discriminator
-- [Dispatchers](dispatchers.md) — `IOutboxDispatcher<T>`, `DefaultOutboxDispatcher`, custom implementations
+- [Dispatchers](dispatchers.md) — `IOutboxDispatcher<T>`, `IOutboxTypeDispatcher` (generated bridge), custom implementations
 - [Store Adapters](store-adapters.md) — EF Core adapter (schema, migration), InMemory (test usage)
 - [Background Worker](background-worker.md) — polling, retry back-off, dead-letter, `OutboxOptions` reference
 - [Dependency Injection](dependency-injection.md) — `AddOutbox`, `AddOutboxEfCore`, `AddOrderPlacedOutbox`, lifetime rules
