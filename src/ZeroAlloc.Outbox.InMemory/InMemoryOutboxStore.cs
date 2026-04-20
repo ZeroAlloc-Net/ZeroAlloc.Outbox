@@ -20,7 +20,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
             TypeName = typeName,
             Payload = payload.ToArray(),
             RetryCount = 0,
-            Status = OutboxEntryStatus.Pending,
+            Status = InMemoryEntryStatus.Pending,
             NextRetryAt = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow,
         };
@@ -35,7 +35,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
         foreach (var kv in _entries)
         {
             var e = kv.Value;
-            if (e.Status == OutboxEntryStatus.Pending && e.NextRetryAt <= now)
+            if (e.Status == InMemoryEntryStatus.Pending && e.NextRetryAt <= now)
             {
                 results.Add(new OutboxEntry
                 {
@@ -54,7 +54,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
     public ValueTask MarkSucceededAsync(Guid id, CancellationToken ct)
     {
         if (_entries.TryGetValue(id, out var entry))
-            entry.Status = OutboxEntryStatus.Succeeded;
+            entry.Status = InMemoryEntryStatus.Succeeded;
         return ValueTask.CompletedTask;
     }
 
@@ -71,14 +71,14 @@ public sealed class InMemoryOutboxStore : IOutboxStore
     public ValueTask DeadLetterAsync(Guid id, string error, CancellationToken ct)
     {
         if (_entries.TryGetValue(id, out var entry))
-            entry.Status = OutboxEntryStatus.DeadLetter;
+            entry.Status = InMemoryEntryStatus.DeadLetter;
         return ValueTask.CompletedTask;
     }
 
     /// <summary>Exposes all entries for test assertions.</summary>
     public IReadOnlyList<InMemoryOutboxEntry> AllEntries() => _entries.Values.ToList();
 
-    internal enum OutboxEntryStatus { Pending, Succeeded, DeadLetter }
+    public enum InMemoryEntryStatus { Pending, Succeeded, DeadLetter }
 
     public sealed class InMemoryOutboxEntry
     {
@@ -86,7 +86,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
         public required string TypeName { get; init; }
         public required byte[] Payload { get; set; }
         public int RetryCount { get; set; }
-        internal OutboxEntryStatus Status { get; set; }
+        public InMemoryEntryStatus Status { get; set; }
         public DateTimeOffset NextRetryAt { get; set; }
         public DateTimeOffset CreatedAt { get; init; }
     }
