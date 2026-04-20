@@ -43,6 +43,10 @@ public sealed class InMemoryOutboxStoreTests
         // Should not appear in FetchPending (NextRetryAt is in the future)
         var pending = await _store.FetchPendingAsync(10, default);
         pending.Should().BeEmpty();
+
+        // RetryCount should have been incremented
+        var internalEntry = _store.AllEntries().First(e => e.Id == id);
+        internalEntry.RetryCount.Should().Be(1);
     }
 
     [Fact]

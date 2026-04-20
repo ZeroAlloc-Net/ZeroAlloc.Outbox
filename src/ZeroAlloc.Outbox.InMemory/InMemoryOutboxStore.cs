@@ -34,7 +34,6 @@ public sealed class InMemoryOutboxStore : IOutboxStore
         var results = new List<OutboxEntry>();
         foreach (var kv in _entries)
         {
-            if (results.Count >= batchSize) break;
             var e = kv.Value;
             if (e.Status == OutboxEntryStatus.Pending && e.NextRetryAt <= now)
             {
@@ -46,6 +45,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
                     RetryCount = e.RetryCount,
                     CreatedAt = e.CreatedAt,
                 });
+                if (results.Count >= batchSize) break;
             }
         }
         return ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(results);
@@ -76,7 +76,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
     }
 
     /// <summary>Exposes all entries for test assertions.</summary>
-    public IEnumerable<InMemoryOutboxEntry> AllEntries() => _entries.Values;
+    public IReadOnlyList<InMemoryOutboxEntry> AllEntries() => _entries.Values.ToList();
 
     internal enum OutboxEntryStatus { Pending, Succeeded, DeadLetter }
 
