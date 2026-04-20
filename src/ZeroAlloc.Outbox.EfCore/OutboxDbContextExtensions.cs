@@ -18,7 +18,6 @@ public static class OutboxDbContextExtensions
             entity.HasKey(e => e.Id);
             entity.Property(e => e.TypeName).HasMaxLength(256).IsRequired();
             entity.HasIndex(e => new { e.Status, e.NextRetryAt })
-                  .HasFilter("[Status] = 0")
                   .HasDatabaseName("IX_OutboxMessages_Status_NextRetryAt");
         });
     }

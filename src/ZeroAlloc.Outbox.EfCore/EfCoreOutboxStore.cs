@@ -21,12 +21,20 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore
         if (transaction is not null)
             await _db.Database.UseTransactionAsync(transaction, ct).ConfigureAwait(false);
 
-        _db.Set<OutboxMessageEntity>().Add(new OutboxMessageEntity
+        try
         {
-            TypeName = typeName,
-            Payload = payload.ToArray(),
-        });
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+            _db.Set<OutboxMessageEntity>().Add(new OutboxMessageEntity
+            {
+                TypeName = typeName,
+                Payload = payload.ToArray(),
+            });
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (transaction is not null)
+                await _db.Database.UseTransactionAsync(null, ct).ConfigureAwait(false);
+        }
     }
 
     public async ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
