@@ -1,3 +1,9 @@
+---
+id: getting-started
+title: Getting Started
+sidebar_position: 3
+---
+
 # Getting Started
 
 ## 1. Install the NuGet packages
