@@ -13,7 +13,7 @@ Implement one method to send a deserialized message to its destination:
 ```csharp
 public interface IOutboxDispatcher<T>
 {
-    Task DispatchAsync(T message, CancellationToken ct);
+    ValueTask DispatchAsync(T message, CancellationToken ct);
 }
 ```
 
@@ -22,7 +22,7 @@ Example — publishing to a message broker:
 ```csharp
 public class OrderPlacedDispatcher(IMessageBus bus) : IOutboxDispatcher<OrderPlaced>
 {
-    public Task DispatchAsync(OrderPlaced message, CancellationToken ct)
+    public ValueTask DispatchAsync(OrderPlaced message, CancellationToken ct)
         => bus.PublishAsync(message, ct);
 }
 ```
@@ -43,7 +43,7 @@ internal sealed class OrderPlacedOutboxTypeDispatcher : IOutboxTypeDispatcher
 {
     public string TypeName => "MyApp.OrderPlaced";
 
-    public Task DispatchAsync(byte[] payload, CancellationToken ct)
+    public ValueTask DispatchAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var message = _serializer.Deserialize<OrderPlaced>(payload);
         return _dispatcher.DispatchAsync(message, ct);

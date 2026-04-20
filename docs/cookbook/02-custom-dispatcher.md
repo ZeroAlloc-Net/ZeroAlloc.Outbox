@@ -49,4 +49,4 @@ public class OrderPlacedEmailDispatcher(IEmailSender email) : IOutboxDispatcher<
 
 The outbox worker uses **at-least-once delivery**. If the process crashes after dispatch but before the success mark is written, the message will be dispatched again on the next poll. Implement idempotency in your dispatcher or downstream consumer if duplicates are a concern.
 
-A common pattern is to use the outbox entry ID (available via a custom `IOutboxDispatcher<T>` that takes `OutboxEntry` directly) or to include a unique correlation ID in the message payload.
+A common pattern is to include a unique correlation ID in the message payload and use it as an idempotency key in your downstream consumer.

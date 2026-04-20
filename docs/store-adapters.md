@@ -23,13 +23,13 @@ A single table `OutboxMessages` is added with these columns:
 | Column | Type | Notes |
 |--------|------|-------|
 | `Id` | `Guid` | Primary key, generated client-side (`Guid.NewGuid()`) |
-| `TypeName` | `nvarchar(500)` | Fully-qualified type discriminator |
+| `TypeName` | `nvarchar(256)` | Fully-qualified type discriminator |
 | `Payload` | `varbinary(max)` | Serialized message bytes |
-| `Status` | `int` | `0` = Pending, `1` = Succeeded, `2` = DeadLettered |
+| `Status` | `int` | `0` = Pending, `1` = Succeeded, `2` = DeadLetter |
 | `RetryCount` | `int` | Number of failed dispatch attempts |
 | `CreatedAt` | `datetimeoffset` | UTC time of enqueue |
-| `NextRetryAt` | `datetimeoffset?` | Earliest time to retry (null = immediately eligible) |
-| `ErrorMessage` | `nvarchar(2000)?` | Last failure reason or dead-letter reason |
+| `NextRetryAt` | `datetimeoffset` | Earliest time to retry |
+| `DeadLetterError` | `nvarchar(2000)?` | Last failure reason or dead-letter reason |
 
 An index on `(Status, NextRetryAt)` covers the `FetchPendingAsync` query.
 

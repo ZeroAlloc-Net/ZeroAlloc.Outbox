@@ -34,7 +34,7 @@ Registers:
 |---------|----------|-------|
 | `EfCoreOutboxStore` as `IOutboxStore` | Scoped | Scoped to match `DbContext` lifetime |
 
-The `TContext` type must have `OutboxMessageEntity` configured (done automatically by `AddOutboxEfCore`).
+The `TContext` must call `modelBuilder.AddOutboxMessages()` in `OnModelCreating` to register the `OutboxMessages` table. `AddOutboxEfCore` only registers the store service — it does not configure the model.
 
 ## `AddOutboxInMemory`
 

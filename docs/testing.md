@@ -35,7 +35,7 @@ store.AllEntries().Should().ContainSingle()
 
 ```csharp
 store.AllEntries().Should().ContainSingle()
-    .Which.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.DeadLettered);
+    .Which.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter);
 ```
 
 ## Integration test with `HostBuilder`

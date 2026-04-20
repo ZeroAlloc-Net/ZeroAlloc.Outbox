@@ -12,7 +12,7 @@ An outbox entry is dead-lettered when:
 - The dispatcher throws an exception on `MaxAttempts` consecutive attempts.
 - No `IOutboxTypeDispatcher` is registered for the entry's `TypeName`.
 
-Dead-lettered entries have `Status = 2` (`DeadLettered`) and a non-null `ErrorMessage`. The worker never re-fetches them.
+Dead-lettered entries have `Status = 2` (`DeadLetter`) and a non-null `DeadLetterError`. The worker never re-fetches them.
 
 ## Inspecting dead-lettered entries (EF Core)
 
@@ -20,7 +20,7 @@ Query the outbox table directly:
 
 ```csharp
 var deadLettered = await db.Set<OutboxMessageEntity>()
-    .Where(e => e.Status == OutboxMessageStatus.DeadLettered)
+    .Where(e => e.Status == OutboxMessageStatus.DeadLetter)
     .OrderBy(e => e.CreatedAt)
     .ToListAsync(ct);
 ```
@@ -35,8 +35,8 @@ var entry = await db.Set<OutboxMessageEntity>().FindAsync([id], ct)
 
 entry.Status     = OutboxMessageStatus.Pending;
 entry.RetryCount = 0;
-entry.NextRetryAt = null;
-entry.ErrorMessage = null;
+entry.NextRetryAt = DateTimeOffset.UtcNow;
+entry.DeadLetterError = null;
 
 await db.SaveChangesAsync(ct);
 ```
@@ -48,7 +48,7 @@ Hook into your monitoring stack by querying dead-lettered entries on a schedule:
 ```csharp
 // Example: periodic health check that alerts if dead-lettered count > 0
 var count = await db.Set<OutboxMessageEntity>()
-    .CountAsync(e => e.Status == OutboxMessageStatus.DeadLettered, ct);
+    .CountAsync(e => e.Status == OutboxMessageStatus.DeadLetter, ct);
 
 if (count > 0)
     logger.LogError("Outbox has {Count} dead-lettered message(s). Manual intervention required.", count);
@@ -58,6 +58,6 @@ if (count > 0)
 
 ```csharp
 store.AllEntries()
-    .Where(e => e.Status == InMemoryOutboxStore.InMemoryEntryStatus.DeadLettered)
+    .Where(e => e.Status == InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter)
     .Should().BeEmpty("no messages should be dead-lettered");
 ```
