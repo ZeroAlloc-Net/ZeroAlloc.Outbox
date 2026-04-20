@@ -46,7 +46,6 @@ public sealed class OutboxWorkerTests
     public async Task Worker_DeadLetters_AfterMaxAttempts()
     {
         int dispatchCalls = 0;
-        var deadLetterTcs = new TaskCompletionSource();
 
         using var host = new HostBuilder()
             .ConfigureServices(services =>
@@ -97,13 +96,13 @@ public sealed class OutboxWorkerTests
         await host.StopAsync();
 
         dispatchCalls.Should().BeGreaterOrEqualTo(2);
+        var finalEntry = store.AllEntries().First();
+        finalEntry.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter);
     }
 
     [Fact]
     public async Task Worker_NoDispatcher_DeadLettersMessage()
     {
-        var tcs = new TaskCompletionSource();
-
         using var host = new HostBuilder()
             .ConfigureServices(services =>
             {
@@ -126,12 +125,9 @@ public sealed class OutboxWorkerTests
         var deadline = DateTimeOffset.UtcNow.AddSeconds(3);
         while (DateTimeOffset.UtcNow < deadline)
         {
-            var all = store.AllEntries();
-            if (all.Count > 0 && AllDeadLettered(all))
-            {
-                tcs.TrySetResult();
+            var polled = store.AllEntries();
+            if (polled.Count > 0 && AllDeadLettered(polled))
                 break;
-            }
             await Task.Delay(30);
         }
 
@@ -146,7 +142,11 @@ public sealed class OutboxWorkerTests
         }
 
         await host.StopAsync();
-        tcs.Task.IsCompletedSuccessfully.Should().BeTrue("message should be dead-lettered");
+
+        // After StopAsync, verify the entry was dead-lettered
+        var all = store.AllEntries();
+        all.Should().ContainSingle()
+           .Which.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter);
     }
 
     private sealed class TestDispatcher(

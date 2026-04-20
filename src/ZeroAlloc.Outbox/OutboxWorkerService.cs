@@ -99,6 +99,7 @@ public sealed class OutboxWorkerService : BackgroundService
             }
             else
             {
+                // exponent = newRetryCount - 1 → first retry waits base, second waits 2×base, third waits 4×base
                 var delay = TimeSpan.FromMilliseconds(
                     _options.RetryBaseDelay.TotalMilliseconds * Math.Pow(2, newRetryCount - 1));
                 var nextRetry = DateTimeOffset.UtcNow.Add(delay);
