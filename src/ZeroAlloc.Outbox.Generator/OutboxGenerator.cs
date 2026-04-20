@@ -62,12 +62,15 @@ public sealed class OutboxGenerator : IIncrementalGenerator
         if (symbol.IsStatic)
             diagnostics.Add(Diagnostic.Create(OutboxDiagnostics.OutboxOnStaticClass, loc, symbol.Name));
 
+        if (symbol.ContainingType is not null)
+            diagnostics.Add(Diagnostic.Create(OutboxDiagnostics.OutboxOnNestedType, loc, symbol.Name));
+
         return new OutboxModel(
             ns,
             symbol.Name,
             fqn,
             symbol.TypeKind == TypeKind.Interface,
-            symbol.IsStatic,
+            symbol.IsStatic || symbol.ContainingType is not null,
             System.Collections.Immutable.ImmutableArray.CreateRange(diagnostics));
     }
 

@@ -58,7 +58,7 @@ public static partial class OutboxServiceCollectionExtensions
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
         services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>, StockReservedOutboxWriter>();
-        services.AddSingleton<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
+        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
         services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
             global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
         return services;

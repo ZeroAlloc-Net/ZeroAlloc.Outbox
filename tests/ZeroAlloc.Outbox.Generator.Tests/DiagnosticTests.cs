@@ -50,6 +50,31 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
+    public void ZO0003_OutboxOnNestedType_EmitsWarning()
+    {
+        var (_, diagnostics) = GeneratorTestHelper.Run("""
+            using ZeroAlloc.Outbox;
+            public class Outer
+            {
+                [OutboxMessage]
+                public sealed record Inner(int Id);
+            }
+            """);
+
+        bool found = false;
+        foreach (var d in diagnostics)
+        {
+            if (string.Equals(d.Id, "ZO0003", StringComparison.Ordinal)
+                && d.Severity == DiagnosticSeverity.Warning)
+            {
+                found = true;
+                break;
+            }
+        }
+        found.Should().BeTrue("ZO0003 warning should be emitted for nested type");
+    }
+
+    [Fact]
     public void ValidRecord_EmitsNoDiagnostics()
     {
         var (_, diagnostics) = GeneratorTestHelper.Run("""

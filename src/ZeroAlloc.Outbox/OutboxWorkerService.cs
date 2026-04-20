@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -6,29 +7,23 @@ namespace ZeroAlloc.Outbox;
 
 /// <summary>
 /// Hosted service that polls the outbox store and dispatches pending messages.
-/// Dead-letters messages after <see cref="OutboxOptions.MaxAttempts"/> failures.
+/// Creates a DI scope per batch cycle so that scoped services (e.g. EF Core DbContext)
+/// are correctly isolated. Dead-letters messages after <see cref="OutboxOptions.MaxAttempts"/> failures.
 /// </summary>
 public sealed class OutboxWorkerService : BackgroundService
 {
-    private readonly IOutboxStore _store;
-    private readonly Dictionary<string, IOutboxTypeDispatcher> _dispatchers;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxWorkerService> _logger;
 
     public OutboxWorkerService(
-        IOutboxStore store,
-        IEnumerable<IOutboxTypeDispatcher> dispatchers,
+        IServiceScopeFactory scopeFactory,
         IOptions<OutboxOptions> options,
         ILogger<OutboxWorkerService> logger)
     {
-        _store = store;
+        _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
-
-        var dict = new Dictionary<string, IOutboxTypeDispatcher>(StringComparer.Ordinal);
-        foreach (var d in dispatchers)
-            dict[d.TypeName] = d;
-        _dispatchers = dict;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,30 +54,43 @@ public sealed class OutboxWorkerService : BackgroundService
 
     private async Task ProcessBatchAsync(CancellationToken ct)
     {
-        var entries = await _store.FetchPendingAsync(_options.BatchSize, ct).ConfigureAwait(false);
+#pragma warning disable MA0004 // ConfigureAwait cannot be applied to 'await using' — scope disposal runs on thread pool
+        await using var scope = _scopeFactory.CreateAsyncScope();
+#pragma warning restore MA0004
+        var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+
+        var dispatchers = new Dictionary<string, IOutboxTypeDispatcher>(StringComparer.Ordinal);
+        foreach (var d in scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>())
+            dispatchers[d.TypeName] = d;
+
+        var entries = await store.FetchPendingAsync(_options.BatchSize, ct).ConfigureAwait(false);
 
         foreach (var entry in entries)
         {
             ct.ThrowIfCancellationRequested();
-            await ProcessEntryAsync(entry, ct).ConfigureAwait(false);
+            await ProcessEntryAsync(store, dispatchers, entry, ct).ConfigureAwait(false);
         }
     }
 
-    private async Task ProcessEntryAsync(OutboxEntry entry, CancellationToken ct)
+    private async Task ProcessEntryAsync(
+        IOutboxStore store,
+        Dictionary<string, IOutboxTypeDispatcher> dispatchers,
+        OutboxEntry entry,
+        CancellationToken ct)
     {
-        if (!_dispatchers.TryGetValue(entry.TypeName, out var dispatcher))
+        if (!dispatchers.TryGetValue(entry.TypeName, out var dispatcher))
         {
             _logger.LogWarning(
                 "No dispatcher registered for outbox type '{TypeName}'. Dead-lettering message {Id}.",
                 entry.TypeName, entry.Id);
-            await _store.DeadLetterAsync(entry.Id, $"No dispatcher for type '{entry.TypeName}'.", ct).ConfigureAwait(false);
+            await store.DeadLetterAsync(entry.Id, $"No dispatcher for type '{entry.TypeName}'.", ct).ConfigureAwait(false);
             return;
         }
 
         try
         {
             await dispatcher.DispatchAsync(entry.Payload, ct).ConfigureAwait(false);
-            await _store.MarkSucceededAsync(entry.Id, ct).ConfigureAwait(false);
+            await store.MarkSucceededAsync(entry.Id, ct).ConfigureAwait(false);
         }
 #pragma warning disable CA1031
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -95,7 +103,7 @@ public sealed class OutboxWorkerService : BackgroundService
                 _logger.LogError(ex,
                     "Message {Id} ({TypeName}) exhausted {MaxAttempts} attempts. Dead-lettering.",
                     entry.Id, entry.TypeName, _options.MaxAttempts);
-                await _store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
+                await store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
             }
             else
             {
@@ -108,7 +116,7 @@ public sealed class OutboxWorkerService : BackgroundService
                     "Message {Id} ({TypeName}) failed (attempt {Attempt}/{Max}). Retry at {NextRetry}.",
                     entry.Id, entry.TypeName, newRetryCount, _options.MaxAttempts, nextRetry);
 
-                await _store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
+                await store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
             }
         }
     }

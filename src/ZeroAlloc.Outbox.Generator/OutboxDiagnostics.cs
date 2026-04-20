@@ -23,4 +23,13 @@ internal static class OutboxDiagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    /// <summary>ZO0003: [OutboxMessage] applied to a nested type.</summary>
+    public static readonly DiagnosticDescriptor OutboxOnNestedType = new(
+        id: "ZO0003",
+        title: "[OutboxMessage] on nested type",
+        messageFormat: "'{0}' is a nested type. [OutboxMessage] must be applied to a top-level type to ensure a stable type discriminator.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
 }

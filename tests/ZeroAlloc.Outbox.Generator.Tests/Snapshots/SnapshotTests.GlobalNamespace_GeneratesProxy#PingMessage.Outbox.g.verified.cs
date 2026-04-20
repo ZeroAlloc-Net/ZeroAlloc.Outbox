@@ -56,7 +56,7 @@ public static partial class OutboxServiceCollectionExtensions
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
         services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::PingMessage>, PingMessageOutboxWriter>();
-        services.AddSingleton<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, PingMessageOutboxTypeDispatcher>();
+        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, PingMessageOutboxTypeDispatcher>();
         services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::PingMessage>,
             global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::PingMessage>>();
         return services;

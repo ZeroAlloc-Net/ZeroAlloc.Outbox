@@ -77,6 +77,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore
         var entity = await _db.Set<OutboxMessageEntity>()
             .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
         if (entity is null) return;
+        entity.Status = OutboxMessageStatus.Pending;
         entity.RetryCount = retryCount;
         entity.NextRetryAt = nextRetryAt;
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);

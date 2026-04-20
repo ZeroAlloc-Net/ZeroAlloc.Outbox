@@ -112,7 +112,7 @@ internal static class OutboxCodeWriter
         sb.AppendLine("        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
         sb.AppendLine("    {");
         sb.AppendLine($"        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>, {writerName}>();");
-        sb.AppendLine($"        services.AddSingleton<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
+        sb.AppendLine($"        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
         sb.AppendLine($"        services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<{typeFqn}>,");
         sb.AppendLine($"            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
         sb.AppendLine("        return services;");

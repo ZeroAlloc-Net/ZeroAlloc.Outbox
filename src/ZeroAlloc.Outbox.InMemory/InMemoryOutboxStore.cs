@@ -62,6 +62,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
     {
         if (_entries.TryGetValue(id, out var entry))
         {
+            entry.Status = InMemoryEntryStatus.Pending;
             entry.RetryCount = retryCount;
             entry.NextRetryAt = nextRetryAt;
         }
