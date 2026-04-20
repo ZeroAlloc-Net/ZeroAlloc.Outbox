@@ -83,5 +83,9 @@ public sealed class EndToEndTests
         delivered.Should().ContainSingle();
         delivered[0].OrderId.Should().Be(42);
         delivered[0].Amount.Should().Be(99.99m);
+
+        var store = host.Services.GetRequiredService<InMemoryOutboxStore>();
+        store.AllEntries().Should().ContainSingle()
+             .Which.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.Succeeded);
     }
 }
