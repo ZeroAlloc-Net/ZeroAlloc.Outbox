@@ -6,33 +6,41 @@ namespace ZeroAlloc.Outbox;
 /// <summary>
 /// Fan-out publisher backed by one bounded <see cref="Channel{T}"/> per subscriber.
 /// When a subscriber's channel is full, oldest events are dropped for that subscriber
-/// only — other subscribers are unaffected.
+/// only. Subscribers MUST dispose their subscription to avoid leaking dictionary entries.
 /// </summary>
 public sealed class ChannelOutboxDashboardEventPublisher : IOutboxDashboardEventPublisher
 {
-    private const int DefaultCapacity = 1024;
+    private const int DefaultCapacity = 256;
 
     private readonly ConcurrentDictionary<Guid, Channel<OutboxDashboardEvent>> _subscribers = new();
 
     /// <inheritdoc />
-    public ChannelReader<OutboxDashboardEvent> Subscribe()
+    public OutboxDashboardSubscription Subscribe()
     {
+        var key = Guid.NewGuid();
         var ch = Channel.CreateBounded<OutboxDashboardEvent>(new BoundedChannelOptions(DefaultCapacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false,
         });
-        _subscribers[Guid.NewGuid()] = ch;
-        return ch.Reader;
+        _subscribers[key] = ch;
+        return new OutboxDashboardSubscription(ch.Reader, () =>
+        {
+            if (_subscribers.TryRemove(key, out var removed))
+                removed.Writer.TryComplete();
+        });
     }
 
     /// <inheritdoc />
-    public async ValueTask PublishAsync(OutboxDashboardEvent evt, CancellationToken ct)
+    public ValueTask PublishAsync(OutboxDashboardEvent evt, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         foreach (var ch in _subscribers.Values)
         {
-            await ch.Writer.WriteAsync(evt, ct).ConfigureAwait(false);
+            // DropOldest makes TryWrite non-blocking and never returns false for bounded channels.
+            _ = ch.Writer.TryWrite(evt);
         }
+        return ValueTask.CompletedTask;
     }
 }
