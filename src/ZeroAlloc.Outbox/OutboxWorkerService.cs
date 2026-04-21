@@ -91,18 +91,34 @@ public sealed class OutboxWorkerService : BackgroundService
             await dispatcher.DispatchAsync(entry.Payload, ct).ConfigureAwait(false);
             await store.MarkSucceededAsync(entry.Id, ct).ConfigureAwait(false);
 
-            if (publisher is not null)
-            {
-                await publisher.PublishAsync(
-                    new MessageDispatchedEvent(entry.Id, DateTimeOffset.UtcNow, entry.RetryCount + 1),
-                    ct).ConfigureAwait(false);
-            }
+            await SafePublishAsync(
+                publisher,
+                new MessageDispatchedEvent(entry.Id, DateTimeOffset.UtcNow, entry.RetryCount + 1),
+                ct).ConfigureAwait(false);
         }
 #pragma warning disable CA1031
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
             await HandleDispatchFailureAsync(store, publisher, entry, ex, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask SafePublishAsync(
+        IOutboxDashboardEventPublisher? publisher,
+        OutboxDashboardEvent evt,
+        CancellationToken ct)
+    {
+        if (publisher is null) return;
+        try
+        {
+            await publisher.PublishAsync(evt, ct).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // intentional broad catch — dashboard publish errors must not break core dispatch
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "IOutboxDashboardEventPublisher.PublishAsync threw; event dropped.");
         }
     }
 
@@ -118,13 +134,11 @@ public sealed class OutboxWorkerService : BackgroundService
             entry.TypeName, entry.Id);
         await store.DeadLetterAsync(entry.Id, error, ct).ConfigureAwait(false);
 
-        if (publisher is not null)
-        {
-            // No dispatch attempt was made; report the stored retry count as total attempts.
-            await publisher.PublishAsync(
-                new MessageDeadLetteredEvent(entry.Id, error, entry.RetryCount),
-                ct).ConfigureAwait(false);
-        }
+        // No dispatch attempt was made; report the stored retry count as total attempts.
+        await SafePublishAsync(
+            publisher,
+            new MessageDeadLetteredEvent(entry.Id, error, entry.RetryCount),
+            ct).ConfigureAwait(false);
     }
 
     private async Task HandleDispatchFailureAsync(
@@ -143,12 +157,10 @@ public sealed class OutboxWorkerService : BackgroundService
                 entry.Id, entry.TypeName, _options.MaxAttempts);
             await store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
 
-            if (publisher is not null)
-            {
-                await publisher.PublishAsync(
-                    new MessageDeadLetteredEvent(entry.Id, ex.Message, newRetryCount),
-                    ct).ConfigureAwait(false);
-            }
+            await SafePublishAsync(
+                publisher,
+                new MessageDeadLetteredEvent(entry.Id, ex.Message, newRetryCount),
+                ct).ConfigureAwait(false);
             return;
         }
 
@@ -163,11 +175,9 @@ public sealed class OutboxWorkerService : BackgroundService
 
         await store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
 
-        if (publisher is not null)
-        {
-            await publisher.PublishAsync(
-                new MessageFailedEvent(entry.Id, ex.Message, newRetryCount, nextRetry),
-                ct).ConfigureAwait(false);
-        }
+        await SafePublishAsync(
+            publisher,
+            new MessageFailedEvent(entry.Id, ex.Message, newRetryCount, nextRetry),
+            ct).ConfigureAwait(false);
     }
 }
