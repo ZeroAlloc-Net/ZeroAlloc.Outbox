@@ -5,7 +5,11 @@ using System.Text;
 
 namespace ZeroAlloc.Outbox.InMemory;
 
-/// <summary>Thread-safe in-memory <see cref="IOutboxStore"/> for use in tests.</summary>
+/// <summary>
+/// Thread-safe in-memory <see cref="IOutboxStore"/> for use in tests and examples.
+/// Not suitable for long-running production processes — throughput buckets accumulate
+/// indefinitely and there is no persistence across process restarts.
+/// </summary>
 public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
 {
     private readonly ConcurrentDictionary<Guid, InMemoryOutboxEntry> _entries = new();
@@ -58,8 +62,11 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (_entries.TryGetValue(id, out var entry))
         {
-            entry.Status = InMemoryEntryStatus.Succeeded;
-            entry.ProcessedAt = DateTimeOffset.UtcNow;
+            lock (entry)
+            {
+                entry.Status = InMemoryEntryStatus.Succeeded;
+                entry.ProcessedAt = DateTimeOffset.UtcNow;
+            }
             BumpThroughput(isDispatched: true);
         }
         return ValueTask.CompletedTask;
@@ -69,9 +76,12 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (_entries.TryGetValue(id, out var entry))
         {
-            entry.Status = InMemoryEntryStatus.Pending;
-            entry.RetryCount = retryCount;
-            entry.NextRetryAt = nextRetryAt;
+            lock (entry)
+            {
+                entry.Status = InMemoryEntryStatus.Pending;
+                entry.RetryCount = retryCount;
+                entry.NextRetryAt = nextRetryAt;
+            }
             BumpThroughput(isDispatched: false);
         }
         return ValueTask.CompletedTask;
@@ -81,8 +91,11 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (_entries.TryGetValue(id, out var entry))
         {
-            entry.Status = InMemoryEntryStatus.DeadLetter;
-            entry.DeadLetterError = error;
+            lock (entry)
+            {
+                entry.Status = InMemoryEntryStatus.DeadLetter;
+                entry.DeadLetterError = error;
+            }
             BumpThroughput(isDispatched: false);
         }
         return ValueTask.CompletedTask;
@@ -126,9 +139,11 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
         return ValueTask.FromResult(new OutboxSnapshot(pending, retry, dead, trimmedDispatched));
     }
 
+#pragma warning disable CS1998 // async method lacks 'await' — intentional for IAsyncEnumerable iterator
     public async IAsyncEnumerable<ThroughputPoint> GetThroughputAsync(
         TimeSpan window,
         [EnumeratorCancellation] CancellationToken ct)
+#pragma warning restore CS1998
     {
         var cutoff = DateTimeOffset.UtcNow - window;
         var ordered = _throughput.ToArray();
@@ -138,7 +153,6 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
             if (kv.Key < cutoff) continue;
             ct.ThrowIfCancellationRequested();
             yield return new ThroughputPoint(kv.Key, kv.Value.Dispatched, kv.Value.Failed);
-            await Task.Yield();
         }
     }
 
@@ -146,12 +160,15 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
-        if (entry.Status != InMemoryEntryStatus.DeadLetter)
-            throw new InvalidOperationException($"Message {id} is not dead-lettered.");
-        entry.Status = InMemoryEntryStatus.Pending;
-        entry.RetryCount = 0;
-        entry.NextRetryAt = DateTimeOffset.UtcNow;
-        entry.DeadLetterError = null;
+        lock (entry)
+        {
+            if (entry.Status != InMemoryEntryStatus.DeadLetter)
+                throw new InvalidOperationException($"Message {id} is not dead-lettered.");
+            entry.Status = InMemoryEntryStatus.Pending;
+            entry.RetryCount = 0;
+            entry.NextRetryAt = DateTimeOffset.UtcNow;
+            entry.DeadLetterError = null;
+        }
         return ValueTask.CompletedTask;
     }
 
@@ -159,9 +176,12 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
-        if (entry.Status != InMemoryEntryStatus.Pending)
-            throw new InvalidOperationException($"Message {id} cannot be cancelled (status: {entry.Status}).");
-        _entries.TryRemove(id, out _);
+        lock (entry)
+        {
+            if (entry.Status != InMemoryEntryStatus.Pending)
+                throw new InvalidOperationException($"Message {id} cannot be cancelled (status: {entry.Status}).");
+            _entries.TryRemove(id, out _);
+        }
         return ValueTask.CompletedTask;
     }
 
@@ -169,9 +189,12 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
-        if (entry.Status != InMemoryEntryStatus.Pending)
-            throw new InvalidOperationException($"Message {id} is not pending (status: {entry.Status}).");
-        entry.NextRetryAt = DateTimeOffset.UtcNow;
+        lock (entry)
+        {
+            if (entry.Status != InMemoryEntryStatus.Pending)
+                throw new InvalidOperationException($"Message {id} is not pending (status: {entry.Status}).");
+            entry.NextRetryAt = DateTimeOffset.UtcNow;
+        }
         return ValueTask.CompletedTask;
     }
 
@@ -188,17 +211,35 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     private static DateTimeOffset TruncateToMinute(DateTimeOffset dto) =>
         new(dto.Year, dto.Month, dto.Day, dto.Hour, dto.Minute, 0, dto.Offset);
 
-    private static OutboxMessageView ToView(InMemoryOutboxEntry e) => new()
+    private static OutboxMessageView ToView(InMemoryOutboxEntry e)
     {
-        Id = e.Id,
-        TypeName = e.TypeName,
-        CreatedAt = e.CreatedAt,
-        RetryCount = e.RetryCount,
-        NextRetryAt = e.NextRetryAt,
-        PayloadPreview = DecodePreview(e.Payload),
-        DispatchedAt = e.Status == InMemoryEntryStatus.Succeeded ? e.ProcessedAt : null,
-        DeadLetterError = e.Status == InMemoryEntryStatus.DeadLetter ? e.DeadLetterError : null,
-    };
+        InMemoryEntryStatus status;
+        int retryCount;
+        DateTimeOffset nextRetryAt;
+        DateTimeOffset? processedAt;
+        string? deadLetterError;
+        byte[] payload;
+        lock (e)
+        {
+            status = e.Status;
+            retryCount = e.RetryCount;
+            nextRetryAt = e.NextRetryAt;
+            processedAt = e.ProcessedAt;
+            deadLetterError = e.DeadLetterError;
+            payload = e.Payload;
+        }
+        return new OutboxMessageView
+        {
+            Id = e.Id,
+            TypeName = e.TypeName,
+            CreatedAt = e.CreatedAt,
+            RetryCount = retryCount,
+            NextRetryAt = nextRetryAt,
+            PayloadPreview = DecodePreview(payload),
+            DispatchedAt = status == InMemoryEntryStatus.Succeeded ? processedAt : null,
+            DeadLetterError = status == InMemoryEntryStatus.DeadLetter ? deadLetterError : null,
+        };
+    }
 
     private static string DecodePreview(byte[] payload) =>
         Encoding.UTF8.GetString(payload, 0, Math.Min(payload.Length, 200));
