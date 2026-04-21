@@ -1,0 +1,9 @@
+@namespace ZeroAlloc.Outbox.Dashboard.Blazor
+
+<iframe class="outbox-dashboard-frame" src="@BaseUrl" title="Outbox Dashboard"></iframe>
+
+@code {
+    /// <summary>Base URL where the outbox dashboard is mapped (e.g. "/outbox").</summary>
+    [Parameter, EditorRequired]
+    public string BaseUrl { get; set; } = "/outbox";
+}

@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.EfCore\ZeroAlloc.Outbox.EfCore.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard\ZeroAlloc.Outbox.Dashboard.csproj" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard.Blazor\ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
