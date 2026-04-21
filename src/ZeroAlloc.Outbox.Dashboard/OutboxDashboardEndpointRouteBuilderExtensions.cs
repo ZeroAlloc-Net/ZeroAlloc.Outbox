@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +36,39 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
     {
         group.MapGet("/api/snapshot", GetSnapshotAsync);
         group.MapGet("/api/throughput", GetThroughputAsync);
+        group.MapGet("/api/events", StreamEventsAsync);
+    }
+
+    private static async Task StreamEventsAsync(
+        HttpContext ctx,
+        [FromServices] IOutboxDashboardEventPublisher publisher,
+        CancellationToken ct)
+    {
+        ctx.Response.ContentType = "text/event-stream";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        ctx.Response.Headers.Connection = "keep-alive";
+
+        using var sub = publisher.Subscribe();
+        try
+        {
+            await foreach (var evt in sub.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                var eventName = evt.GetType().Name;
+                const string suffix = "Event";
+                if (eventName.EndsWith(suffix, StringComparison.Ordinal))
+                    eventName = eventName[..^suffix.Length];
+
+                var json = JsonSerializer.Serialize(evt, evt.GetType());
+                var frame = $"event: {eventName}\ndata: {json}\n\n";
+                var bytes = Encoding.UTF8.GetBytes(frame);
+                await ctx.Response.Body.WriteAsync(bytes, ct).ConfigureAwait(false);
+                await ctx.Response.Body.FlushAsync(ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — nothing to log.
+        }
     }
 
     private static void MapWriteEndpoints(RouteGroupBuilder group)
