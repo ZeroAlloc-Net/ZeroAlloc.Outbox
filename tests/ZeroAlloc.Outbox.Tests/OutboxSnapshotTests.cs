@@ -1,32 +1,90 @@
-using ZeroAlloc.Outbox;
-
 namespace ZeroAlloc.Outbox.Tests;
 
 public class OutboxSnapshotTests
 {
     [Fact]
-    public void OutboxMessageView_InitializesWithRequiredProperties()
+    public void OutboxMessageView_WithIdenticalFields_AreEqual()
+    {
+        var created = DateTimeOffset.UtcNow;
+        var id = Guid.NewGuid();
+        var a = new OutboxMessageView
+        {
+            Id = id,
+            TypeName = "T",
+            CreatedAt = created,
+            RetryCount = 0,
+            NextRetryAt = created,
+            PayloadPreview = "{}",
+        };
+        var b = new OutboxMessageView
+        {
+            Id = id,
+            TypeName = "T",
+            CreatedAt = created,
+            RetryCount = 0,
+            NextRetryAt = created,
+            PayloadPreview = "{}",
+        };
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [Fact]
+    public void OutboxMessageView_WithDifferentFields_AreNotEqual()
+    {
+        var created = DateTimeOffset.UtcNow;
+        var a = new OutboxMessageView
+        {
+            Id = Guid.NewGuid(),
+            TypeName = "T",
+            CreatedAt = created,
+            RetryCount = 0,
+            NextRetryAt = created,
+            PayloadPreview = "{}",
+        };
+        var b = new OutboxMessageView
+        {
+            Id = Guid.NewGuid(),
+            TypeName = "T",
+            CreatedAt = created,
+            RetryCount = 0,
+            NextRetryAt = created,
+            PayloadPreview = "{}",
+        };
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
+    public void OutboxMessageView_OptionalFields_DefaultToNull()
     {
         var view = new OutboxMessageView
         {
             Id = Guid.NewGuid(),
-            TypeName = "OrderPlaced",
+            TypeName = "T",
             CreatedAt = DateTimeOffset.UtcNow,
             RetryCount = 0,
             NextRetryAt = DateTimeOffset.UtcNow,
             PayloadPreview = "{}",
         };
-        Assert.Equal("OrderPlaced", view.TypeName);
+        Assert.Null(view.DispatchedAt);
+        Assert.Null(view.DeadLetterError);
     }
 
     [Fact]
-    public void OutboxSnapshot_GroupsMessagesByState()
+    public void OutboxMessageView_WithExpression_ProducesModifiedCopy()
     {
-        var snapshot = new OutboxSnapshot(
-            Pending: Array.Empty<OutboxMessageView>(),
-            RetryQueue: Array.Empty<OutboxMessageView>(),
-            DeadLettered: Array.Empty<OutboxMessageView>(),
-            Dispatched: Array.Empty<OutboxMessageView>());
-        Assert.Empty(snapshot.Pending);
+        var original = new OutboxMessageView
+        {
+            Id = Guid.NewGuid(),
+            TypeName = "T",
+            CreatedAt = DateTimeOffset.UtcNow,
+            RetryCount = 0,
+            NextRetryAt = DateTimeOffset.UtcNow,
+            PayloadPreview = "{}",
+        };
+        var modified = original with { RetryCount = 3 };
+        Assert.Equal(0, original.RetryCount);
+        Assert.Equal(3, modified.RetryCount);
+        Assert.NotEqual(original, modified);
     }
 }
