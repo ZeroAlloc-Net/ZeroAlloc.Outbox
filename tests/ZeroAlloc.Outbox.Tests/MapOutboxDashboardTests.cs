@@ -4,20 +4,28 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ZeroAlloc.Outbox.Dashboard;
+using ZeroAlloc.Outbox.InMemory;
 
 namespace ZeroAlloc.Outbox.Tests;
 
 public class MapOutboxDashboardTests
 {
     [Fact]
-    public async Task RootRoute_Returns200_WithOkBody()
+    public async Task RootRoute_Returns200_WithHtmlBody()
     {
+        var store = new InMemoryOutboxStore();
         using var host = await new HostBuilder()
             .ConfigureWebHost(webBuilder =>
             {
                 webBuilder
                     .UseTestServer()
-                    .ConfigureServices(services => services.AddRouting())
+                    .ConfigureServices(services =>
+                    {
+                        services.AddRouting();
+                        services.AddSingleton<IOutboxStore>(store);
+                        services.AddSingleton<IOutboxDashboardStore>(store);
+                        services.AddOutboxDashboardEvents();
+                    })
                     .Configure(app =>
                     {
                         app.UseRouting();
@@ -33,7 +41,6 @@ public class MapOutboxDashboardTests
         var response = await client.GetAsync(new Uri("/outbox/", UriKind.Relative));
 
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("ok", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
     }
 }

@@ -23,13 +23,44 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
         var group = endpoints.MapGroup(basePath);
 
-        // Health-check / placeholder for the HTML shell (lands in a later task).
-        group.MapGet("/", () => Results.Ok(new { status = "ok", dashboard = "outbox" }));
+        var normalisedBase = basePath.EndsWith("/", StringComparison.Ordinal) ? basePath : basePath + "/";
+
+        // HTML shell + static assets (embedded resources).
+        group.MapGet("/", (HttpContext ctx) => ServeHtmlAsync(ctx, normalisedBase));
+        group.MapGet("/outbox.css", (HttpContext ctx) => ServeResourceAsync(ctx, "outbox.css", "text/css; charset=utf-8"));
+        group.MapGet("/outbox.js", (HttpContext ctx) => ServeResourceAsync(ctx, "outbox.js", "application/javascript; charset=utf-8"));
 
         MapReadEndpoints(group);
         MapWriteEndpoints(group);
 
         return group;
+    }
+
+    private const string ResourcePrefix = "ZeroAlloc.Outbox.Dashboard.wwwroot.";
+
+    private static async Task ServeHtmlAsync(HttpContext ctx, string basePath)
+    {
+        var asm = typeof(OutboxDashboardEndpointRouteBuilderExtensions).Assembly;
+        var resourceName = ResourcePrefix + "outbox.html";
+        using var stream = asm.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException("Embedded resource '" + resourceName + "' not found.");
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        var html = await reader.ReadToEndAsync(ctx.RequestAborted).ConfigureAwait(false);
+        html = html.Replace("{{BASE_PATH}}", basePath, StringComparison.Ordinal);
+
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+        await ctx.Response.WriteAsync(html, ctx.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static async Task ServeResourceAsync(HttpContext ctx, string fileName, string contentType)
+    {
+        var asm = typeof(OutboxDashboardEndpointRouteBuilderExtensions).Assembly;
+        var resourceName = ResourcePrefix + fileName;
+        using var stream = asm.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException("Embedded resource '" + resourceName + "' not found.");
+
+        ctx.Response.ContentType = contentType;
+        await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted).ConfigureAwait(false);
     }
 
     private static void MapReadEndpoints(RouteGroupBuilder group)

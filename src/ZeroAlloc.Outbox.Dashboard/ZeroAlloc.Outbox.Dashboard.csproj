@@ -12,4 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*" />
+  </ItemGroup>
 </Project>
