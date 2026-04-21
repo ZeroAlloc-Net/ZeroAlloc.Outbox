@@ -10,9 +10,11 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.EfCore\ZeroAlloc.Outbox.EfCore.csproj" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard\ZeroAlloc.Outbox.Dashboard.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

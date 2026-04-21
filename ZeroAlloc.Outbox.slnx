@@ -4,6 +4,7 @@
     <Project Path="src/ZeroAlloc.Outbox.Generator/ZeroAlloc.Outbox.Generator.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.EfCore/ZeroAlloc.Outbox.EfCore.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.InMemory/ZeroAlloc.Outbox.InMemory.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.Dashboard/ZeroAlloc.Outbox.Dashboard.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ZeroAlloc.Outbox.Generator.Tests/ZeroAlloc.Outbox.Generator.Tests.csproj" />
