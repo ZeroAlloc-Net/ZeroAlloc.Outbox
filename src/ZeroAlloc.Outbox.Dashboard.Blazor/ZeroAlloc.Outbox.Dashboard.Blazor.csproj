@@ -3,6 +3,7 @@
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.Dashboard.Blazor</PackageId>
     <Description>Blazor component (&lt;OutboxDashboard /&gt;) for ZeroAlloc.Outbox.Dashboard. Requires the Dashboard endpoints mapped via MapOutboxDashboard().</Description>
+    <PackageTags>outbox;dashboard;blazor;observability;zeroalloc</PackageTags>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>

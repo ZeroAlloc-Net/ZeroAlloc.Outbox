@@ -83,6 +83,63 @@ builder.Services.AddTransient<IOutboxDispatcher<OrderPlaced>, OrderPlacedDispatc
 
 ---
 
+## Dashboard
+
+Operate the outbox at runtime: inspect pending / retry / dead-lettered / dispatched
+messages, watch a live throughput chart, and requeue or cancel individual messages.
+
+Add the package, then register the event publisher and map the endpoints:
+
+```bash
+dotnet add package ZeroAlloc.Outbox.Dashboard
+```
+
+```csharp
+// Register the publisher (required for SSE live updates)
+builder.Services.AddOutboxDashboardEvents();
+
+// Map the dashboard endpoints
+app.MapOutboxDashboard("/outbox");
+
+// Optional: protect with auth
+app.MapOutboxDashboard("/outbox").RequireAuthorization("AdminPolicy");
+```
+
+The mapped root (`/outbox`) serves the HTML dashboard; REST endpoints (`snapshot`,
+`throughput`, `requeue`, `cancel`, `force-dispatch`) and the SSE stream (`events`)
+live under the same prefix.
+
+**What the dashboard shows**
+
+- **Pending** — messages awaiting their first dispatch attempt
+- **Retry queue** — messages that have failed at least once and are scheduled for retry
+- **Dead-lettered** — messages that exceeded `MaxAttempts`, with the last failure reason
+- **Dispatched** — most-recently succeeded messages
+- **Throughput** — SVG chart of dispatched + failed counts per minute
+- **Actions** — `Requeue` a dead-lettered message · `Cancel` a pending one · `Force dispatch` to run it now
+
+**Blazor component**
+
+For apps already using Blazor, `ZeroAlloc.Outbox.Dashboard.Blazor` ships an
+`<OutboxDashboard />` component that embeds the dashboard via `iframe`:
+
+```bash
+dotnet add package ZeroAlloc.Outbox.Dashboard.Blazor
+```
+
+```razor
+@* Program.cs *@
+builder.Services.AddOutboxDashboardBlazor();
+
+@* In any Razor page / component *@
+<OutboxDashboard BaseUrl="/outbox" />
+```
+
+You still need `MapOutboxDashboard("/outbox")` — the Blazor component is a thin wrapper
+around the mapped endpoints.
+
+---
+
 ## Features
 
 | Feature | Notes |

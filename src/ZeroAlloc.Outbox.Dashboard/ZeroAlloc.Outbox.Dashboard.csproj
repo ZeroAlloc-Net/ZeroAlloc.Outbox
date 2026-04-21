@@ -3,6 +3,7 @@
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.Dashboard</PackageId>
     <Description>Operations dashboard for ZeroAlloc.Outbox. Minimal API + SSE + embedded HTML.</Description>
+    <PackageTags>outbox;dashboard;observability;zeroalloc</PackageTags>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
