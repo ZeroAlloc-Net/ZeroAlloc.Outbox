@@ -28,6 +28,21 @@ public sealed class DashboardHtmlTests
     }
 
     [Fact]
+    public async Task Root_Uses_NonDefaultBasePath_InBaseHref()
+    {
+        var store = new InMemoryOutboxStore();
+        using var host = await CreateHostAsync(store, "/admin/ops");
+        var client = host.GetTestClient();
+
+        var response = await client.GetAsync(new Uri("/admin/ops/", UriKind.Relative));
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<base href=\"/admin/ops/\">", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{BASE_PATH}}", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Css_Returns_TextCss()
     {
         var store = new InMemoryOutboxStore();
@@ -53,7 +68,7 @@ public sealed class DashboardHtmlTests
         Assert.Equal("application/javascript", response.Content.Headers.ContentType?.MediaType);
     }
 
-    private static async Task<IHost> CreateHostAsync(InMemoryOutboxStore store)
+    private static async Task<IHost> CreateHostAsync(InMemoryOutboxStore store, string basePath = "/outbox")
     {
         var host = await new HostBuilder()
             .ConfigureWebHost(builder =>
@@ -69,7 +84,7 @@ public sealed class DashboardHtmlTests
                     .Configure(app =>
                     {
                         app.UseRouting();
-                        app.UseEndpoints(e => e.MapOutboxDashboard("/outbox"));
+                        app.UseEndpoints(e => e.MapOutboxDashboard(basePath));
                     });
             })
             .StartAsync().ConfigureAwait(false);

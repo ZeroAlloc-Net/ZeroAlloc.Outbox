@@ -70,28 +70,52 @@
     renderChart();
   }
 
+  function truncate(s, n) {
+    const str = String(s == null ? '' : s);
+    if (str.length <= n) return str;
+    return str.substring(0, n) + '…';
+  }
+
   function renderTab(name, rows, actions) {
     const table = document.querySelector('#tab-' + name + ' table');
     if (!table) return;
-    const header = '<tr><th>Type</th><th>Id</th><th>Created</th><th>Retry</th><th></th></tr>';
+    const isDead = name === 'dead';
+    const headerCells =
+      '<th>Type</th><th>Id</th><th>Created</th><th>Retry</th><th>Payload</th>' +
+      (isDead ? '<th>Error</th>' : '') +
+      '<th></th>';
+    const header = '<tr>' + headerCells + '</tr>';
+    const colspan = isDead ? 7 : 6;
     if (!rows || rows.length === 0) {
       table.innerHTML = header +
-        '<tr><td colspan="5" style="color:#777;padding:12px 8px">No messages.</td></tr>';
+        '<tr><td colspan="' + colspan + '" class="empty-row">No messages.</td></tr>';
       return;
     }
     const body = rows.map(r => {
       const id = r.id || '';
       const shortId = id.length > 8 ? id.substring(0, 8) : id;
       const created = r.createdAt || r.enqueuedAt || r.dispatchedAt || r.lastAttemptAt || '';
-      const retry = r.retryCount || r.attemptCount || 0;
+      const retryVal = r.retryCount != null
+        ? r.retryCount
+        : (r.attemptCount != null ? r.attemptCount : null);
+      const retryText = retryVal != null ? String(retryVal) : '';
+      const payload = r.payloadPreview || '';
+      const payloadCell = payload
+        ? '<td title="' + esc(payload) + '">' + esc(truncate(payload, 80)) + '</td>'
+        : '<td></td>';
+      const errorCell = isDead
+        ? '<td title="' + esc(r.deadLetterError || '') + '">' + esc(truncate(r.deadLetterError || '', 80)) + '</td>'
+        : '';
       const btns = actions
-        .map(a => '<button type="button" data-id="' + esc(id) + '" data-action="' + a + '">' + a + '</button>')
+        .map(a => '<button type="button" data-id="' + esc(id) + '" data-action="' + esc(a) + '">' + esc(a) + '</button>')
         .join('');
       return '<tr>' +
         '<td>' + esc(r.typeName || '') + '</td>' +
         '<td title="' + esc(id) + '">' + esc(shortId) + '</td>' +
         '<td>' + esc(relativeTime(created)) + '</td>' +
-        '<td>' + (retry || '') + '</td>' +
+        '<td>' + retryText + '</td>' +
+        payloadCell +
+        errorCell +
         '<td>' + btns + '</td>' +
         '</tr>';
     }).join('');
@@ -168,11 +192,22 @@
   }
 
   let sse;
+  let sseReconnectTimer;
   function connectSse() {
+    if (sseReconnectTimer) {
+      clearTimeout(sseReconnectTimer);
+      sseReconnectTimer = undefined;
+    }
     try {
       sse = new EventSource('api/events');
       sse.onopen = () => setIndicator('live', 'live');
-      sse.onerror = () => setIndicator('offline', 'offline');
+      sse.onerror = () => {
+        setIndicator('offline', 'offline');
+        // Terminal close: EventSource.readyState === 2 (CLOSED). Manual reconnect.
+        if (sse && sse.readyState === EventSource.CLOSED) {
+          sseReconnectTimer = setTimeout(connectSse, 5000);
+        }
+      };
       EVENT_NAMES.forEach(name => {
         sse.addEventListener(name, () => {
           reloadSnapshotAndRender();
@@ -188,6 +223,7 @@
     } catch (err) {
       setIndicator('offline', 'offline');
       console.error('SSE connect failed', err);
+      sseReconnectTimer = setTimeout(connectSse, 5000);
     }
   }
 

@@ -104,6 +104,11 @@ th {
   letter-spacing: 0.5px;
 }
 
+.empty-row {
+  color: #777;
+  padding: 12px 8px;
+}
+
 td button {
   background: #3a3a3a;
   color: #eaeaea;
