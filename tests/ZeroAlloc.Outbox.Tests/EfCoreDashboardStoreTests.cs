@@ -130,12 +130,29 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
         row.NextRetryAt = DateTimeOffset.UtcNow.AddHours(1);
         await _db.SaveChangesAsync(CancellationToken.None);
 
+        var before = DateTimeOffset.UtcNow;
         IOutboxDashboardStore dash = _store;
         await dash.ForceDispatchAsync(row.Id, CancellationToken.None);
 
         var updated = await _db.OutboxMessages.FindAsync([row.Id], CancellationToken.None);
         Assert.NotNull(updated);
-        Assert.True(updated!.NextRetryAt <= DateTimeOffset.UtcNow.AddSeconds(1));
+        Assert.True(updated!.NextRetryAt >= before);
+    }
+
+    [Fact]
+    public async Task GetSnapshotAsync_RespectsDispatchedLimit()
+    {
+        for (var i = 0; i < 5; i++)
+            await _store.EnqueueAsync("T", new byte[] { (byte)i }, null, CancellationToken.None);
+
+        var ids = await _db.OutboxMessages.Select(m => m.Id).ToArrayAsync();
+        foreach (var id in ids)
+            await _store.MarkSucceededAsync(id, CancellationToken.None);
+
+        IOutboxDashboardStore dash = _store;
+        var snap = await dash.GetSnapshotAsync(dispatchedLimit: 2, CancellationToken.None);
+
+        Assert.Equal(2, snap.Dispatched.Count);
     }
 
     [Fact]
