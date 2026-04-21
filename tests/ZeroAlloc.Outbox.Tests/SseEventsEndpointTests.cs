@@ -28,12 +28,22 @@ public sealed class SseEventsEndpointTests
 
         var responseTask = client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
 
-        // Give the subscriber time to register before publishing.
-        await Task.Delay(100, cts.Token);
-
-        await publisher.PublishAsync(
-            new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1),
-            CancellationToken.None);
+        // Start publishing in a loop until the test reads the frame or the CTS cancels.
+        // This tolerates the race between starting the SSE request and the handler executing Subscribe().
+        _ = Task.Run(async () =>
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    await publisher.PublishAsync(
+                        new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1),
+                        cts.Token).ConfigureAwait(false);
+                    await Task.Delay(50, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { return; }
+            }
+        }, cts.Token);
 
         var response = await responseTask;
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
