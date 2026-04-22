@@ -16,7 +16,9 @@ public static class EfCoreOutboxServiceCollectionExtensions
         this IServiceCollection services)
         where TContext : DbContext
     {
-        services.AddScoped<IOutboxStore, EfCoreOutboxStore<TContext>>();
+        services.AddScoped<EfCoreOutboxStore<TContext>>();
+        services.AddScoped<IOutboxStore>(sp => sp.GetRequiredService<EfCoreOutboxStore<TContext>>());
+        services.AddScoped<IOutboxDashboardStore>(sp => sp.GetRequiredService<EfCoreOutboxStore<TContext>>());
         return services;
     }
 }

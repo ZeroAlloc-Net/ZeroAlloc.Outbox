@@ -58,6 +58,7 @@ public sealed class OutboxWorkerService : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
 #pragma warning restore MA0004
         var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+        var publisher = scope.ServiceProvider.GetService<IOutboxDashboardEventPublisher>();
 
         var dispatchers = new Dictionary<string, IOutboxTypeDispatcher>(StringComparer.Ordinal);
         foreach (var d in scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>())
@@ -68,22 +69,20 @@ public sealed class OutboxWorkerService : BackgroundService
         foreach (var entry in entries)
         {
             ct.ThrowIfCancellationRequested();
-            await ProcessEntryAsync(store, dispatchers, entry, ct).ConfigureAwait(false);
+            await ProcessEntryAsync(store, publisher, dispatchers, entry, ct).ConfigureAwait(false);
         }
     }
 
     private async Task ProcessEntryAsync(
         IOutboxStore store,
+        IOutboxDashboardEventPublisher? publisher,
         Dictionary<string, IOutboxTypeDispatcher> dispatchers,
         OutboxEntry entry,
         CancellationToken ct)
     {
         if (!dispatchers.TryGetValue(entry.TypeName, out var dispatcher))
         {
-            _logger.LogWarning(
-                "No dispatcher registered for outbox type '{TypeName}'. Dead-lettering message {Id}.",
-                entry.TypeName, entry.Id);
-            await store.DeadLetterAsync(entry.Id, $"No dispatcher for type '{entry.TypeName}'.", ct).ConfigureAwait(false);
+            await DeadLetterMissingDispatcherAsync(store, publisher, entry, ct).ConfigureAwait(false);
             return;
         }
 
@@ -91,33 +90,94 @@ public sealed class OutboxWorkerService : BackgroundService
         {
             await dispatcher.DispatchAsync(entry.Payload, ct).ConfigureAwait(false);
             await store.MarkSucceededAsync(entry.Id, ct).ConfigureAwait(false);
+
+            await SafePublishAsync(
+                publisher,
+                new MessageDispatchedEvent(entry.Id, DateTimeOffset.UtcNow, entry.RetryCount + 1),
+                ct).ConfigureAwait(false);
         }
 #pragma warning disable CA1031
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
-            int newRetryCount = entry.RetryCount + 1;
-
-            if (newRetryCount >= _options.MaxAttempts)
-            {
-                _logger.LogError(ex,
-                    "Message {Id} ({TypeName}) exhausted {MaxAttempts} attempts. Dead-lettering.",
-                    entry.Id, entry.TypeName, _options.MaxAttempts);
-                await store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
-            }
-            else
-            {
-                // exponent = newRetryCount - 1 → first retry waits base, second waits 2×base, third waits 4×base
-                var delay = TimeSpan.FromMilliseconds(
-                    _options.RetryBaseDelay.TotalMilliseconds * Math.Pow(2, newRetryCount - 1));
-                var nextRetry = DateTimeOffset.UtcNow.Add(delay);
-
-                _logger.LogWarning(ex,
-                    "Message {Id} ({TypeName}) failed (attempt {Attempt}/{Max}). Retry at {NextRetry}.",
-                    entry.Id, entry.TypeName, newRetryCount, _options.MaxAttempts, nextRetry);
-
-                await store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
-            }
+            await HandleDispatchFailureAsync(store, publisher, entry, ex, ct).ConfigureAwait(false);
         }
+    }
+
+    private async ValueTask SafePublishAsync(
+        IOutboxDashboardEventPublisher? publisher,
+        OutboxDashboardEvent evt,
+        CancellationToken ct)
+    {
+        if (publisher is null) return;
+        try
+        {
+            await publisher.PublishAsync(evt, ct).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // intentional broad catch — dashboard publish errors must not break core dispatch
+        catch (Exception ex) when (ex is not OperationCanceledException)
+#pragma warning restore CA1031
+        {
+            _logger.LogWarning(ex, "IOutboxDashboardEventPublisher.PublishAsync threw; event dropped.");
+        }
+    }
+
+    private async Task DeadLetterMissingDispatcherAsync(
+        IOutboxStore store,
+        IOutboxDashboardEventPublisher? publisher,
+        OutboxEntry entry,
+        CancellationToken ct)
+    {
+        var error = $"No dispatcher for type '{entry.TypeName}'.";
+        _logger.LogWarning(
+            "No dispatcher registered for outbox type '{TypeName}'. Dead-lettering message {Id}.",
+            entry.TypeName, entry.Id);
+        await store.DeadLetterAsync(entry.Id, error, ct).ConfigureAwait(false);
+
+        // No dispatch attempt was made; report the stored retry count as total attempts.
+        await SafePublishAsync(
+            publisher,
+            new MessageDeadLetteredEvent(entry.Id, error, entry.RetryCount),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task HandleDispatchFailureAsync(
+        IOutboxStore store,
+        IOutboxDashboardEventPublisher? publisher,
+        OutboxEntry entry,
+        Exception ex,
+        CancellationToken ct)
+    {
+        int newRetryCount = entry.RetryCount + 1;
+
+        if (newRetryCount >= _options.MaxAttempts)
+        {
+            _logger.LogError(ex,
+                "Message {Id} ({TypeName}) exhausted {MaxAttempts} attempts. Dead-lettering.",
+                entry.Id, entry.TypeName, _options.MaxAttempts);
+            await store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
+
+            await SafePublishAsync(
+                publisher,
+                new MessageDeadLetteredEvent(entry.Id, ex.Message, newRetryCount),
+                ct).ConfigureAwait(false);
+            return;
+        }
+
+        // exponent = newRetryCount - 1 → first retry waits base, second waits 2×base, third waits 4×base
+        var delay = TimeSpan.FromMilliseconds(
+            _options.RetryBaseDelay.TotalMilliseconds * Math.Pow(2, newRetryCount - 1));
+        var nextRetry = DateTimeOffset.UtcNow.Add(delay);
+
+        _logger.LogWarning(ex,
+            "Message {Id} ({TypeName}) failed (attempt {Attempt}/{Max}). Retry at {NextRetry}.",
+            entry.Id, entry.TypeName, newRetryCount, _options.MaxAttempts, nextRetry);
+
+        await store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
+
+        await SafePublishAsync(
+            publisher,
+            new MessageFailedEvent(entry.Id, ex.Message, newRetryCount, nextRetry),
+            ct).ConfigureAwait(false);
     }
 }

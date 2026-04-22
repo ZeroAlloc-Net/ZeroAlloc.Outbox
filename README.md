@@ -83,6 +83,83 @@ builder.Services.AddTransient<IOutboxDispatcher<OrderPlaced>, OrderPlacedDispatc
 
 ---
 
+## Dashboard
+
+Operate the outbox at runtime: inspect pending / retry / dead-lettered / dispatched
+messages, watch a live throughput chart, and requeue or cancel individual messages.
+
+Add the package, then register the event publisher and map the endpoints:
+
+```bash
+dotnet add package ZeroAlloc.Outbox.Dashboard
+```
+
+```csharp
+// Register the publisher (required for SSE live updates)
+builder.Services.AddOutboxDashboardEvents();
+
+// Map the dashboard endpoints
+app.MapOutboxDashboard("/outbox");
+
+// Optional: protect with auth
+app.MapOutboxDashboard("/outbox").RequireAuthorization("AdminPolicy");
+```
+
+The mapped root (`/outbox`) serves the HTML dashboard; REST endpoints (`snapshot`,
+`throughput`, `requeue`, `cancel`, `force-dispatch`) and the SSE stream (`events`)
+live under the same prefix.
+
+### Security
+
+The dashboard exposes **write actions** (requeue, cancel, force-dispatch) as `POST` endpoints:
+
+- `POST /outbox/api/messages/{id}/requeue`
+- `POST /outbox/api/messages/{id}/cancel`
+- `POST /outbox/api/messages/{id}/force-dispatch`
+
+**Never mount the dashboard unauthenticated in a production environment.** Always apply
+authentication/authorization:
+
+```csharp
+app.MapOutboxDashboard("/outbox").RequireAuthorization("AdminPolicy");
+```
+
+The `IEndpointConventionBuilder` returned by `MapOutboxDashboard` supports all standard
+ASP.NET Core auth middleware (`RequireAuthorization`, `AllowAnonymous`, route filters, etc.).
+
+CSRF protection is the host application's responsibility — the dashboard does not emit or
+validate anti-forgery tokens. If your authentication scheme is cookie-based, apply the
+standard ASP.NET Core `[ValidateAntiForgeryToken]` or enable the antiforgery middleware
+as appropriate.
+
+**What the dashboard shows**
+
+- **Pending** — messages awaiting their first dispatch attempt
+- **Retry queue** — messages that have failed at least once and are scheduled for retry
+- **Dead-lettered** — messages that exceeded `MaxAttempts`, with the last failure reason
+- **Dispatched** — most-recently succeeded messages
+- **Throughput** — SVG chart of dispatched + failed counts per minute
+- **Actions** — `Requeue` a dead-lettered message · `Cancel` a pending one · `Force dispatch` to run it now
+
+**Blazor component**
+
+For apps already using Blazor, `ZeroAlloc.Outbox.Dashboard.Blazor` ships an
+`<OutboxDashboard />` component that embeds the dashboard via `iframe`:
+
+```bash
+dotnet add package ZeroAlloc.Outbox.Dashboard.Blazor
+```
+
+```razor
+@* In any Razor page / component *@
+<OutboxDashboard BaseUrl="/outbox" />
+```
+
+You still need `MapOutboxDashboard("/outbox")` — the Blazor component is a thin wrapper
+around the mapped endpoints.
+
+---
+
 ## Features
 
 | Feature | Notes |

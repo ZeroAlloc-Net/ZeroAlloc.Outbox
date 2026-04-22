@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ZeroAlloc.Outbox.EfCore;
 
 /// <summary>EF Core entity that maps to the OutboxMessages table.</summary>
+// TODO(#outbox-dashboard): add [Timestamp] byte[] RowVersion to detect
+// Requeue/Cancel/ForceDispatch races against the dispatcher worker.
 [Table("OutboxMessages")]
 public sealed class OutboxMessageEntity
 {
