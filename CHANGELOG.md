@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.0.0...v1.1.0) (2026-04-22)
+
+
+### Features
+
+* ZeroAlloc.Outbox.Dashboard — operations dashboard with SSE + Blazor component ([#3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/3)) ([dd6f116](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/dd6f116744d97804829e54fa77782b11c2da1afe))
+
+
+### Bug Fixes
+
+* **packaging:** replace 1x1 placeholder with real Z logo icon ([#5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/5)) ([1f602d7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/1f602d7983d933c3e6541afa5eb9dc74ed942e42))
+
 ## 1.0.0 (2026-04-20)
 
 
