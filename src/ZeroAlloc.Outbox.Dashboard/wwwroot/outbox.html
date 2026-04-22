@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Outbox Dashboard</title>
   <base href="{{BASE_PATH}}">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="outbox.css">
 </head>
 <body>
@@ -18,7 +19,9 @@
     </nav>
   </header>
   <section id="chart-section">
-    <svg id="throughput-chart" viewBox="0 0 600 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg>
+    <div id="chart-inner">
+      <svg id="throughput-chart" viewBox="0 0 600 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
   </section>
   <section id="tabs">
     <div class="tab-bar">
@@ -27,10 +30,10 @@
       <button type="button" data-tab="dead">Dead-lettered</button>
       <button type="button" data-tab="dispatched">Dispatched</button>
     </div>
-    <div id="tab-pending" class="tab-panel active"><table></table></div>
-    <div id="tab-retry" class="tab-panel"><table></table></div>
-    <div id="tab-dead" class="tab-panel"><table></table></div>
-    <div id="tab-dispatched" class="tab-panel"><table></table></div>
+    <div id="tab-pending" class="tab-panel active"><div class="table-wrap"><table></table></div></div>
+    <div id="tab-retry" class="tab-panel"><div class="table-wrap"><table></table></div></div>
+    <div id="tab-dead" class="tab-panel"><div class="table-wrap"><table></table></div></div>
+    <div id="tab-dispatched" class="tab-panel"><div class="table-wrap"><table></table></div></div>
   </section>
   <script src="outbox.js"></script>
 </body>

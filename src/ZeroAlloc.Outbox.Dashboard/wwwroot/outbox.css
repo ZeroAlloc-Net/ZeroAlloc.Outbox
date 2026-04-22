@@ -16,6 +16,8 @@ header {
   padding: 8px 16px;
   background: #2a2a2a;
   border-bottom: 1px solid #3a3a3a;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 header h1 {
@@ -29,6 +31,7 @@ header h1 {
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 #summary span b {
@@ -51,8 +54,14 @@ header h1 {
   border-bottom: 1px solid #3a3a3a;
 }
 
+#chart-inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
 #throughput-chart {
   width: 100%;
+  max-width: 100%;
   height: 100px;
   display: block;
 }
@@ -64,6 +73,7 @@ header h1 {
   gap: 4px;
   border-bottom: 1px solid #3a3a3a;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .tab-bar button {
@@ -84,16 +94,23 @@ header h1 {
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  min-width: 520px;
 }
 
 th, td {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid #2e2e2e;
+  vertical-align: top;
 }
 
 th {
@@ -102,6 +119,7 @@ th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .empty-row {
@@ -123,4 +141,30 @@ td button {
 td button:hover {
   background: #4a4a4a;
   border-color: #5a5a5a;
+}
+
+/* Coarse pointer (touch): 44x44 minimum per WCAG 2.5.5 */
+@media (pointer: coarse) {
+  .tab-bar button {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+  td button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+}
+
+/* Narrow viewport tweaks */
+@media (max-width: 600px) {
+  header { padding: 8px 12px; }
+  header h1 { font-size: 15px; }
+  #summary { gap: 10px; font-size: 12px; }
+  #chart-section { padding: 8px 12px; }
+  #tabs { padding: 8px 12px; }
+  .tab-bar button { padding: 8px 10px; font-size: 12px; }
+  th, td { padding: 6px 6px; font-size: 11px; }
 }

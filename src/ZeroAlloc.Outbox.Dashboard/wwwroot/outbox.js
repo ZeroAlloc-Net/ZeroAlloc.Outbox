@@ -130,17 +130,38 @@
       svg.innerHTML = '<text x="10" y="50" fill="#777" font-size="11">No throughput data yet</text>';
       return;
     }
+    const allZero = points.every(p => (p.dispatched || 0) === 0 && (p.failed || 0) === 0);
+    if (allZero) {
+      svg.innerHTML = '<text x="10" y="50" fill="#777" font-size="11">No dispatches yet</text>';
+      return;
+    }
     const W = 600, H = 100, PAD = 10;
     const maxY = Math.max(1, ...points.map(p => Math.max(p.dispatched || 0, p.failed || 0)));
     const scaleX = (i) => PAD + (points.length === 1 ? (W - 2 * PAD) / 2 : (i / (points.length - 1)) * (W - 2 * PAD));
     const scaleY = (v) => H - PAD - ((v || 0) / maxY) * (H - 2 * PAD);
+
+    // Legend: always render so users can read the series names.
+    const legend =
+      '<text x="10" y="15" fill="#4a7" font-size="10">dispatched (max ' + maxY + ')</text>' +
+      '<text x="140" y="15" fill="#a44" font-size="10">failed</text>';
+
+    if (points.length === 1) {
+      // Single point — polylines don't render, so draw circle markers instead.
+      const p = points[0];
+      const cx = scaleX(0);
+      svg.innerHTML =
+        '<circle cx="' + cx + '" cy="' + scaleY(p.dispatched) + '" r="3" fill="#4a7"/>' +
+        '<circle cx="' + cx + '" cy="' + scaleY(p.failed) + '" r="3" fill="#a44"/>' +
+        legend;
+      return;
+    }
+
     const dispatched = points.map((p, i) => scaleX(i) + ',' + scaleY(p.dispatched)).join(' ');
     const failed = points.map((p, i) => scaleX(i) + ',' + scaleY(p.failed)).join(' ');
     svg.innerHTML =
       '<polyline points="' + dispatched + '" fill="none" stroke="#4a7" stroke-width="2"/>' +
       '<polyline points="' + failed + '" fill="none" stroke="#a44" stroke-width="2"/>' +
-      '<text x="10" y="15" fill="#4a7" font-size="10">dispatched (max ' + maxY + ')</text>' +
-      '<text x="140" y="15" fill="#a44" font-size="10">failed</text>';
+      legend;
   }
 
   // Action button delegation.

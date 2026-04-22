@@ -44,6 +44,8 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static readonly byte[] SseKeepaliveBytes = Encoding.UTF8.GetBytes(": keepalive\n\n");
 
+    private static readonly byte[] SseReadyBytes = Encoding.UTF8.GetBytes(": ready\n\n");
+
     private static readonly TimeSpan SseHeartbeatInterval = TimeSpan.FromSeconds(15);
 
     private static async Task ServeHtmlAsync(HttpContext ctx, string basePath)
@@ -87,9 +89,15 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         ctx.Response.ContentType = "text/event-stream";
         ctx.Response.Headers.CacheControl = "no-cache";
         ctx.Response.Headers.Connection = "keep-alive";
+        ctx.Response.Headers["X-Accel-Buffering"] = "no"; // disable nginx response buffering
 
         using var sub = publisher.Subscribe();
         var reader = sub.Reader;
+
+        // Send an initial comment frame so the client's EventSource.onopen fires immediately
+        // rather than waiting up to 15s for the first heartbeat.
+        await ctx.Response.Body.WriteAsync(SseReadyBytes, ct).ConfigureAwait(false);
+        await ctx.Response.Body.FlushAsync(ct).ConfigureAwait(false);
 
         try
         {
