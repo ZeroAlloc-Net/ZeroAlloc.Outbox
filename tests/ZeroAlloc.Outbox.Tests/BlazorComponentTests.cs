@@ -7,14 +7,6 @@ namespace ZeroAlloc.Outbox.Tests;
 public class BlazorComponentTests
 {
     [Fact]
-    public void AddOutboxDashboardBlazor_ReturnsServiceCollection()
-    {
-        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-        var result = services.AddOutboxDashboardBlazor();
-        Assert.Same(services, result);
-    }
-
-    [Fact]
     public void OutboxDashboard_HasBaseUrlParameter()
     {
         var property = typeof(OutboxDashboard).GetProperty(

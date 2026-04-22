@@ -9,6 +9,7 @@ public static class InMemoryOutboxServiceCollectionExtensions
     {
         services.AddSingleton<InMemoryOutboxStore>();
         services.AddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryOutboxStore>());
+        services.AddSingleton<IOutboxDashboardStore>(sp => sp.GetRequiredService<InMemoryOutboxStore>());
         return services;
     }
 }

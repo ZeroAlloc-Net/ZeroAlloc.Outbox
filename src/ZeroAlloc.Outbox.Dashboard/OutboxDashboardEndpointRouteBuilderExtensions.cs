@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +39,13 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private const string ResourcePrefix = "ZeroAlloc.Outbox.Dashboard.wwwroot.";
 
+    private const string ContentSecurityPolicy =
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'";
+
+    private static readonly byte[] SseKeepaliveBytes = Encoding.UTF8.GetBytes(": keepalive\n\n");
+
+    private static readonly TimeSpan SseHeartbeatInterval = TimeSpan.FromSeconds(15);
+
     private static async Task ServeHtmlAsync(HttpContext ctx, string basePath)
     {
         var asm = typeof(OutboxDashboardEndpointRouteBuilderExtensions).Assembly;
@@ -49,6 +57,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         html = html.Replace("{{BASE_PATH}}", basePath, StringComparison.Ordinal);
 
         ctx.Response.ContentType = "text/html; charset=utf-8";
+        ctx.Response.Headers["Content-Security-Policy"] = ContentSecurityPolicy;
         await ctx.Response.WriteAsync(html, ctx.RequestAborted).ConfigureAwait(false);
     }
 
@@ -80,10 +89,35 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         ctx.Response.Headers.Connection = "keep-alive";
 
         using var sub = publisher.Subscribe();
+        var reader = sub.Reader;
+
         try
         {
-            await foreach (var evt in sub.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            while (!ct.IsCancellationRequested)
             {
+                var readTask = reader.ReadAsync(ct).AsTask();
+                var heartbeatTask = Task.Delay(SseHeartbeatInterval, ct);
+                var completed = await Task.WhenAny(readTask, heartbeatTask).ConfigureAwait(false);
+
+                if (completed == heartbeatTask)
+                {
+                    // Heartbeat fired first — emit keepalive comment so idle
+                    // intermediaries (nginx, AWS ALB, etc.) don't drop the connection.
+                    await ctx.Response.Body.WriteAsync(SseKeepaliveBytes, ct).ConfigureAwait(false);
+                    await ctx.Response.Body.FlushAsync(ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                OutboxDashboardEvent evt;
+                try
+                {
+                    evt = await readTask.ConfigureAwait(false);
+                }
+                catch (ChannelClosedException)
+                {
+                    break;
+                }
+
                 var eventName = evt.GetType().Name;
                 const string suffix = "Event";
                 if (eventName.EndsWith(suffix, StringComparison.Ordinal))
