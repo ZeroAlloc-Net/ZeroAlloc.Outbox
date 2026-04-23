@@ -141,6 +141,15 @@ as appropriate.
 - **Throughput** — SVG chart of dispatched + failed counts per minute
 - **Actions** — `Requeue` a dead-lettered message · `Cancel` a pending one · `Force dispatch` to run it now
 
+| Tab | Screenshot |
+|-----|------------|
+| Pending — queue of messages awaiting first dispatch | ![Pending tab](docs/screenshots/pending-desktop.png) |
+| Retry — failed messages with back-off schedule | ![Retry tab](docs/screenshots/retry-desktop.png) |
+| Dead-lettered — exhausted retries with last error | ![Dead-lettered tab](docs/screenshots/dead-desktop.png) |
+| Dispatched — recently-succeeded history feeding the throughput chart | ![Dispatched tab](docs/screenshots/dispatched-desktop.png) |
+
+The dashboard is fully responsive — tablet (768 × 1024) and mobile (375 × 812) captures live in [`docs/screenshots/`](docs/screenshots/).
+
 **Blazor component**
 
 For apps already using Blazor, `ZeroAlloc.Outbox.Dashboard.Blazor` ships an

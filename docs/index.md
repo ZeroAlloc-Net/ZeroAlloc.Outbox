@@ -20,6 +20,7 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
 - [Diagnostics](diagnostics.md) — ZO0001, ZO0002, ZO0003
 - [Performance](performance.md) — zero-alloc design, AOT safety, source-gen vs reflection
 - [Testing](testing.md) — `InMemoryOutboxStore`, `AllEntries()`, worker integration tests
+- [Dashboard](dashboard.md) — live HTML/SSE dashboard with four tabs, throughput chart, and message actions
 - Cookbook
   - [EF Core Transaction](cookbook/01-ef-core-transaction.md)
   - [Custom Dispatcher](cookbook/02-custom-dispatcher.md)
