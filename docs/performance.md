@@ -36,3 +36,20 @@ The `[OutboxMessage]` attribute and the generator are pure Roslyn — there is n
 ## Worker overhead
 
 The worker creates one `IServiceScope` per batch cycle, not per entry. For a batch of 50 entries there is one scope creation and one `FetchPendingAsync` query regardless of batch size.
+
+## Benchmark
+
+The [benchmarks/ZeroAlloc.Outbox.Benchmarks](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/tree/main/benchmarks/ZeroAlloc.Outbox.Benchmarks) project contains `WriteAsyncBenchmark` — a measurement of the generator-emitted `OrderPlacedOutboxWriter.WriteAsync` dispatch cost in isolation from the store.
+
+The setup uses a fake `IOutboxStore` that records into an in-memory counter and a fake serializer that returns a pre-allocated 32-byte payload. This isolates the writer's own path from the store and serializer — the claim is that the generator-emitted forwarder allocates `0 B/op`. Whatever allocation the consumer's actual store or serializer introduces is theirs, not the library's.
+
+```bash
+dotnet run --project benchmarks/ZeroAlloc.Outbox.Benchmarks -c Release --filter "*"
+```
+
+What to watch:
+
+- **Allocated column**: must read `0 B/op`. The writer should forward directly to `_store.EnqueueAsync(...)` without any intermediate allocation. A regression points at a new step in the emitted `WriteAsync` — most likely an accidental boxing or a `ValueTask → Task` coercion
+- **Mean column**: stays within a few nanoseconds of a direct interface call. Meaningful departure suggests the generator is doing more work per call than in the previous commit
+
+The benchmark does NOT exercise the dispatch / worker / retry paths. Those are store-dependent and covered by the store-specific test projects (`ZeroAlloc.Outbox.Tests`, `ZeroAlloc.Outbox.EfCore.Tests`).
