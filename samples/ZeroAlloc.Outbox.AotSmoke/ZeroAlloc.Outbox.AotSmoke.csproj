@@ -8,10 +8,17 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <OptimizationPreference>Size</OptimizationPreference>
 
-    <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2067;IL2075;IL3050;IL3051</WarningsAsErrors>
-    <!-- IL2091 may fire on the generator's AddOrderPlacedOutbox DI extension
-         (same pattern as Cache #7 / Resilience #10). Pre-suppress. -->
-    <NoWarn>$(NoWarn);IL2091</NoWarn>
+    <WarningsAsErrors>$(WarningsAsErrors);IL2067;IL2075;IL3051</WarningsAsErrors>
+    <!--
+      IL2026/IL3050 are raised on the generator-emitted writer because the
+      `#pragma warning disable IL2026, IL3050` at the top of the emitted file
+      is C# compile-time only and doesn't survive ILC. Tracked as #8 — the
+      generator needs to emit [UnconditionalSuppressMessage] attributes instead.
+
+      IL2091 matches the Cache #7 / Resilience #10 pattern for the emitted DI
+      extension. Pre-suppress.
+    -->
+    <NoWarn>$(NoWarn);IL2026;IL3050;IL2091</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
