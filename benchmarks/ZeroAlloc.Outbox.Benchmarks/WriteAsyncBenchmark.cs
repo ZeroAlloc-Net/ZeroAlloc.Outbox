@@ -20,7 +20,7 @@ public class WriteAsyncBenchmark
     private FakeStore _store = null!;
     private FakeSerializer _serializer = null!;
     private OrderPlacedOutboxWriter _writer = null!;
-    private OrderPlaced _message;
+    private OrderPlaced _message = null!;
 
     [GlobalSetup]
     public void Setup()
