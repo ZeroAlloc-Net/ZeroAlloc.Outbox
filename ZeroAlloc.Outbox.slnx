@@ -7,6 +7,9 @@
     <Project Path="src/ZeroAlloc.Outbox.Dashboard/ZeroAlloc.Outbox.Dashboard.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Dashboard.Blazor/ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ZeroAlloc.Outbox.AotSmoke/ZeroAlloc.Outbox.AotSmoke.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ZeroAlloc.Outbox.Generator.Tests/ZeroAlloc.Outbox.Generator.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Tests/ZeroAlloc.Outbox.Tests.csproj" />
