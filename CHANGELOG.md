@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.0...v1.1.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* **generator:** emit [UnconditionalSuppressMessage] on WriteAsync/DispatchAsync (closes [#8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/8)) ([#9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/9)) ([8548f12](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/8548f120ce1f06968ed8372b4ff8c4c68166bde8))
+
+
+### Performance Improvements
+
+* add BenchmarkDotNet project measuring OrderPlacedOutboxWriter overhead ([#11](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/11)) ([2ee4c0b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2ee4c0bdc8fdb342d0aa691a6daed15fece06b83))
+
 ## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.0.0...v1.1.0) (2026-04-22)
 
 
