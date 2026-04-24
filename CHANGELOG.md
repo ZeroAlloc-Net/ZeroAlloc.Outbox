@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.2.0...v1.2.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* use collection expressions, drop redundant using System ([c6fe117](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/c6fe117933ba99dabd7903019d79d9536e5d116d))
+* use collection expressions, drop redundant using System ([cbd018b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/cbd018b359a01eb135c4124aec8ac0cc76f85b18))
+
 ## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.2...v1.2.0) (2026-04-24)
 
 
