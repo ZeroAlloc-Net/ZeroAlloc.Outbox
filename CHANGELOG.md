@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.2...v1.2.0) (2026-04-24)
+
+
+### Features
+
+* **outbox:** use ConcurrentHeapSpanDictionary for in-memory store ([#23](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/23)) ([98a24bc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/98a24bc1cd6a5cc05e51c36c610becceb291f05e))
+* telemetry spans, typed OutboxMessageId, Mediator/Resilience wiring + NuGet isolation ([d6412d6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/d6412d6f9218692e354aeae9222bb4b2ef799b40))
+* telemetry, typed OutboxMessageId, Mediator/Resilience + NuGet isolation ([c5a2749](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/c5a274922b0226859caf3422e05fc7041f74f7aa))
+
+
+### Bug Fixes
+
+* update FakeStore/FakeOutboxStore to OutboxMessageId interface ([52c51cd](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/52c51cdcb1d64e7ddf347a172b182891a3667c2f))
+
 ## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.1...v1.1.2) (2026-04-24)
 
 
