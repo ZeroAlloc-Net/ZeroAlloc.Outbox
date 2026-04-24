@@ -16,7 +16,7 @@ public sealed class SseEventsEndpointTests
     [Fact]
     public async Task Sse_Emits_EventFrame_WhenEventPublished()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await CreateHostAsync(store);
         using var client = host.GetTestClient();
 
@@ -37,7 +37,7 @@ public sealed class SseEventsEndpointTests
                 try
                 {
                     await publisher.PublishAsync(
-                        new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1),
+                        new MessageDispatchedEvent(OutboxMessageId.New(), DateTimeOffset.UtcNow, 1),
                         cts.Token).ConfigureAwait(false);
                     await Task.Delay(50, cts.Token).ConfigureAwait(false);
                 }

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,6 +14,13 @@ namespace ZeroAlloc.Outbox;
 /// </summary>
 public sealed class OutboxWorkerService : BackgroundService
 {
+    private static readonly ActivitySource _activitySource = new("ZeroAlloc.Outbox");
+    private static readonly Meter _meter = new("ZeroAlloc.Outbox");
+    private static readonly Counter<long> _dispatchAttempts = _meter.CreateCounter<long>("outbox.dispatch_attempts");
+    private static readonly Counter<long> _retries = _meter.CreateCounter<long>("outbox.retries");
+    private static readonly Counter<long> _deadLetters = _meter.CreateCounter<long>("outbox.dead_letters");
+    private static readonly Histogram<double> _dispatchDurationMs = _meter.CreateHistogram<double>("outbox.dispatch_duration_ms");
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxWorkerService> _logger;
@@ -82,14 +91,24 @@ public sealed class OutboxWorkerService : BackgroundService
     {
         if (!dispatchers.TryGetValue(entry.TypeName, out var dispatcher))
         {
+            var deadTag = new TagList { { "message.type", entry.TypeName } };
+            _deadLetters.Add(1, deadTag);
             await DeadLetterMissingDispatcherAsync(store, publisher, entry, ct).ConfigureAwait(false);
             return;
         }
+
+        using var activity = _activitySource.StartActivity("outbox.dispatch");
+        activity?.SetTag("message.type", entry.TypeName);
+        var startTimestamp = Stopwatch.GetTimestamp();
+        var tag = new TagList { { "message.type", entry.TypeName } };
 
         try
         {
             await dispatcher.DispatchAsync(entry.Payload, ct).ConfigureAwait(false);
             await store.MarkSucceededAsync(entry.Id, ct).ConfigureAwait(false);
+
+            _dispatchAttempts.Add(1, tag);
+            activity?.SetStatus(ActivityStatusCode.Ok);
 
             await SafePublishAsync(
                 publisher,
@@ -100,7 +119,12 @@ public sealed class OutboxWorkerService : BackgroundService
         catch (Exception ex) when (ex is not OperationCanceledException)
 #pragma warning restore CA1031
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             await HandleDispatchFailureAsync(store, publisher, entry, ex, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _dispatchDurationMs.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, tag);
         }
     }
 
@@ -155,6 +179,7 @@ public sealed class OutboxWorkerService : BackgroundService
             _logger.LogError(ex,
                 "Message {Id} ({TypeName}) exhausted {MaxAttempts} attempts. Dead-lettering.",
                 entry.Id, entry.TypeName, _options.MaxAttempts);
+            _deadLetters.Add(1, new TagList { { "message.type", entry.TypeName } });
             await store.DeadLetterAsync(entry.Id, ex.Message, ct).ConfigureAwait(false);
 
             await SafePublishAsync(
@@ -172,6 +197,7 @@ public sealed class OutboxWorkerService : BackgroundService
         _logger.LogWarning(ex,
             "Message {Id} ({TypeName}) failed (attempt {Attempt}/{Max}). Retry at {NextRetry}.",
             entry.Id, entry.TypeName, newRetryCount, _options.MaxAttempts, nextRetry);
+        _retries.Add(1, new TagList { { "message.type", entry.TypeName } });
 
         await store.MarkFailedAsync(entry.Id, newRetryCount, nextRetry, ct).ConfigureAwait(false);
 

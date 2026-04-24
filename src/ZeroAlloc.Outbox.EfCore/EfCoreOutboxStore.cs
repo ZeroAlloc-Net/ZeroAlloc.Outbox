@@ -54,7 +54,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         {
             result.Add(new OutboxEntry
             {
-                Id = row.Id,
+                Id = new OutboxMessageId(row.Id),
                 TypeName = row.TypeName,
                 RawPayload = row.Payload,
                 RetryCount = row.RetryCount,
@@ -64,20 +64,20 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         return result;
     }
 
-    public async ValueTask MarkSucceededAsync(Guid id, CancellationToken ct)
+    public async ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
         if (entity is null) return;
         entity.Status = OutboxMessageStatus.Succeeded;
         entity.ProcessedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    public async ValueTask MarkFailedAsync(Guid id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
+    public async ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
         if (entity is null) return;
         entity.Status = OutboxMessageStatus.Pending;
         entity.RetryCount = retryCount;
@@ -85,10 +85,10 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    public async ValueTask DeadLetterAsync(Guid id, string error, CancellationToken ct)
+    public async ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
         if (entity is null) return;
         entity.Status = OutboxMessageStatus.DeadLetter;
         entity.DeadLetterError = error;
@@ -229,10 +229,10 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         }
     }
 
-    public async ValueTask RequeueAsync(Guid id, CancellationToken ct)
+    public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         if (entity.Status != OutboxMessageStatus.DeadLetter)
             throw new InvalidOperationException($"Message {id} is not dead-lettered.");
@@ -244,10 +244,10 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    public async ValueTask CancelAsync(Guid id, CancellationToken ct)
+    public async ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         if (entity.Status != OutboxMessageStatus.Pending)
             throw new InvalidOperationException($"Message {id} cannot be cancelled (status: {entity.Status}).");
@@ -255,10 +255,10 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
 
-    public async ValueTask ForceDispatchAsync(Guid id, CancellationToken ct)
+    public async ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         if (entity.Status != OutboxMessageStatus.Pending)
             throw new InvalidOperationException($"Message {id} is not pending (status: {entity.Status}).");
@@ -271,7 +271,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     private static OutboxMessageView ToView(in RawProjection r) => new()
     {
-        Id = r.Id,
+        Id = new OutboxMessageId(r.Id),
         TypeName = r.TypeName,
         CreatedAt = r.CreatedAt,
         RetryCount = r.RetryCount,

@@ -15,9 +15,9 @@ public class OutboxDashboardStoreInterfaceTests
         Assert.Empty(snapshot.DeadLettered);
         Assert.Empty(snapshot.Dispatched);
 
-        await store.RequeueAsync(Guid.NewGuid(), default);
-        await store.CancelAsync(Guid.NewGuid(), default);
-        await store.ForceDispatchAsync(Guid.NewGuid(), default);
+        await store.RequeueAsync(OutboxMessageId.New(), default);
+        await store.CancelAsync(OutboxMessageId.New(), default);
+        await store.ForceDispatchAsync(OutboxMessageId.New(), default);
 
         var points = new List<ThroughputPoint>();
         await foreach (var point in store.GetThroughputAsync(TimeSpan.FromMinutes(5), default))
@@ -44,10 +44,10 @@ public class OutboxDashboardStoreInterfaceTests
             yield break;
         }
 
-        public ValueTask RequeueAsync(Guid id, CancellationToken ct) => ValueTask.CompletedTask;
+        public ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct) => ValueTask.CompletedTask;
 
-        public ValueTask CancelAsync(Guid id, CancellationToken ct) => ValueTask.CompletedTask;
+        public ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct) => ValueTask.CompletedTask;
 
-        public ValueTask ForceDispatchAsync(Guid id, CancellationToken ct) => ValueTask.CompletedTask;
+        public ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct) => ValueTask.CompletedTask;
     }
 }

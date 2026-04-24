@@ -7,7 +7,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task GetSnapshotAsync_GroupsPendingMessages()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T1", new byte[] { 1 }, null, CancellationToken.None);
         await store.EnqueueAsync("T2", new byte[] { 2 }, null, CancellationToken.None);
 
@@ -23,7 +23,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task GetSnapshotAsync_MovesRetryCountGreaterThanZeroToRetryQueue()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, retryCount: 2, nextRetryAt: DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
@@ -39,7 +39,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task GetSnapshotAsync_CapsDispatchedAtLimit()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         for (int i = 0; i < 5; i++)
         {
             await store.EnqueueAsync($"T{i}", new byte[] { (byte)i }, null, CancellationToken.None);
@@ -58,7 +58,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task RequeueAsync_MovesDeadLetterBackToPending_ResetsRetryCount()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
@@ -76,7 +76,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task RequeueAsync_ThrowsWhenNotDeadLettered()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
 
@@ -88,7 +88,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task CancelAsync_RemovesPendingMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
 
@@ -101,7 +101,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task CancelAsync_ThrowsForDispatched()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkSucceededAsync(id, CancellationToken.None);
@@ -114,7 +114,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task CancelAsync_ThrowsForDeadLettered()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.DeadLetterAsync(id, "x", CancellationToken.None);
@@ -127,7 +127,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task ForceDispatchAsync_SetsNextRetryToNow()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None);
@@ -142,7 +142,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task ForceDispatchAsync_ThrowsForDispatched()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkSucceededAsync(id, CancellationToken.None);
@@ -155,7 +155,7 @@ public class InMemoryDashboardStoreTests
     [Fact]
     public async Task GetThroughputAsync_YieldsBucketsWithinWindow()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkSucceededAsync(id, CancellationToken.None);

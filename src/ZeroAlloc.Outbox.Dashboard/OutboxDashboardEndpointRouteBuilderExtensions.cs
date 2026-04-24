@@ -5,6 +5,11 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+// ZeroAlloc.Results namespace enters the transitive closure when ZeroAlloc.Resilience is referenced
+// (Outbox#20). Because this file lives in namespace ZeroAlloc.Outbox.Dashboard, C# parent-chain
+// name lookup finds the namespace ZeroAlloc.Results before the type Microsoft.AspNetCore.Http.Results.
+// All Results.* call sites are qualified with the global:: alias below to force the correct type.
+using HttpResults = global::Microsoft.AspNetCore.Http.Results;
 
 namespace ZeroAlloc.Outbox.Dashboard;
 
@@ -146,9 +151,9 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static void MapWriteEndpoints(RouteGroupBuilder group)
     {
-        group.MapPost("/api/messages/{id:guid}/requeue", RequeueAsync);
-        group.MapPost("/api/messages/{id:guid}/cancel", CancelAsync);
-        group.MapPost("/api/messages/{id:guid}/force-dispatch", ForceDispatchAsync);
+        group.MapPost("/api/messages/{id}/requeue", RequeueAsync);
+        group.MapPost("/api/messages/{id}/cancel", CancelAsync);
+        group.MapPost("/api/messages/{id}/force-dispatch", ForceDispatchAsync);
     }
 
     private static async Task<IResult> GetSnapshotAsync(
@@ -157,7 +162,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         CancellationToken ct)
     {
         var snapshot = await store.GetSnapshotAsync(dispatchedLimit ?? 100, ct).ConfigureAwait(false);
-        return Results.Ok(snapshot);
+        return HttpResults.Ok(snapshot);
     }
 
     private static async Task<IResult> GetThroughputAsync(
@@ -171,11 +176,11 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         {
             points.Add(p);
         }
-        return Results.Ok(points);
+        return HttpResults.Ok(points);
     }
 
     private static async Task<IResult> RequeueAsync(
-        Guid id,
+        OutboxMessageId id,
         [FromServices] IOutboxDashboardStore store,
         [FromServices] IOutboxDashboardEventPublisher? publisher,
         CancellationToken ct)
@@ -186,15 +191,15 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return Results.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.UnprocessableEntity(new { error = ex.Message });
         }
 
         await SafePublishAsync(publisher, new MessageRequeuedEvent(id, DateTimeOffset.UtcNow), ct).ConfigureAwait(false);
-        return Results.NoContent();
+        return HttpResults.NoContent();
     }
 
     private static async Task<IResult> CancelAsync(
-        Guid id,
+        OutboxMessageId id,
         [FromServices] IOutboxDashboardStore store,
         [FromServices] IOutboxDashboardEventPublisher? publisher,
         CancellationToken ct)
@@ -205,15 +210,15 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return Results.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.UnprocessableEntity(new { error = ex.Message });
         }
 
         await SafePublishAsync(publisher, new MessageCancelledEvent(id), ct).ConfigureAwait(false);
-        return Results.NoContent();
+        return HttpResults.NoContent();
     }
 
     private static async Task<IResult> ForceDispatchAsync(
-        Guid id,
+        OutboxMessageId id,
         [FromServices] IOutboxDashboardStore store,
         CancellationToken ct)
     {
@@ -223,11 +228,11 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return Results.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.UnprocessableEntity(new { error = ex.Message });
         }
 
         // No event — the worker publishes MessageDispatchedEvent once it picks the message up.
-        return Results.NoContent();
+        return HttpResults.NoContent();
     }
 
     private static async ValueTask SafePublishAsync(

@@ -2,9 +2,11 @@ using ZeroAlloc.Outbox.InMemory;
 
 namespace ZeroAlloc.Outbox.Tests;
 
-public sealed class InMemoryOutboxStoreTests
+public sealed class InMemoryOutboxStoreTests : IDisposable
 {
     private readonly InMemoryOutboxStore _store = new();
+
+    public void Dispose() => _store.Dispose();
 
     [Fact]
     public async Task Enqueue_ThenFetch_ReturnsPendingEntry()

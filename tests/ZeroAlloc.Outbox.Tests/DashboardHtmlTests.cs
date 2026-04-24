@@ -13,7 +13,7 @@ public sealed class DashboardHtmlTests
     [Fact]
     public async Task Root_Returns_HtmlPage_WithBasePathSubstituted()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await CreateHostAsync(store);
         var client = host.GetTestClient();
 
@@ -30,7 +30,7 @@ public sealed class DashboardHtmlTests
     [Fact]
     public async Task Root_Uses_NonDefaultBasePath_InBaseHref()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await CreateHostAsync(store, "/admin/ops");
         var client = host.GetTestClient();
 
@@ -45,7 +45,7 @@ public sealed class DashboardHtmlTests
     [Fact]
     public async Task Css_Returns_TextCss()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await CreateHostAsync(store);
         var client = host.GetTestClient();
 
@@ -58,7 +58,7 @@ public sealed class DashboardHtmlTests
     [Fact]
     public async Task Js_Returns_ApplicationJavascript()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await CreateHostAsync(store);
         var client = host.GetTestClient();
 

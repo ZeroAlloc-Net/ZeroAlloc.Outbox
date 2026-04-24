@@ -13,7 +13,7 @@ public class MapOutboxDashboardTests
     [Fact]
     public async Task RootRoute_Returns200_WithHtmlBody()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         using var host = await new HostBuilder()
             .ConfigureWebHost(webBuilder =>
             {

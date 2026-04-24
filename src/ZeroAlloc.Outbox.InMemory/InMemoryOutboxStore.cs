@@ -10,9 +10,14 @@ namespace ZeroAlloc.Outbox.InMemory;
 /// Not suitable for long-running production processes — throughput buckets accumulate
 /// indefinitely and there is no persistence across process restarts.
 /// </summary>
+/// <remarks>
+/// Implements <see cref="IDisposable"/>: call <see cref="Dispose"/> when the store is no
+/// longer needed so the pooled backing arrays are returned to <see cref="System.Buffers.ArrayPool{T}"/>.
+/// The DI container disposes singleton registrations automatically on host shutdown.
+/// </remarks>
 public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, IDisposable
 {
-    private readonly ConcurrentHeapSpanDictionary<Guid, InMemoryOutboxEntry> _entries = new();
+    private readonly ConcurrentHeapSpanDictionary<OutboxMessageId, InMemoryOutboxEntry> _entries = new();
     private readonly ConcurrentHeapSpanDictionary<DateTimeOffset, ThroughputAccumulator> _throughput = new();
 
     public ValueTask EnqueueAsync(
@@ -23,7 +28,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
     {
         var entry = new InMemoryOutboxEntry
         {
-            Id = Guid.NewGuid(),
+            Id = OutboxMessageId.New(),
             TypeName = typeName,
             Payload = payload.ToArray(),
             RetryCount = 0,
@@ -58,7 +63,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(results);
     }
 
-    public ValueTask MarkSucceededAsync(Guid id, CancellationToken ct)
+    public ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
     {
         if (_entries.TryGetValue(id, out var entry))
         {
@@ -72,7 +77,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask MarkFailedAsync(Guid id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
+    public ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
     {
         if (_entries.TryGetValue(id, out var entry))
         {
@@ -87,7 +92,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DeadLetterAsync(Guid id, string error, CancellationToken ct)
+    public ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
     {
         if (_entries.TryGetValue(id, out var entry))
         {
@@ -102,7 +107,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
     }
 
     /// <summary>Exposes all entries for test assertions.</summary>
-    public IReadOnlyList<InMemoryOutboxEntry> AllEntries() => _entries.ToValuesArray();
+    public IReadOnlyList<InMemoryOutboxEntry> AllEntries() =>
+        _entries.Select(kv => kv.Value).ToList();
 
     public ValueTask<OutboxSnapshot> GetSnapshotAsync(int dispatchedLimit, CancellationToken ct)
     {
@@ -111,8 +117,9 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         var dead = new List<OutboxMessageView>();
         var dispatched = new List<OutboxMessageView>();
 
-        foreach (var e in _entries.ToValuesArray())
+        foreach (var kv in _entries)
         {
+            var e = kv.Value;
             var view = ToView(e);
             switch (e.Status)
             {
@@ -156,7 +163,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         }
     }
 
-    public ValueTask RequeueAsync(Guid id, CancellationToken ct)
+    public ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
@@ -172,7 +179,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask CancelAsync(Guid id, CancellationToken ct)
+    public ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
@@ -185,7 +192,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask ForceDispatchAsync(Guid id, CancellationToken ct)
+    public ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
     {
         if (!_entries.TryGetValue(id, out var entry))
             throw new InvalidOperationException($"Message {id} not found.");
@@ -210,13 +217,6 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
 
     private static DateTimeOffset TruncateToMinute(DateTimeOffset dto) =>
         new(dto.Year, dto.Month, dto.Day, dto.Hour, dto.Minute, 0, dto.Offset);
-
-    /// <summary>Returns the pooled bucket arrays. Tests typically rely on GC.</summary>
-    public void Dispose()
-    {
-        _entries.Dispose();
-        _throughput.Dispose();
-    }
 
     private static OutboxMessageView ToView(InMemoryOutboxEntry e)
     {
@@ -251,11 +251,21 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
     private static string DecodePreview(byte[] payload) =>
         Encoding.UTF8.GetString(payload, 0, Math.Min(payload.Length, 200));
 
+    /// <summary>
+    /// Returns the pooled backing arrays of both dictionaries to
+    /// <see cref="System.Buffers.ArrayPool{T}"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        _entries.Dispose();
+        _throughput.Dispose();
+    }
+
     public enum InMemoryEntryStatus { Pending, Succeeded, DeadLetter }
 
     public sealed class InMemoryOutboxEntry
     {
-        public Guid Id { get; init; }
+        public OutboxMessageId Id { get; init; }
         public required string TypeName { get; init; }
         public required byte[] Payload { get; set; }
         public int RetryCount { get; set; }

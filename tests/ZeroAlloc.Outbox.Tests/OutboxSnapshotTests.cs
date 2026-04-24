@@ -6,7 +6,7 @@ public class OutboxSnapshotTests
     public void OutboxMessageView_WithIdenticalFields_AreEqual()
     {
         var created = DateTimeOffset.UtcNow;
-        var id = Guid.NewGuid();
+        var id = OutboxMessageId.New();
         var a = new OutboxMessageView
         {
             Id = id,
@@ -35,7 +35,7 @@ public class OutboxSnapshotTests
         var created = DateTimeOffset.UtcNow;
         var a = new OutboxMessageView
         {
-            Id = Guid.NewGuid(),
+            Id = OutboxMessageId.New(),
             TypeName = "T",
             CreatedAt = created,
             RetryCount = 0,
@@ -44,7 +44,7 @@ public class OutboxSnapshotTests
         };
         var b = new OutboxMessageView
         {
-            Id = Guid.NewGuid(),
+            Id = OutboxMessageId.New(),
             TypeName = "T",
             CreatedAt = created,
             RetryCount = 0,
@@ -59,7 +59,7 @@ public class OutboxSnapshotTests
     {
         var view = new OutboxMessageView
         {
-            Id = Guid.NewGuid(),
+            Id = OutboxMessageId.New(),
             TypeName = "T",
             CreatedAt = DateTimeOffset.UtcNow,
             RetryCount = 0,
@@ -75,7 +75,7 @@ public class OutboxSnapshotTests
     {
         var original = new OutboxMessageView
         {
-            Id = Guid.NewGuid(),
+            Id = OutboxMessageId.New(),
             TypeName = "T",
             CreatedAt = DateTimeOffset.UtcNow,
             RetryCount = 0,

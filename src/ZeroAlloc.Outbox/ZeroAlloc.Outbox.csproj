@@ -19,5 +19,8 @@
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
       PrivateAssets="all" />
+    <PackageReference Include="ZeroAlloc.ValueObjects" Version="1.2.0" />
+    <PackageReference Include="ZeroAlloc.Mediator" Version="1.1.8" />
+    <PackageReference Include="ZeroAlloc.Resilience" Version="1.0.0" />
   </ItemGroup>
 </Project>
