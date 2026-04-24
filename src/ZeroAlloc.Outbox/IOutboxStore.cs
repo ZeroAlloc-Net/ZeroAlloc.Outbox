@@ -16,11 +16,11 @@ public interface IOutboxStore
     ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct);
 
     /// <summary>Marks a message as successfully dispatched.</summary>
-    ValueTask MarkSucceededAsync(Guid id, CancellationToken ct);
+    ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct);
 
     /// <summary>Records a failed dispatch attempt and schedules the next retry.</summary>
-    ValueTask MarkFailedAsync(Guid id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct);
+    ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct);
 
     /// <summary>Moves a message to dead-letter after exhausting all retry attempts.</summary>
-    ValueTask DeadLetterAsync(Guid id, string error, CancellationToken ct);
+    ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct);
 }

@@ -49,9 +49,9 @@ internal sealed class FakeStore : IOutboxStore
     }
     public ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
         => ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(Array.Empty<OutboxEntry>());
-    public ValueTask MarkSucceededAsync(Guid id, CancellationToken ct) => ValueTask.CompletedTask;
-    public ValueTask MarkFailedAsync(Guid id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct) => ValueTask.CompletedTask;
-    public ValueTask DeadLetterAsync(Guid id, string error, CancellationToken ct) => ValueTask.CompletedTask;
+    public ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct) => ValueTask.CompletedTask;
+    public ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct) => ValueTask.CompletedTask;
+    public ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct) => ValueTask.CompletedTask;
 }
 
 internal sealed class FakeSerializer : IOutboxSerializer

@@ -39,7 +39,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Snapshot_Returns200_WithExpectedShape()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T1", new byte[] { 1 }, null, CancellationToken.None);
 
         var (host, client) = await CreateClientAsync(store);
@@ -59,7 +59,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Throughput_Returns200_WithEmptyArray_WhenNoDispatch()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
 
         var (host, client) = await CreateClientAsync(store);
         using (host)
@@ -77,7 +77,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Requeue_Returns204_ForDeadLetteredMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
@@ -97,7 +97,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Requeue_Returns422_ForPendingMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
 
@@ -115,7 +115,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Cancel_Returns204_ForPendingMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
 
@@ -134,7 +134,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Cancel_Returns422_ForDispatchedMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkSucceededAsync(id, CancellationToken.None);
@@ -153,7 +153,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task ForceDispatch_Returns204_ForPendingMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None);
@@ -175,7 +175,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task ForceDispatch_Returns422_ForDispatchedMessage()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkSucceededAsync(id, CancellationToken.None);
@@ -194,7 +194,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Requeue_PublishesMessageRequeuedEvent()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
         await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
@@ -236,7 +236,7 @@ public sealed class DashboardRestEndpointsTests
     [Fact]
     public async Task Cancel_PublishesMessageCancelledEvent()
     {
-        var store = new InMemoryOutboxStore();
+        using var store = new InMemoryOutboxStore();
         await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
         var id = store.AllEntries()[0].Id;
 

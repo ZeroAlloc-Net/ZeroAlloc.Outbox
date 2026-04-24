@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ZeroAlloc.Outbox;
 using ZeroAlloc.Outbox.EfCore;
 
 namespace ZeroAlloc.Outbox.Tests;
@@ -47,7 +48,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task GetSnapshotAsync_RetryCountGreaterThanZero_GoesToRetryQueue()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
         await _store.MarkFailedAsync(id, 2, DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
@@ -62,13 +63,14 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task RequeueAsync_ResetsDeadLetteredMessageToPending()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var rawId = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(rawId);
         await _store.DeadLetterAsync(id, "err", CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         await dash.RequeueAsync(id, CancellationToken.None);
 
-        var row = await _db.OutboxMessages.FindAsync([id], CancellationToken.None);
+        var row = await _db.OutboxMessages.FindAsync([rawId], CancellationToken.None);
         Assert.NotNull(row);
         Assert.Equal(OutboxMessageStatus.Pending, row!.Status);
         Assert.Equal(0, row.RetryCount);
@@ -79,7 +81,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task RequeueAsync_ThrowsWhenNotDeadLettered()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
 
         IOutboxDashboardStore dash = _store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -90,19 +92,20 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task CancelAsync_DeletesPendingRow()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var rawId = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(rawId);
 
         IOutboxDashboardStore dash = _store;
         await dash.CancelAsync(id, CancellationToken.None);
 
-        Assert.Null(await _db.OutboxMessages.FindAsync([id], CancellationToken.None));
+        Assert.Null(await _db.OutboxMessages.FindAsync([rawId], CancellationToken.None));
     }
 
     [Fact]
     public async Task CancelAsync_ThrowsForDispatched()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
         await _store.MarkSucceededAsync(id, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
@@ -114,7 +117,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task CancelAsync_ThrowsForDeadLettered()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
         await _store.DeadLetterAsync(id, "x", CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
@@ -132,7 +135,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
 
         var before = DateTimeOffset.UtcNow;
         IOutboxDashboardStore dash = _store;
-        await dash.ForceDispatchAsync(row.Id, CancellationToken.None);
+        await dash.ForceDispatchAsync(new OutboxMessageId(row.Id), CancellationToken.None);
 
         var updated = await _db.OutboxMessages.FindAsync([row.Id], CancellationToken.None);
         Assert.NotNull(updated);
@@ -145,9 +148,9 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
         for (var i = 0; i < 5; i++)
             await _store.EnqueueAsync("T", new byte[] { (byte)i }, null, CancellationToken.None);
 
-        var ids = await _db.OutboxMessages.Select(m => m.Id).ToArrayAsync();
-        foreach (var id in ids)
-            await _store.MarkSucceededAsync(id, CancellationToken.None);
+        var rawIds = await _db.OutboxMessages.Select(m => m.Id).ToArrayAsync();
+        foreach (var rawId in rawIds)
+            await _store.MarkSucceededAsync(new OutboxMessageId(rawId), CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         var snap = await dash.GetSnapshotAsync(dispatchedLimit: 2, CancellationToken.None);
@@ -159,7 +162,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task ForceDispatchAsync_ThrowsForDispatched()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
         await _store.MarkSucceededAsync(id, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
@@ -171,7 +174,7 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     public async Task GetThroughputAsync_YieldsBucketsWithinWindow()
     {
         await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var id = new OutboxMessageId(await _db.OutboxMessages.Select(m => m.Id).FirstAsync());
         await _store.MarkSucceededAsync(id, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;

@@ -22,7 +22,7 @@ public interface IOutboxDashboardStore
     /// </summary>
     /// <param name="id">The identifier of the message to requeue.</param>
     /// <param name="ct">Token to cancel the asynchronous operation.</param>
-    ValueTask RequeueAsync(Guid id, CancellationToken ct);
+    ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct);
 
     /// <summary>
     /// Removes a pending or retry-queue message. Throws
@@ -30,7 +30,7 @@ public interface IOutboxDashboardStore
     /// </summary>
     /// <param name="id">The identifier of the message to cancel.</param>
     /// <param name="ct">Token to cancel the asynchronous operation.</param>
-    ValueTask CancelAsync(Guid id, CancellationToken ct);
+    ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct);
 
     /// <summary>
     /// Sets <c>NextRetryAt</c> to now so the next polling cycle picks up the message.
@@ -38,5 +38,5 @@ public interface IOutboxDashboardStore
     /// </summary>
     /// <param name="id">The identifier of the message to force-dispatch.</param>
     /// <param name="ct">Token to cancel the asynchronous operation.</param>
-    ValueTask ForceDispatchAsync(Guid id, CancellationToken ct);
+    ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct);
 }

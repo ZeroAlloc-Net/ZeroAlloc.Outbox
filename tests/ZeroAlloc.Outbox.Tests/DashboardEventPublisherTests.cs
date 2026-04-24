@@ -9,7 +9,7 @@ public class DashboardEventPublisherTests
     {
         var pub = new ChannelOutboxDashboardEventPublisher();
         using var sub = pub.Subscribe();
-        var evt = new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1);
+        var evt = new MessageDispatchedEvent(OutboxMessageId.New(), DateTimeOffset.UtcNow, 1);
 
         await pub.PublishAsync(evt, CancellationToken.None);
 
@@ -23,7 +23,7 @@ public class DashboardEventPublisherTests
         var pub = new ChannelOutboxDashboardEventPublisher();
         using var s1 = pub.Subscribe();
         using var s2 = pub.Subscribe();
-        var evt = new MessageCancelledEvent(Guid.NewGuid());
+        var evt = new MessageCancelledEvent(OutboxMessageId.New());
 
         await pub.PublishAsync(evt, CancellationToken.None);
 
@@ -53,8 +53,8 @@ public class DashboardEventPublisherTests
         using var slow = pub.Subscribe();   // never reads
         using var fast = pub.Subscribe();
 
-        var evt1 = new MessageCancelledEvent(Guid.NewGuid());
-        var evt2 = new MessageCancelledEvent(Guid.NewGuid());
+        var evt1 = new MessageCancelledEvent(OutboxMessageId.New());
+        var evt2 = new MessageCancelledEvent(OutboxMessageId.New());
 
         await pub.PublishAsync(evt1, CancellationToken.None);
         await pub.PublishAsync(evt2, CancellationToken.None);
@@ -75,7 +75,7 @@ public class DashboardEventPublisherTests
 
         // Default capacity is 256. Push 300 to force 44 drops.
         for (int i = 0; i < 300; i++)
-            await pub.PublishAsync(new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i), CancellationToken.None);
+            await pub.PublishAsync(new MessageDispatchedEvent(OutboxMessageId.New(), DateTimeOffset.UtcNow, i), CancellationToken.None);
 
         // Drain what remains; should be exactly 256 (capacity), with the oldest 44 dropped.
         var drained = new List<OutboxDashboardEvent>();
@@ -97,7 +97,7 @@ public class DashboardEventPublisherTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var evt = new MessageCancelledEvent(Guid.NewGuid());
+        var evt = new MessageCancelledEvent(OutboxMessageId.New());
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await pub.PublishAsync(evt, cts.Token).ConfigureAwait(false));
     }
