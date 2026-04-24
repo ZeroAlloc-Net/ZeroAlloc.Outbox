@@ -146,13 +146,15 @@
       '<text x="140" y="15" fill="#a44" font-size="10">failed</text>';
 
     if (points.length === 1) {
-      // Single point — polylines don't render, so draw circle markers instead.
+      // Single bucket — a polyline degenerates to a point and tiny circles read as chart glitches.
+      // Show the two counts as prominent numbers with an explanatory hint so the UI is legible
+      // on a freshly-started host before a trend has accumulated.
       const p = points[0];
-      const cx = scaleX(0);
       svg.innerHTML =
-        '<circle cx="' + cx + '" cy="' + scaleY(p.dispatched) + '" r="3" fill="#4a7"/>' +
-        '<circle cx="' + cx + '" cy="' + scaleY(p.failed) + '" r="3" fill="#a44"/>' +
-        legend;
+        legend +
+        '<text x="10"  y="55" fill="#4a7" font-size="28" font-weight="600">' + (p.dispatched || 0) + '</text>' +
+        '<text x="140" y="55" fill="#a44" font-size="28" font-weight="600">' + (p.failed || 0) + '</text>' +
+        '<text x="10"  y="90" fill="#777" font-size="10">single bucket — awaiting more data for a trend line</text>';
       return;
     }
 
