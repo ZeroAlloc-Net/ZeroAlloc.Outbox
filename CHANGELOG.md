@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.1...v1.1.2) (2026-04-24)
+
+
+### Bug Fixes
+
+* **dashboard:** render single-bucket throughput as counts, not tiny dots ([#14](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/14)) ([3bd2d72](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/3bd2d72d93415e412677f0986f63e2f246c16d07))
+
 ## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.1.0...v1.1.1) (2026-04-23)
 
 
