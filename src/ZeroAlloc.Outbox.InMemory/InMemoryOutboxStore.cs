@@ -1,7 +1,7 @@
-using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Runtime.CompilerServices;
 using System.Text;
+using ZeroAlloc.Collections;
 
 namespace ZeroAlloc.Outbox.InMemory;
 
@@ -10,10 +10,10 @@ namespace ZeroAlloc.Outbox.InMemory;
 /// Not suitable for long-running production processes — throughput buckets accumulate
 /// indefinitely and there is no persistence across process restarts.
 /// </summary>
-public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
+public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, IDisposable
 {
-    private readonly ConcurrentDictionary<Guid, InMemoryOutboxEntry> _entries = new();
-    private readonly ConcurrentDictionary<DateTimeOffset, ThroughputAccumulator> _throughput = new();
+    private readonly ConcurrentHeapSpanDictionary<Guid, InMemoryOutboxEntry> _entries = new();
+    private readonly ConcurrentHeapSpanDictionary<DateTimeOffset, ThroughputAccumulator> _throughput = new();
 
     public ValueTask EnqueueAsync(
         string typeName,
@@ -102,7 +102,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
     }
 
     /// <summary>Exposes all entries for test assertions.</summary>
-    public IReadOnlyList<InMemoryOutboxEntry> AllEntries() => _entries.Values.ToList();
+    public IReadOnlyList<InMemoryOutboxEntry> AllEntries() => _entries.ToValuesArray();
 
     public ValueTask<OutboxSnapshot> GetSnapshotAsync(int dispatchedLimit, CancellationToken ct)
     {
@@ -111,7 +111,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
         var dead = new List<OutboxMessageView>();
         var dispatched = new List<OutboxMessageView>();
 
-        foreach (var e in _entries.Values)
+        foreach (var e in _entries.ToValuesArray())
         {
             var view = ToView(e);
             switch (e.Status)
@@ -210,6 +210,13 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore
 
     private static DateTimeOffset TruncateToMinute(DateTimeOffset dto) =>
         new(dto.Year, dto.Month, dto.Day, dto.Hour, dto.Minute, 0, dto.Offset);
+
+    /// <summary>Returns the pooled bucket arrays. Tests typically rely on GC.</summary>
+    public void Dispose()
+    {
+        _entries.Dispose();
+        _throughput.Dispose();
+    }
 
     private static OutboxMessageView ToView(InMemoryOutboxEntry e)
     {
