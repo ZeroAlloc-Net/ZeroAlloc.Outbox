@@ -76,4 +76,27 @@ public class OutboxBuilderTests
         using var scope = sp.CreateScope();
         scope.ServiceProvider.GetService<IOutboxStore>().Should().NotBeNull();
     }
+
+    [Fact]
+    public void WithDashboardEvents_RegistersPublisher()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddOutbox().WithDashboardEvents();
+
+        services.BuildServiceProvider().GetService<IOutboxDashboardEventPublisher>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddOutboxDashboardEvents_LegacyShim_StillRegistersPublisher()
+    {
+        var services = new ServiceCollection();
+
+#pragma warning disable CS0618 // exercise the legacy shim
+        services.AddOutboxDashboardEvents();
+#pragma warning restore CS0618
+
+        services.BuildServiceProvider().GetService<IOutboxDashboardEventPublisher>().Should().NotBeNull();
+    }
 }
