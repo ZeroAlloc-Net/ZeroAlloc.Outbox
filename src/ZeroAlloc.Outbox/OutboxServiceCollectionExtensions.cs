@@ -30,7 +30,7 @@ public static partial class OutboxServiceCollectionExtensions
     /// </remarks>
     [RequiresUnreferencedCode("AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
     [RequiresDynamicCode("AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
-    public static IServiceCollection AddOutbox(
+    public static IOutboxBuilder AddOutbox(
         this IServiceCollection services,
         Action<OutboxOptions>? configure = null)
     {
@@ -52,6 +52,6 @@ public static partial class OutboxServiceCollectionExtensions
         });
 
         services.AddHostedService<OutboxWorkerService>();
-        return services;
+        return new OutboxBuilder(services);
     }
 }
