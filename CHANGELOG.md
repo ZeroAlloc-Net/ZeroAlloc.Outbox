@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.2.1...v1.3.0) (2026-04-25)
+
+
+### Features
+
+* implement ecosystem issues [#17](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/17), [#18](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/18), [#19](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/19), [#20](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/20) ([#29](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/29)) ([151990e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/151990e6243d482ae87c7b4eb0e980deddd6d985))
+
 ## [1.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.2.0...v1.2.1) (2026-04-24)
 
 
