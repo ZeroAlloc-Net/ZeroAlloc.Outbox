@@ -22,7 +22,7 @@ The Roslyn source generator reads the attribute at compile time and emits two ty
 | Generated type | Purpose |
 |----------------|---------|
 | `OrderPlacedOutboxWriter` | Implements `IOutboxWriter<OrderPlaced>` — serializes and enqueues |
-| `AddOrderPlacedOutboxExtensions` | `IServiceCollection` extension that registers the writer and its dispatcher bridge |
+| `AddOrderPlacedOutbox` extension | `IOutboxBuilder` extension (with `IServiceCollection`-shaped `[Obsolete]` shim) that registers the writer and its dispatcher bridge |
 
 ## What the generator emits
 

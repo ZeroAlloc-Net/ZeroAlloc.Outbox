@@ -23,18 +23,19 @@ public sealed class OutboxTestHost : IAsyncDisposable
     private OutboxTestHost(IHost host) => _host = host;
 
     public static async Task<OutboxTestHost> StartAsync(
-        Action<IServiceCollection> configure,
+        Action<IOutboxBuilder> configure,
         TimeSpan? pollingInterval = null)
     {
         var host = await new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddOutbox(o =>
-                {
-                    o.PollingInterval = pollingInterval ?? TimeSpan.FromMilliseconds(50);
-                });
-                services.AddOutboxInMemory();
-                configure(services);
+                var builder = services
+                    .AddOutbox(o =>
+                    {
+                        o.PollingInterval = pollingInterval ?? TimeSpan.FromMilliseconds(50);
+                    })
+                    .WithInMemoryStore();
+                configure(builder);
             })
             .StartAsync();
 
@@ -60,10 +61,10 @@ public async Task OrderPlaced_IsDispatchedSuccessfully()
 {
     var dispatched = new List<OrderPlaced>();
 
-    await using var host = await OutboxTestHost.StartAsync(services =>
+    await using var host = await OutboxTestHost.StartAsync(builder =>
     {
-        services.AddOrderPlacedOutbox();
-        services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
+        builder.AddOrderPlacedOutbox();
+        builder.Services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
             _ => new DelegateDispatcher<OrderPlaced>(msg =>
             {
                 dispatched.Add(msg);

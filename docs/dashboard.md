@@ -18,7 +18,7 @@ dotnet add package ZeroAlloc.Outbox.Dashboard
 
 ```csharp
 // Register the SSE event publisher (required for live updates).
-builder.Services.AddOutboxDashboardEvents();
+builder.Services.AddOutbox().WithDashboardEvents();
 
 // Map the dashboard under any prefix.
 app.MapOutboxDashboard("/outbox");

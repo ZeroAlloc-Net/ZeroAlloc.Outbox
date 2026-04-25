@@ -42,14 +42,13 @@ The generator emits `IOutboxWriter<OrderPlaced>` and its DI registration extensi
 
 ```csharp
 builder.Services.AddOutbox(options =>
-{
-    options.PollingInterval = TimeSpan.FromSeconds(5);
-    options.BatchSize       = 50;
-    options.MaxAttempts     = 3;
-});
-
-builder.Services.AddOutboxEfCore<AppDbContext>();  // or AddOutboxInMemory()
-builder.Services.AddOrderPlacedOutbox();           // generated extension
+        {
+            options.PollingInterval = TimeSpan.FromSeconds(5);
+            options.BatchSize       = 50;
+            options.MaxAttempts     = 3;
+        })
+        .WithEfCore<AppDbContext>()      // or .WithInMemoryStore()
+        .AddOrderPlacedOutbox();         // generated extension
 ```
 
 **3. Write in a transaction:**
@@ -96,7 +95,7 @@ dotnet add package ZeroAlloc.Outbox.Dashboard
 
 ```csharp
 // Register the publisher (required for SSE live updates)
-builder.Services.AddOutboxDashboardEvents();
+builder.Services.AddOutbox().WithDashboardEvents();
 
 // Map the dashboard endpoints
 app.MapOutboxDashboard("/outbox");

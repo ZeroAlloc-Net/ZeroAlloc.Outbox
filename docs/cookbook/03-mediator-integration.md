@@ -34,14 +34,13 @@ public sealed record OrderPlaced(int OrderId, decimal Amount) : INotification;
 ```csharp
 services.AddMediator();               // ZeroAlloc.Mediator
 services.AddOutbox()
-        .AddOutboxEfCore<AppDbContext>()
-        .AddOrderPlacedOutbox();
-
-// Wire MediatorOutboxDispatcher<OrderPlaced> as IOutboxDispatcher<OrderPlaced>
-services.AddOutboxMediator<OrderPlaced>();
+        .WithEfCore<AppDbContext>()
+        .AddOrderPlacedOutbox()
+        // Wire MediatorOutboxDispatcher<OrderPlaced> as IOutboxDispatcher<OrderPlaced>
+        .WithMediator<OrderPlaced>();
 ```
 
-`AddOutboxMediator<T>()` registers `MediatorOutboxDispatcher<T>` as `IOutboxDispatcher<T>`. The dispatcher calls each `INotificationHandler<T>` sequentially when the outbox worker dispatches the message — after the original transaction commits.
+`WithMediator<T>()` registers `MediatorOutboxDispatcher<T>` as `IOutboxDispatcher<T>`. The dispatcher calls each `INotificationHandler<T>` sequentially when the outbox worker dispatches the message — after the original transaction commits.
 
 ## Handlers
 

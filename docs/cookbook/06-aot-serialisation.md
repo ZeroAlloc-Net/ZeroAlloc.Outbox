@@ -46,7 +46,7 @@ services.AddSerializerDispatcher(options =>
 
 // AddOutbox() picks it up automatically
 services.AddOutbox()
-        .AddOutboxEfCore<AppDbContext>();
+        .WithEfCore<AppDbContext>();
 ```
 
 ## Annotating Message Types

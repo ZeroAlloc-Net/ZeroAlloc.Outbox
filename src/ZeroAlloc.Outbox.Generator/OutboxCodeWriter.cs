@@ -49,6 +49,7 @@ internal static class OutboxCodeWriter
         sb.AppendLine();
         sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
         sb.AppendLine("using Microsoft.Extensions.DependencyInjection.Extensions;");
+        sb.AppendLine("using ZeroAlloc.Outbox;");
         sb.AppendLine();
 
         if (ns != null)
@@ -123,13 +124,23 @@ internal static class OutboxCodeWriter
     {
         sb.AppendLine("public static partial class OutboxServiceCollectionExtensions");
         sb.AppendLine("{");
+        sb.AppendLine($"    public static global::ZeroAlloc.Outbox.IOutboxBuilder {diMethodName}(");
+        sb.AppendLine("        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>, {writerName}>();");
+        sb.AppendLine($"        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
+        sb.AppendLine($"        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<{typeFqn}>,");
+        sb.AppendLine($"            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
+        sb.AppendLine("        return builder;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine($"    [global::System.Obsolete(\"Use AddOutbox().{diMethodName}() instead. Will be removed in the next major.\", DiagnosticId = \"ZAOBOX010\")]");
+        sb.AppendLine("    [global::System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(\"AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.\")]");
+        sb.AppendLine("    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCode(\"AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.\")]");
         sb.AppendLine($"    public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {diMethodName}(");
         sb.AppendLine("        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
         sb.AppendLine("    {");
-        sb.AppendLine($"        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>, {writerName}>();");
-        sb.AppendLine($"        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
-        sb.AppendLine($"        services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<{typeFqn}>,");
-        sb.AppendLine($"            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
+        sb.AppendLine($"        services.AddOutbox().{diMethodName}();");
         sb.AppendLine("        return services;");
         sb.AppendLine("    }");
         sb.AppendLine("}");

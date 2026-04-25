@@ -54,20 +54,16 @@ dotnet ef database update
 ## 4. Register with DI
 
 ```csharp
-// Add the outbox background worker + default serializer
+// AddOutbox returns IOutboxBuilder; chain With*/Add{Type}Outbox calls.
 builder.Services.AddOutbox(options =>
-{
-    options.MaxAttempts     = 5;
-    options.BatchSize       = 50;
-    options.PollingInterval = TimeSpan.FromSeconds(5);
-    options.RetryBaseDelay  = TimeSpan.FromSeconds(2);
-});
-
-// Add the EF Core store (wraps your existing DbContext)
-builder.Services.AddOutboxEfCore<AppDbContext>();
-
-// Source-generated extension method — one per [OutboxMessage] type
-builder.Services.AddOrderPlacedOutbox();
+        {
+            options.MaxAttempts     = 5;
+            options.BatchSize       = 50;
+            options.PollingInterval = TimeSpan.FromSeconds(5);
+            options.RetryBaseDelay  = TimeSpan.FromSeconds(2);
+        })
+        .WithEfCore<AppDbContext>()         // EF Core store (wraps your existing DbContext)
+        .AddOrderPlacedOutbox();            // source-generated, one per [OutboxMessage] type
 
 // Register your dispatcher for each message type
 builder.Services.AddTransient<IOutboxDispatcher<OrderPlaced>, OrderPlacedEmailDispatcher>();
@@ -118,7 +114,7 @@ Replace the EF Core store with the in-memory adapter for unit and integration te
 
 ```csharp
 // In your test host setup
-services.AddOutboxInMemory();   // replaces AddOutboxEfCore<T>()
+services.AddOutbox().WithInMemoryStore();   // replaces .WithEfCore<T>()
 
 // Inspect store state directly for assertions
 var store = host.Services.GetRequiredService<InMemoryOutboxStore>();
