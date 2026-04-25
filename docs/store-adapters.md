@@ -22,7 +22,7 @@ A single table `OutboxMessages` is added with these columns:
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `Id` | `Guid` | Primary key, generated client-side (`Guid.NewGuid()`) |
+| `Id` | `OutboxMessageId` | Primary key, generated client-side (`OutboxMessageId.New()`) |
 | `TypeName` | `nvarchar(256)` | Fully-qualified type discriminator |
 | `Payload` | `varbinary(max)` | Serialized message bytes |
 | `Status` | `int` | `0` = Pending, `1` = Succeeded, `2` = DeadLetter |
