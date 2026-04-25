@@ -4,6 +4,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ZeroAlloc.Outbox;
 
 namespace MyApp;
 
@@ -57,13 +58,21 @@ internal sealed class StockReservedOutboxTypeDispatcher : global::ZeroAlloc.Outb
 
 public static partial class OutboxServiceCollectionExtensions
 {
+    public static global::ZeroAlloc.Outbox.IOutboxBuilder AddStockReservedOutbox(
+        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)
+    {
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>, StockReservedOutboxWriter>();
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
+        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
+            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
+        return builder;
+    }
+
+    [global::System.Obsolete("Use AddOutbox().AddStockReservedOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddStockReservedOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>, StockReservedOutboxWriter>();
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
-        services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
-            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
+        services.AddOutbox().AddStockReservedOutbox();
         return services;
     }
 }

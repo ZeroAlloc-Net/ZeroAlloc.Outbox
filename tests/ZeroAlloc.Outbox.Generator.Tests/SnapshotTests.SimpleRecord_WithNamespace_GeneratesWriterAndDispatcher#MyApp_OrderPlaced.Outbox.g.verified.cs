@@ -4,6 +4,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ZeroAlloc.Outbox;
 
 namespace MyApp;
 
@@ -57,13 +58,21 @@ internal sealed class OrderPlacedOutboxTypeDispatcher : global::ZeroAlloc.Outbox
 
 public static partial class OutboxServiceCollectionExtensions
 {
+    public static global::ZeroAlloc.Outbox.IOutboxBuilder AddOrderPlacedOutbox(
+        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)
+    {
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.OrderPlaced>, OrderPlacedOutboxWriter>();
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
+        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.OrderPlaced>,
+            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.OrderPlaced>>();
+        return builder;
+    }
+
+    [global::System.Obsolete("Use AddOutbox().AddOrderPlacedOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddOrderPlacedOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.OrderPlaced>, OrderPlacedOutboxWriter>();
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
-        services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.OrderPlaced>,
-            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.OrderPlaced>>();
+        services.AddOutbox().AddOrderPlacedOutbox();
         return services;
     }
 }
