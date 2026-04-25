@@ -18,7 +18,7 @@ public class SerializerSelectionTests
 #pragma warning disable IL2026, IL3050
         services
             .AddOutbox()
-            .AddOutboxInMemory();
+            .WithInMemoryStore();
 #pragma warning restore IL2026, IL3050
 
         var provider = services.BuildServiceProvider();
@@ -36,7 +36,7 @@ public class SerializerSelectionTests
 #pragma warning disable IL2026, IL3050
         services
             .AddOutbox()
-            .AddOutboxInMemory();
+            .WithInMemoryStore();
 #pragma warning restore IL2026, IL3050
 
         var provider = services.BuildServiceProvider();
