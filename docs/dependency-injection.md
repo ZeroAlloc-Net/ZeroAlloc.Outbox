@@ -20,7 +20,9 @@ Registers:
 |---------|----------|-------|
 | `IOptions<OutboxOptions>` | Singleton | Bound from `OutboxOptions` section or inline configuration |
 | `OutboxWorkerService` | Singleton | `IHostedService`; polls the store in a background loop |
-| `SystemTextJsonOutboxSerializer` | Singleton | Default `IOutboxSerializer` implementation |
+| `IOutboxSerializer` | Singleton | `DispatchingOutboxSerializer` if `ISerializerDispatcher` is registered; otherwise `SystemTextJsonOutboxSerializer` |
+
+**Serializer selection** — if `ISerializerDispatcher` (from `ZeroAlloc.Serialisation`) is registered in the container before `AddOutbox()` is called, the AOT-safe `DispatchingOutboxSerializer` is used automatically. See [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md) for setup details.
 
 ## `AddOutboxEfCore<TContext>`
 

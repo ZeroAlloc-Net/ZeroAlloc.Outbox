@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <PackageId>ZeroAlloc.Outbox.Resilience</PackageId>
+    <Description>ZeroAlloc.Resilience bridge for ZeroAlloc.Outbox — wraps IOutboxDispatcher&lt;T&gt; implementations in a Resilience-generated proxy.</Description>
+    <Version>0.0.0-local</Version>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.Resilience" Version="1.0.0" />
+    <!-- Pinned to 10.0.0 to match ZeroAlloc.Outbox's transitive minimum (Outbox#17) -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
+  </ItemGroup>
+</Project>
