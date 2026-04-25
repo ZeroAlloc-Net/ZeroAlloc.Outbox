@@ -27,3 +27,5 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
   - [Mediator Integration](cookbook/03-mediator-integration.md)
   - [Dead-Letter Handling](cookbook/04-dead-letter-handling.md)
   - [Testing with Host](cookbook/05-testing-with-host.md)
+  - [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md)
+  - [Resilience Bridge](cookbook/07-resilience-bridge.md)
