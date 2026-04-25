@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <PackageId>ZeroAlloc.Outbox.Mediator</PackageId>
+    <Description>ZeroAlloc.Mediator bridge for ZeroAlloc.Outbox — dispatches outbox messages via IMediator.Publish.</Description>
+    <Version>0.0.0-local</Version>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.Mediator" Version="[1.1.8,2.0.0)" />
+    <!-- Pinned to 10.0.0 to match ZeroAlloc.Outbox's transitive minimum (Outbox#17) -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
+  </ItemGroup>
+</Project>

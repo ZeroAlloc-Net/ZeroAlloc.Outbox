@@ -69,6 +69,10 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         {
             lock (entry)
             {
+                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
+                if (!fsm.TryFire(OutboxMessageTrigger.Dispatch))
+                    throw new InvalidOperationException(
+                        $"Cannot mark message {id} as succeeded in state {fsm.Current}.");
                 entry.Status = InMemoryEntryStatus.Succeeded;
                 entry.ProcessedAt = DateTimeOffset.UtcNow;
             }
@@ -83,6 +87,10 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         {
             lock (entry)
             {
+                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
+                if (!fsm.TryFire(OutboxMessageTrigger.Fail))
+                    throw new InvalidOperationException(
+                        $"Cannot mark message {id} as failed in state {fsm.Current}.");
                 entry.Status = InMemoryEntryStatus.Pending;
                 entry.RetryCount = retryCount;
                 entry.NextRetryAt = nextRetryAt;
@@ -98,6 +106,10 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         {
             lock (entry)
             {
+                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
+                if (!fsm.TryFire(OutboxMessageTrigger.Exhaust))
+                    throw new InvalidOperationException(
+                        $"Cannot dead-letter message {id} in state {fsm.Current}.");
                 entry.Status = InMemoryEntryStatus.DeadLetter;
                 entry.DeadLetterError = error;
             }
@@ -169,8 +181,10 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             throw new InvalidOperationException($"Message {id} not found.");
         lock (entry)
         {
-            if (entry.Status != InMemoryEntryStatus.DeadLetter)
-                throw new InvalidOperationException($"Message {id} is not dead-lettered.");
+            var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
+            if (!fsm.TryFire(OutboxMessageTrigger.Requeue))
+                throw new InvalidOperationException(
+                    $"Message {id} cannot be requeued in state {fsm.Current}.");
             entry.Status = InMemoryEntryStatus.Pending;
             entry.RetryCount = 0;
             entry.NextRetryAt = DateTimeOffset.UtcNow;
@@ -185,8 +199,10 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             throw new InvalidOperationException($"Message {id} not found.");
         lock (entry)
         {
-            if (entry.Status != InMemoryEntryStatus.Pending)
-                throw new InvalidOperationException($"Message {id} cannot be cancelled (status: {entry.Status}).");
+            var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
+            if (!fsm.TryFire(OutboxMessageTrigger.Cancel))
+                throw new InvalidOperationException(
+                    $"Message {id} cannot be cancelled in state {fsm.Current}.");
             _entries.TryRemove(id, out _);
         }
         return ValueTask.CompletedTask;
@@ -204,6 +220,13 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         }
         return ValueTask.CompletedTask;
     }
+
+    private static OutboxMessageState ToState(InMemoryEntryStatus status, int retryCount) => status switch
+    {
+        InMemoryEntryStatus.Succeeded => OutboxMessageState.Dispatched,
+        InMemoryEntryStatus.DeadLetter => OutboxMessageState.DeadLetter,
+        _ => retryCount == 0 ? OutboxMessageState.Pending : OutboxMessageState.Retry,
+    };
 
     private void BumpThroughput(bool isDispatched)
     {
