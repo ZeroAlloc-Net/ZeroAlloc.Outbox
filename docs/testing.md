@@ -51,9 +51,9 @@ public async Task OrderPlaced_IsDispatched()
     using var host = await new HostBuilder()
         .ConfigureServices(services =>
         {
-            services.AddOutbox(o => { o.PollingInterval = TimeSpan.FromMilliseconds(50); });
-            services.AddOutboxInMemory();
-            services.AddOrderPlacedOutbox();
+            services.AddOutbox(o => { o.PollingInterval = TimeSpan.FromMilliseconds(50); })
+                    .WithInMemoryStore()
+                    .AddOrderPlacedOutbox();
             services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
                 _ => new DelegateDispatcher<OrderPlaced>(msg =>
                 {

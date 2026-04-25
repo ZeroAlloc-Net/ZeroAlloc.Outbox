@@ -16,7 +16,7 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
 - [Dispatchers](dispatchers.md) — `IOutboxDispatcher<T>`, `IOutboxTypeDispatcher` (generated bridge), custom implementations
 - [Store Adapters](store-adapters.md) — EF Core adapter (schema, migration), InMemory (test usage)
 - [Background Worker](background-worker.md) — polling, retry back-off, dead-letter, `OutboxOptions` reference
-- [Dependency Injection](dependency-injection.md) — `AddOutbox`, `AddOutboxEfCore`, `AddOrderPlacedOutbox`, lifetime rules
+- [Dependency Injection](dependency-injection.md) — `AddOutbox` builder, `WithEfCore`, `AddOrderPlacedOutbox`, lifetime rules, v1.x → v2.x migration table
 - [Diagnostics](diagnostics.md) — ZO0001, ZO0002, ZO0003
 - [Performance](performance.md) — zero-alloc design, AOT safety, source-gen vs reflection
 - [Testing](testing.md) — `InMemoryOutboxStore`, `AllEntries()`, worker integration tests

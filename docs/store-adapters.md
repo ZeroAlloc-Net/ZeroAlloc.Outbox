@@ -11,7 +11,8 @@ sidebar_position: 6
 ### Registration
 
 ```csharp
-builder.Services.AddOutboxEfCore<AppDbContext>();
+builder.Services.AddOutbox()
+        .WithEfCore<AppDbContext>();
 ```
 
 This registers `EfCoreOutboxStore` as `IOutboxStore` (scoped) and wires the `OutboxMessageEntity` configuration into the provided `DbContext`.
@@ -63,7 +64,8 @@ See [EF Core Transaction](cookbook/01-ef-core-transaction.md) for the complete p
 ### Registration
 
 ```csharp
-builder.Services.AddOutboxInMemory();
+builder.Services.AddOutbox()
+        .WithInMemoryStore();
 ```
 
 Registers `InMemoryOutboxStore` as both `IOutboxStore` and `InMemoryOutboxStore` (singleton) so tests can inspect entries directly.

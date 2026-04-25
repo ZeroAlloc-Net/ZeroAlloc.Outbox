@@ -40,19 +40,17 @@ The `ZeroAlloc.Resilience` generator emits a `ResilientOrderPlacedDispatcherProx
 // Register your real dispatcher
 services.AddTransient<OrderPlacedDispatcher>();
 
-// AddOutboxResilience wires the proxy as IOutboxDispatcher<OrderPlaced>
-services.AddOutboxResilience<
-    OrderPlaced,
-    IResilientOrderPlacedDispatcher,
-    ResilientOrderPlacedDispatcherProxy>();
-
-// Standard outbox setup
+// Standard outbox setup; WithResilience wires the proxy as IOutboxDispatcher<OrderPlaced>.
 services.AddOutbox()
-        .AddOutboxEfCore<AppDbContext>()
-        .AddOrderPlacedOutbox();
+        .WithEfCore<AppDbContext>()
+        .AddOrderPlacedOutbox()
+        .WithResilience<
+            OrderPlaced,
+            IResilientOrderPlacedDispatcher,
+            ResilientOrderPlacedDispatcherProxy>();
 ```
 
-`AddOutboxResilience<T, TDispatcherInterface, TResilienceProxy>()` registers `TResilienceProxy` as `Transient` and binds it as `IOutboxDispatcher<T>`.
+`WithResilience<T, TDispatcherInterface, TResilienceProxy>()` registers `TResilienceProxy` as `Transient` and binds it as `IOutboxDispatcher<T>`.
 
 ## Type Parameters
 
