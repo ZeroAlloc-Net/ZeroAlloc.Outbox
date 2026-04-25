@@ -69,6 +69,8 @@ public static partial class OutboxServiceCollectionExtensions
     }
 
     [global::System.Obsolete("Use AddOutbox().AddStockReservedOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
+    [global::System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
+    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCode("AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddStockReservedOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
