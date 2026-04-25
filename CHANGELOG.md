@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.3.0...v2.0.0) (2026-04-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **outbox:** AddOutbox() return type changed from IServiceCollection to IOutboxBuilder. Use builder.Services where you previously chained on IServiceCollection.
+
+### Features
+
+* **outbox:** migrate DI registration to IOutboxBuilder fluent API ([#31](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/31)) ([0dea415](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/0dea41531e0778856b1efb6d6167b6efd182ec93))
+
 ## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.2.1...v1.3.0) (2026-04-25)
 
 
