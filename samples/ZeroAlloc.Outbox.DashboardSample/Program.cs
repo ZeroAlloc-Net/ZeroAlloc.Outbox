@@ -7,9 +7,9 @@ using ZeroAlloc.Outbox.InMemory;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOutbox();
-builder.Services.AddOutboxInMemory();
-builder.Services.AddOutboxDashboardEvents();
+builder.Services.AddOutbox()
+    .WithInMemoryStore()
+    .WithDashboardEvents();
 
 // Remove the background worker so seeded state stays static during regression screenshots.
 // (The worker would otherwise dead-letter the fixture messages because no IOutboxTypeDispatcher is registered.)
