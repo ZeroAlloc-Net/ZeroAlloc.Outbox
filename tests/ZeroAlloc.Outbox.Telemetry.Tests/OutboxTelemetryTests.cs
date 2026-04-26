@@ -114,6 +114,29 @@ public class OutboxTelemetryTests
         listener.StoppedActivities.Should().ContainSingle();
     }
 
+    [Fact]
+    public async Task WithTelemetry_MultipleDispatchers_AllWrapped()
+    {
+        using var listener = new TestActivityListener("ZeroAlloc.Outbox");
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddOutbox();
+        // Two distinct dispatcher registrations, mimicking what AddXxxOutbox() does per message type.
+        builder.Services.AddTransient<IOutboxTypeDispatcher>(_ => new FakeDispatcher());
+        builder.Services.AddTransient<IOutboxTypeDispatcher>(_ => new FakeDispatcher());
+        builder.WithTelemetry();
+
+        var sp = services.BuildServiceProvider();
+        var dispatchers = sp.GetServices<IOutboxTypeDispatcher>().ToList();
+
+        foreach (var d in dispatchers)
+            await d.DispatchAsync(ReadOnlyMemory<byte>.Empty, CancellationToken.None);
+
+        // Each dispatcher starts one span — both should have been wrapped.
+        listener.StoppedActivities.Should().HaveCount(2);
+    }
+
     private sealed class FakeDispatcher : IOutboxTypeDispatcher
     {
         public string TypeName => "Fake";
