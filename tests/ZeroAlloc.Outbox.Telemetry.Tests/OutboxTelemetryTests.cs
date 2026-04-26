@@ -93,6 +93,27 @@ public class OutboxTelemetryTests
         histogramValue.Should().BeGreaterThanOrEqualTo(0); // duration in ms; may be 0 on a no-op call
     }
 
+    [Fact]
+    public async Task WithTelemetry_TwoCalls_DoesNotDoubleWrap()
+    {
+        using var listener = new TestActivityListener("ZeroAlloc.Outbox");
+        var fake = new FakeDispatcher();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddOutbox();
+        builder.Services.AddTransient<IOutboxTypeDispatcher>(_ => fake);
+        builder.WithTelemetry().WithTelemetry();   // call twice
+
+        var sp = services.BuildServiceProvider();
+        var dispatcher = sp.GetServices<IOutboxTypeDispatcher>().First();
+
+        await dispatcher.DispatchAsync(ReadOnlyMemory<byte>.Empty, CancellationToken.None);
+
+        // Single span — not two nested spans from a doubly-wrapped proxy.
+        listener.StoppedActivities.Should().ContainSingle();
+    }
+
     private sealed class FakeDispatcher : IOutboxTypeDispatcher
     {
         public string TypeName => "Fake";
