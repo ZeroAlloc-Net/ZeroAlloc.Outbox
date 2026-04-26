@@ -21,5 +21,6 @@
     <Project Path="tests/ZeroAlloc.Outbox.Tests/ZeroAlloc.Outbox.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Mediator.Tests/ZeroAlloc.Outbox.Mediator.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Resilience.Tests/ZeroAlloc.Outbox.Resilience.Tests.csproj" />
+    <Project Path="tests/ZeroAlloc.Outbox.Telemetry.Tests/ZeroAlloc.Outbox.Telemetry.Tests.csproj" />
   </Folder>
 </Solution>
