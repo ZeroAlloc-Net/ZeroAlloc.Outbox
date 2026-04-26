@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.0.0...v2.1.0) (2026-04-26)
+
+
+### Features
+
+* **outbox.telemetry:** bridge package wiring [Instrument] proxy on IOutboxTypeDispatcher ([#21](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/21)) ([#33](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/33)) ([0e9f789](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/0e9f7891627d69fd63df9acad166f837a7815848))
+
 ## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v1.3.0...v2.0.0) (2026-04-25)
 
 
