@@ -5,6 +5,10 @@
     <Description>ZeroAlloc.Telemetry bridge for ZeroAlloc.Outbox — wraps IOutboxTypeDispatcher with a source-generated OpenTelemetry proxy.</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\generated</CompilerGeneratedFilesOutputPath>
+    <!-- EPC12 (ErrorProne.NET) flags ZeroAlloc.Telemetry's generated catch block where only _ex.Message is observed; that is the intended pattern for OTel ActivityStatusCode.Error and is not actionable in source-generated code. -->
+    <NoWarn>$(NoWarn);EPC12</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ZeroAlloc.Telemetry" Version="1.1.0" />
