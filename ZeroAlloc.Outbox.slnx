@@ -8,6 +8,7 @@
     <Project Path="src/ZeroAlloc.Outbox.Dashboard.Blazor/ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Mediator/ZeroAlloc.Outbox.Mediator.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Resilience/ZeroAlloc.Outbox.Resilience.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.Telemetry/ZeroAlloc.Outbox.Telemetry.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/ZeroAlloc.Outbox.Benchmarks/ZeroAlloc.Outbox.Benchmarks.csproj" />
