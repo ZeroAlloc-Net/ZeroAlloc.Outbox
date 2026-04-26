@@ -29,3 +29,4 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
   - [Testing with Host](cookbook/05-testing-with-host.md)
   - [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md)
   - [Resilience Bridge](cookbook/07-resilience-bridge.md)
+  - [OpenTelemetry Integration](cookbook/08-telemetry.md)

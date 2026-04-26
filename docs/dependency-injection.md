@@ -99,3 +99,7 @@ The `IOutboxTypeDispatcher` is registered as `Transient` so it is resolved fresh
 - `IOutboxStore` implementations must be **Scoped** (EF Core) or **Singleton** (InMemory). Do not register a Singleton EF Core store — it captures the `DbContext` and causes data corruption.
 - `IOutboxDispatcher<T>` implementations can be any lifetime. `Transient` is the safest default.
 - The worker creates a new `IServiceScope` per batch cycle, so Scoped services are correctly isolated.
+
+## `WithTelemetry`
+
+The `ZeroAlloc.Outbox.Telemetry` bridge package adds a parameterless `WithTelemetry()` extension on `IOutboxBuilder` that decorates every registered `IOutboxTypeDispatcher` with a source-generated OpenTelemetry proxy — emitting an `outbox.dispatch` span, an `outbox.dispatched_total` counter, and an `outbox.dispatch_duration_ms` histogram on the `ZeroAlloc.Outbox` ActivitySource/Meter. The call is idempotent and walks the entire dispatcher fan-out, so it covers all `[OutboxMessage]` types registered before the call. See the [OpenTelemetry Integration](cookbook/08-telemetry.md) cookbook entry for a full walk-through, including composition order with `WithResilience`.
