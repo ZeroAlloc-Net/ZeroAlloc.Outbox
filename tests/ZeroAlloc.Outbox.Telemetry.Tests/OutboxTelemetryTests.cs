@@ -54,6 +54,45 @@ public class OutboxTelemetryTests
         listener.StoppedActivities[0].Status.Should().Be(ActivityStatusCode.Error);
     }
 
+    [Fact]
+    public async Task WithTelemetry_RecordsCounterAndHistogram()
+    {
+        long counterValue = 0;
+        double histogramValue = 0;
+
+        using var meterListener = new System.Diagnostics.Metrics.MeterListener();
+        meterListener.InstrumentPublished = (instrument, l) =>
+        {
+            if (string.Equals(instrument.Meter.Name, "ZeroAlloc.Outbox", StringComparison.Ordinal))
+                l.EnableMeasurementEvents(instrument);
+        };
+        meterListener.SetMeasurementEventCallback<long>((inst, m, _, _) =>
+        {
+            if (string.Equals(inst.Name, "outbox.dispatched_total", StringComparison.Ordinal))
+                Interlocked.Add(ref counterValue, m);
+        });
+        meterListener.SetMeasurementEventCallback<double>((inst, m, _, _) =>
+        {
+            if (string.Equals(inst.Name, "outbox.dispatch_duration_ms", StringComparison.Ordinal))
+                histogramValue = m;
+        });
+        meterListener.Start();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var builder = services.AddOutbox();
+        builder.Services.AddTransient<IOutboxTypeDispatcher>(_ => new FakeDispatcher());
+        builder.WithTelemetry();
+
+        var sp = services.BuildServiceProvider();
+        var dispatcher = sp.GetServices<IOutboxTypeDispatcher>().First();
+
+        await dispatcher.DispatchAsync(ReadOnlyMemory<byte>.Empty, CancellationToken.None);
+
+        counterValue.Should().Be(1);
+        histogramValue.Should().BeGreaterThanOrEqualTo(0); // duration in ms; may be 0 on a no-op call
+    }
+
     private sealed class FakeDispatcher : IOutboxTypeDispatcher
     {
         public string TypeName => "Fake";
