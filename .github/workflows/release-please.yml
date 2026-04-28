@@ -46,6 +46,11 @@ jobs:
           dotnet pack src/ZeroAlloc.Outbox.Generator/ZeroAlloc.Outbox.Generator.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
           dotnet pack src/ZeroAlloc.Outbox.EfCore/ZeroAlloc.Outbox.EfCore.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
           dotnet pack src/ZeroAlloc.Outbox.InMemory/ZeroAlloc.Outbox.InMemory.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Outbox.Mediator/ZeroAlloc.Outbox.Mediator.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Outbox.Resilience/ZeroAlloc.Outbox.Resilience.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Outbox.Telemetry/ZeroAlloc.Outbox.Telemetry.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Outbox.Dashboard/ZeroAlloc.Outbox.Dashboard.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Outbox.Dashboard.Blazor/ZeroAlloc.Outbox.Dashboard.Blazor.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
 
       - name: Push to NuGet
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
