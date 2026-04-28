@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.1.0...v2.2.0) (2026-04-28)
+
+
+### Features
+
+* **outbox.efcore:** finish OutboxMessageId migration on EF Core entity ([#22](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/22)) ([#35](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/35)) ([3471c3b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/3471c3b9175bc76cefe14d6c05e15d2024fe8000))
+
 ## [2.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.0.0...v2.1.0) (2026-04-26)
 
 
