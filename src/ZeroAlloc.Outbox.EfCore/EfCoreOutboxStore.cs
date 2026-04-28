@@ -54,7 +54,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         {
             result.Add(new OutboxEntry
             {
-                Id = new OutboxMessageId(row.Id),
+                Id = row.Id,
                 TypeName = row.TypeName,
                 RawPayload = row.Payload,
                 RetryCount = row.RetryCount,
@@ -67,7 +67,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
         if (entity is null) return;
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Dispatch))
@@ -81,7 +81,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
         if (entity is null) return;
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Fail))
@@ -96,7 +96,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false);
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
         if (entity is null) return;
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Exhaust))
@@ -244,7 +244,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Requeue))
@@ -261,7 +261,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Cancel))
@@ -274,7 +274,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
     public async ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
     {
         var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id.Value }, ct).ConfigureAwait(false)
+            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         if (entity.Status != OutboxMessageStatus.Pending)
             throw new InvalidOperationException($"Message {id} is not pending (status: {entity.Status}).");
@@ -294,7 +294,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     private static OutboxMessageView ToView(in RawProjection r) => new()
     {
-        Id = new OutboxMessageId(r.Id),
+        Id = r.Id,
         TypeName = r.TypeName,
         CreatedAt = r.CreatedAt,
         RetryCount = r.RetryCount,
@@ -311,7 +311,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     private sealed class RawProjection
     {
-        public Guid Id { get; set; }
+        public OutboxMessageId Id { get; set; }
         public string TypeName { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; }
         public int RetryCount { get; set; }

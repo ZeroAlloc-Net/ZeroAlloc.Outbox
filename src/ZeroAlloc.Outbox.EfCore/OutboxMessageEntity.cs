@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ZeroAlloc.Outbox;
 
 namespace ZeroAlloc.Outbox.EfCore;
 
@@ -10,7 +11,7 @@ namespace ZeroAlloc.Outbox.EfCore;
 public sealed class OutboxMessageEntity
 {
     [Key]
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public OutboxMessageId Id { get; set; } = OutboxMessageId.New();
 
     [Required, MaxLength(256)]
     public string TypeName { get; set; } = string.Empty;
