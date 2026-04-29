@@ -1,16 +1,14 @@
 # ZeroAlloc.Outbox
 
+[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Outbox.svg)](https://www.nuget.org/packages/ZeroAlloc.Outbox)
+[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
-
 
 Source-generated transactional outbox for .NET. Annotate a message type with `[OutboxMessage]` and a Roslyn source generator emits a typed writer and dispatcher bridge — no reflection, no boxing, AOT-safe. Backed by EF Core (production) or in-memory (tests), with a built-in polling worker, exponential-backoff retry, and dead-letter support.
 
-[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Outbox.svg)](https://www.nuget.org/packages/ZeroAlloc.Outbox)
-[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Outbox.Generator.svg)](https://www.nuget.org/packages/ZeroAlloc.Outbox.Generator)
-[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Outbox.EfCore.svg)](https://www.nuget.org/packages/ZeroAlloc.Outbox.EfCore)
-[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Outbox.InMemory.svg)](https://www.nuget.org/packages/ZeroAlloc.Outbox.InMemory)
-[![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Multiple packages in this family — see [Documentation](docs/) or NuGet for the full list.
 
 ---
 
