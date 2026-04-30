@@ -10,9 +10,33 @@
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <NoWarn>$(NoWarn);RS2008</NoWarn>
+
+    <!--
+      Source-generator packaging: ship the generator DLL under analyzers/dotnet/cs so
+      Roslyn loads it as an analyzer. Without IncludeBuildOutput=false the build output
+      ends up under lib/ and consumers silently get no source generator.
+    -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
+  <!--
+    Pack the generator DLL under analyzers/dotnet/cs. Without this, dotnet pack falls back
+    to the default lib/<tfm>/ layout and Roslyn does not load the generator at all.
+  -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+    <None Include="$(OutputPath)\$(AssemblyName).pdb"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false"
+          Condition="Exists('$(OutputPath)\$(AssemblyName).pdb')" />
   </ItemGroup>
 </Project>
