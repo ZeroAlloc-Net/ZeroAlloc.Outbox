@@ -4,6 +4,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      Lock the public API surface: RS0016 (undeclared public symbol) and
+      RS0017 (declared symbol no longer exists) are explicitly promoted to
+      errors so a forgotten PublicAPI.Unshipped.txt update breaks the build.
+      Redundant under the global TreatWarningsAsErrors above, but kept
+      explicit so the intent survives any future relaxation of that flag.
+    -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
 
     <Authors>Marcel Roozekrans</Authors>
     <Company>Marcel Roozekrans</Company>

@@ -1,0 +1,275 @@
+#nullable enable
+ZeroAlloc.Outbox.AddOutboxDashboardEventsExtensions
+ZeroAlloc.Outbox.ChannelOutboxDashboardEventPublisher
+ZeroAlloc.Outbox.ChannelOutboxDashboardEventPublisher.ChannelOutboxDashboardEventPublisher() -> void
+ZeroAlloc.Outbox.ChannelOutboxDashboardEventPublisher.PublishAsync(ZeroAlloc.Outbox.OutboxDashboardEvent! evt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.ChannelOutboxDashboardEventPublisher.Subscribe() -> ZeroAlloc.Outbox.OutboxDashboardSubscription!
+ZeroAlloc.Outbox.DefaultOutboxDispatcher<T>
+ZeroAlloc.Outbox.DefaultOutboxDispatcher<T>.DefaultOutboxDispatcher() -> void
+ZeroAlloc.Outbox.DefaultOutboxDispatcher<T>.DispatchAsync(T message, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.DispatchingOutboxSerializer
+ZeroAlloc.Outbox.DispatchingOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
+ZeroAlloc.Outbox.DispatchingOutboxSerializer.DispatchingOutboxSerializer(ZeroAlloc.Serialisation.ISerializerDispatcher! dispatcher) -> void
+ZeroAlloc.Outbox.DispatchingOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
+ZeroAlloc.Outbox.IOutboxBuilder
+ZeroAlloc.Outbox.IOutboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+ZeroAlloc.Outbox.IOutboxDashboardEventPublisher
+ZeroAlloc.Outbox.IOutboxDashboardEventPublisher.PublishAsync(ZeroAlloc.Outbox.OutboxDashboardEvent! evt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxDashboardEventPublisher.Subscribe() -> ZeroAlloc.Outbox.OutboxDashboardSubscription!
+ZeroAlloc.Outbox.IOutboxDashboardStore
+ZeroAlloc.Outbox.IOutboxDashboardStore.CancelAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxDashboardStore.ForceDispatchAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxDashboardStore.GetSnapshotAsync(int dispatchedLimit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<ZeroAlloc.Outbox.OutboxSnapshot!>
+ZeroAlloc.Outbox.IOutboxDashboardStore.GetThroughputAsync(System.TimeSpan window, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<ZeroAlloc.Outbox.ThroughputPoint!>!
+ZeroAlloc.Outbox.IOutboxDashboardStore.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxDispatcher<T>
+ZeroAlloc.Outbox.IOutboxDispatcher<T>.DispatchAsync(T message, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxSerializer
+ZeroAlloc.Outbox.IOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
+ZeroAlloc.Outbox.IOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
+ZeroAlloc.Outbox.IOutboxStore
+ZeroAlloc.Outbox.IOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.FetchPendingAsync(int batchSize, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
+ZeroAlloc.Outbox.IOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxTypeDispatcher
+ZeroAlloc.Outbox.IOutboxTypeDispatcher.DispatchAsync(System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxTypeDispatcher.TypeName.get -> string!
+ZeroAlloc.Outbox.IOutboxWriter<T>
+ZeroAlloc.Outbox.IOutboxWriter<T>.WriteAsync(T message, System.Data.Common.DbTransaction? transaction = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.MessageCancelledEvent
+ZeroAlloc.Outbox.MessageCancelledEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id) -> void
+ZeroAlloc.Outbox.MessageCancelledEvent.Equals(ZeroAlloc.Outbox.MessageCancelledEvent? other) -> bool
+ZeroAlloc.Outbox.MessageCancelledEvent.MessageCancelledEvent(ZeroAlloc.Outbox.OutboxMessageId Id) -> void
+ZeroAlloc.Outbox.MessageDeadLetteredEvent
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id, out string! Error, out int TotalAttempts) -> void
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.Equals(ZeroAlloc.Outbox.MessageDeadLetteredEvent? other) -> bool
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.Error.get -> string!
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.Error.init -> void
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.MessageDeadLetteredEvent(ZeroAlloc.Outbox.OutboxMessageId Id, string! Error, int TotalAttempts) -> void
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.TotalAttempts.get -> int
+ZeroAlloc.Outbox.MessageDeadLetteredEvent.TotalAttempts.init -> void
+ZeroAlloc.Outbox.MessageDispatchedEvent
+ZeroAlloc.Outbox.MessageDispatchedEvent.AttemptCount.get -> int
+ZeroAlloc.Outbox.MessageDispatchedEvent.AttemptCount.init -> void
+ZeroAlloc.Outbox.MessageDispatchedEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id, out System.DateTimeOffset DispatchedAt, out int AttemptCount) -> void
+ZeroAlloc.Outbox.MessageDispatchedEvent.DispatchedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.MessageDispatchedEvent.DispatchedAt.init -> void
+ZeroAlloc.Outbox.MessageDispatchedEvent.Equals(ZeroAlloc.Outbox.MessageDispatchedEvent? other) -> bool
+ZeroAlloc.Outbox.MessageDispatchedEvent.MessageDispatchedEvent(ZeroAlloc.Outbox.OutboxMessageId Id, System.DateTimeOffset DispatchedAt, int AttemptCount) -> void
+ZeroAlloc.Outbox.MessageFailedEvent
+ZeroAlloc.Outbox.MessageFailedEvent.AttemptCount.get -> int
+ZeroAlloc.Outbox.MessageFailedEvent.AttemptCount.init -> void
+ZeroAlloc.Outbox.MessageFailedEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id, out string! Error, out int AttemptCount, out System.DateTimeOffset NextRetryAt) -> void
+ZeroAlloc.Outbox.MessageFailedEvent.Equals(ZeroAlloc.Outbox.MessageFailedEvent? other) -> bool
+ZeroAlloc.Outbox.MessageFailedEvent.Error.get -> string!
+ZeroAlloc.Outbox.MessageFailedEvent.Error.init -> void
+ZeroAlloc.Outbox.MessageFailedEvent.MessageFailedEvent(ZeroAlloc.Outbox.OutboxMessageId Id, string! Error, int AttemptCount, System.DateTimeOffset NextRetryAt) -> void
+ZeroAlloc.Outbox.MessageFailedEvent.NextRetryAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.MessageFailedEvent.NextRetryAt.init -> void
+ZeroAlloc.Outbox.MessageQueuedEvent
+ZeroAlloc.Outbox.MessageQueuedEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id, out string! TypeName, out System.DateTimeOffset QueuedAt) -> void
+ZeroAlloc.Outbox.MessageQueuedEvent.Equals(ZeroAlloc.Outbox.MessageQueuedEvent? other) -> bool
+ZeroAlloc.Outbox.MessageQueuedEvent.MessageQueuedEvent(ZeroAlloc.Outbox.OutboxMessageId Id, string! TypeName, System.DateTimeOffset QueuedAt) -> void
+ZeroAlloc.Outbox.MessageQueuedEvent.QueuedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.MessageQueuedEvent.QueuedAt.init -> void
+ZeroAlloc.Outbox.MessageQueuedEvent.TypeName.get -> string!
+ZeroAlloc.Outbox.MessageQueuedEvent.TypeName.init -> void
+ZeroAlloc.Outbox.MessageRequeuedEvent
+ZeroAlloc.Outbox.MessageRequeuedEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id, out System.DateTimeOffset RequeuedAt) -> void
+ZeroAlloc.Outbox.MessageRequeuedEvent.Equals(ZeroAlloc.Outbox.MessageRequeuedEvent? other) -> bool
+ZeroAlloc.Outbox.MessageRequeuedEvent.MessageRequeuedEvent(ZeroAlloc.Outbox.OutboxMessageId Id, System.DateTimeOffset RequeuedAt) -> void
+ZeroAlloc.Outbox.MessageRequeuedEvent.RequeuedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.MessageRequeuedEvent.RequeuedAt.init -> void
+ZeroAlloc.Outbox.OutboxDashboardEvent
+ZeroAlloc.Outbox.OutboxDashboardEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id) -> void
+ZeroAlloc.Outbox.OutboxDashboardEvent.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.OutboxDashboardEvent.Id.init -> void
+ZeroAlloc.Outbox.OutboxDashboardEvent.OutboxDashboardEvent(ZeroAlloc.Outbox.OutboxDashboardEvent! original) -> void
+ZeroAlloc.Outbox.OutboxDashboardEvent.OutboxDashboardEvent(ZeroAlloc.Outbox.OutboxMessageId Id) -> void
+ZeroAlloc.Outbox.OutboxDashboardSubscription
+ZeroAlloc.Outbox.OutboxDashboardSubscription.Dispose() -> void
+ZeroAlloc.Outbox.OutboxDashboardSubscription.Reader.get -> System.Threading.Channels.ChannelReader<ZeroAlloc.Outbox.OutboxDashboardEvent!>!
+ZeroAlloc.Outbox.OutboxEntry
+ZeroAlloc.Outbox.OutboxEntry.CreatedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.OutboxEntry.CreatedAt.init -> void
+ZeroAlloc.Outbox.OutboxEntry.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.OutboxEntry.Id.init -> void
+ZeroAlloc.Outbox.OutboxEntry.OutboxEntry() -> void
+ZeroAlloc.Outbox.OutboxEntry.Payload.get -> System.ReadOnlyMemory<byte>
+ZeroAlloc.Outbox.OutboxEntry.RawPayload.get -> byte[]!
+ZeroAlloc.Outbox.OutboxEntry.RawPayload.init -> void
+ZeroAlloc.Outbox.OutboxEntry.RetryCount.get -> int
+ZeroAlloc.Outbox.OutboxEntry.RetryCount.init -> void
+ZeroAlloc.Outbox.OutboxEntry.TypeName.get -> string!
+ZeroAlloc.Outbox.OutboxEntry.TypeName.init -> void
+ZeroAlloc.Outbox.OutboxMessageAttribute
+ZeroAlloc.Outbox.OutboxMessageAttribute.OutboxMessageAttribute() -> void
+ZeroAlloc.Outbox.OutboxMessageFsm
+ZeroAlloc.Outbox.OutboxMessageFsm.Current.get -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageFsm.OutboxMessageFsm(ZeroAlloc.Outbox.OutboxMessageState current) -> void
+ZeroAlloc.Outbox.OutboxMessageFsm.TryFire(ZeroAlloc.Outbox.OutboxMessageTrigger trigger) -> bool
+ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.OutboxMessageId.CompareTo(ZeroAlloc.Outbox.OutboxMessageId other) -> int
+ZeroAlloc.Outbox.OutboxMessageId.Equals(ZeroAlloc.Outbox.OutboxMessageId other) -> bool
+ZeroAlloc.Outbox.OutboxMessageId.OutboxMessageId() -> void
+ZeroAlloc.Outbox.OutboxMessageId.OutboxMessageId(System.Guid value) -> void
+ZeroAlloc.Outbox.OutboxMessageId.Value.get -> System.Guid
+ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageState.Cancelled = 4 -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageState.DeadLetter = 3 -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageState.Dispatched = 2 -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageState.Pending = 0 -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageState.Retry = 1 -> ZeroAlloc.Outbox.OutboxMessageState
+ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageTrigger.Cancel = 3 -> ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageTrigger.Dispatch = 0 -> ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageTrigger.Exhaust = 2 -> ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageTrigger.Fail = 1 -> ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageTrigger.Requeue = 4 -> ZeroAlloc.Outbox.OutboxMessageTrigger
+ZeroAlloc.Outbox.OutboxMessageView
+ZeroAlloc.Outbox.OutboxMessageView.<Clone>$() -> ZeroAlloc.Outbox.OutboxMessageView!
+ZeroAlloc.Outbox.OutboxMessageView.CreatedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.OutboxMessageView.CreatedAt.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.DeadLetterError.get -> string?
+ZeroAlloc.Outbox.OutboxMessageView.DeadLetterError.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.DispatchedAt.get -> System.DateTimeOffset?
+ZeroAlloc.Outbox.OutboxMessageView.DispatchedAt.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.Equals(ZeroAlloc.Outbox.OutboxMessageView? other) -> bool
+ZeroAlloc.Outbox.OutboxMessageView.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.OutboxMessageView.Id.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.NextRetryAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.OutboxMessageView.NextRetryAt.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.OutboxMessageView() -> void
+ZeroAlloc.Outbox.OutboxMessageView.PayloadPreview.get -> string!
+ZeroAlloc.Outbox.OutboxMessageView.PayloadPreview.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.RetryCount.get -> int
+ZeroAlloc.Outbox.OutboxMessageView.RetryCount.init -> void
+ZeroAlloc.Outbox.OutboxMessageView.TypeName.get -> string!
+ZeroAlloc.Outbox.OutboxMessageView.TypeName.init -> void
+ZeroAlloc.Outbox.OutboxOptions
+ZeroAlloc.Outbox.OutboxOptions.BatchSize.get -> int
+ZeroAlloc.Outbox.OutboxOptions.BatchSize.set -> void
+ZeroAlloc.Outbox.OutboxOptions.MaxAttempts.get -> int
+ZeroAlloc.Outbox.OutboxOptions.MaxAttempts.set -> void
+ZeroAlloc.Outbox.OutboxOptions.OutboxOptions() -> void
+ZeroAlloc.Outbox.OutboxOptions.PollingInterval.get -> System.TimeSpan
+ZeroAlloc.Outbox.OutboxOptions.PollingInterval.set -> void
+ZeroAlloc.Outbox.OutboxOptions.RetryBaseDelay.get -> System.TimeSpan
+ZeroAlloc.Outbox.OutboxOptions.RetryBaseDelay.set -> void
+ZeroAlloc.Outbox.OutboxServiceCollectionExtensions
+ZeroAlloc.Outbox.OutboxSnapshot
+ZeroAlloc.Outbox.OutboxSnapshot.<Clone>$() -> ZeroAlloc.Outbox.OutboxSnapshot!
+ZeroAlloc.Outbox.OutboxSnapshot.DeadLettered.get -> System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>!
+ZeroAlloc.Outbox.OutboxSnapshot.DeadLettered.init -> void
+ZeroAlloc.Outbox.OutboxSnapshot.Deconstruct(out System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! Pending, out System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! RetryQueue, out System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! DeadLettered, out System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! Dispatched) -> void
+ZeroAlloc.Outbox.OutboxSnapshot.Dispatched.get -> System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>!
+ZeroAlloc.Outbox.OutboxSnapshot.Dispatched.init -> void
+ZeroAlloc.Outbox.OutboxSnapshot.Equals(ZeroAlloc.Outbox.OutboxSnapshot? other) -> bool
+ZeroAlloc.Outbox.OutboxSnapshot.OutboxSnapshot(System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! Pending, System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! RetryQueue, System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! DeadLettered, System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>! Dispatched) -> void
+ZeroAlloc.Outbox.OutboxSnapshot.Pending.get -> System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>!
+ZeroAlloc.Outbox.OutboxSnapshot.Pending.init -> void
+ZeroAlloc.Outbox.OutboxSnapshot.RetryQueue.get -> System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageView!>!
+ZeroAlloc.Outbox.OutboxSnapshot.RetryQueue.init -> void
+ZeroAlloc.Outbox.OutboxWorkerService
+ZeroAlloc.Outbox.OutboxWorkerService.OutboxWorkerService(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Options.IOptions<ZeroAlloc.Outbox.OutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<ZeroAlloc.Outbox.OutboxWorkerService!>! logger) -> void
+ZeroAlloc.Outbox.SystemTextJsonOutboxSerializer
+ZeroAlloc.Outbox.SystemTextJsonOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
+ZeroAlloc.Outbox.SystemTextJsonOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
+ZeroAlloc.Outbox.SystemTextJsonOutboxSerializer.SystemTextJsonOutboxSerializer() -> void
+ZeroAlloc.Outbox.ThroughputPoint
+ZeroAlloc.Outbox.ThroughputPoint.<Clone>$() -> ZeroAlloc.Outbox.ThroughputPoint!
+ZeroAlloc.Outbox.ThroughputPoint.Bucket.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.ThroughputPoint.Bucket.init -> void
+ZeroAlloc.Outbox.ThroughputPoint.Deconstruct(out System.DateTimeOffset Bucket, out int Dispatched, out int Failed) -> void
+ZeroAlloc.Outbox.ThroughputPoint.Dispatched.get -> int
+ZeroAlloc.Outbox.ThroughputPoint.Dispatched.init -> void
+ZeroAlloc.Outbox.ThroughputPoint.Equals(ZeroAlloc.Outbox.ThroughputPoint? other) -> bool
+ZeroAlloc.Outbox.ThroughputPoint.Failed.get -> int
+ZeroAlloc.Outbox.ThroughputPoint.Failed.init -> void
+ZeroAlloc.Outbox.ThroughputPoint.ThroughputPoint(System.DateTimeOffset Bucket, int Dispatched, int Failed) -> void
+abstract ZeroAlloc.Outbox.OutboxDashboardEvent.<Clone>$() -> ZeroAlloc.Outbox.OutboxDashboardEvent!
+override ZeroAlloc.Outbox.MessageCancelledEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageCancelledEvent!
+override ZeroAlloc.Outbox.MessageCancelledEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageCancelledEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageCancelledEvent.ToString() -> string!
+override ZeroAlloc.Outbox.MessageDeadLetteredEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageDeadLetteredEvent!
+override ZeroAlloc.Outbox.MessageDeadLetteredEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageDeadLetteredEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageDeadLetteredEvent.ToString() -> string!
+override ZeroAlloc.Outbox.MessageDispatchedEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageDispatchedEvent!
+override ZeroAlloc.Outbox.MessageDispatchedEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageDispatchedEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageDispatchedEvent.ToString() -> string!
+override ZeroAlloc.Outbox.MessageFailedEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageFailedEvent!
+override ZeroAlloc.Outbox.MessageFailedEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageFailedEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageFailedEvent.ToString() -> string!
+override ZeroAlloc.Outbox.MessageQueuedEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageQueuedEvent!
+override ZeroAlloc.Outbox.MessageQueuedEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageQueuedEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageQueuedEvent.ToString() -> string!
+override ZeroAlloc.Outbox.MessageRequeuedEvent.<Clone>$() -> ZeroAlloc.Outbox.MessageRequeuedEvent!
+override ZeroAlloc.Outbox.MessageRequeuedEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.MessageRequeuedEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.MessageRequeuedEvent.ToString() -> string!
+override ZeroAlloc.Outbox.OutboxDashboardEvent.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.OutboxDashboardEvent.GetHashCode() -> int
+override ZeroAlloc.Outbox.OutboxDashboardEvent.ToString() -> string!
+override ZeroAlloc.Outbox.OutboxMessageId.GetHashCode() -> int
+override ZeroAlloc.Outbox.OutboxMessageId.ToString() -> string!
+override ZeroAlloc.Outbox.OutboxMessageView.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.OutboxMessageView.GetHashCode() -> int
+override ZeroAlloc.Outbox.OutboxMessageView.ToString() -> string!
+override ZeroAlloc.Outbox.OutboxSnapshot.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.OutboxSnapshot.GetHashCode() -> int
+override ZeroAlloc.Outbox.OutboxSnapshot.ToString() -> string!
+override ZeroAlloc.Outbox.ThroughputPoint.Equals(object? obj) -> bool
+override ZeroAlloc.Outbox.ThroughputPoint.GetHashCode() -> int
+override ZeroAlloc.Outbox.ThroughputPoint.ToString() -> string!
+override sealed ZeroAlloc.Outbox.MessageCancelledEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+override sealed ZeroAlloc.Outbox.MessageDeadLetteredEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+override sealed ZeroAlloc.Outbox.MessageDispatchedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+override sealed ZeroAlloc.Outbox.MessageFailedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+override sealed ZeroAlloc.Outbox.MessageQueuedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+override sealed ZeroAlloc.Outbox.MessageRequeuedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+static ZeroAlloc.Outbox.AddOutboxDashboardEventsExtensions.AddOutboxDashboardEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static ZeroAlloc.Outbox.AddOutboxDashboardEventsExtensions.WithDashboardEvents(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.MessageCancelledEvent.operator !=(ZeroAlloc.Outbox.MessageCancelledEvent? left, ZeroAlloc.Outbox.MessageCancelledEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageCancelledEvent.operator ==(ZeroAlloc.Outbox.MessageCancelledEvent? left, ZeroAlloc.Outbox.MessageCancelledEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageDeadLetteredEvent.operator !=(ZeroAlloc.Outbox.MessageDeadLetteredEvent? left, ZeroAlloc.Outbox.MessageDeadLetteredEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageDeadLetteredEvent.operator ==(ZeroAlloc.Outbox.MessageDeadLetteredEvent? left, ZeroAlloc.Outbox.MessageDeadLetteredEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageDispatchedEvent.operator !=(ZeroAlloc.Outbox.MessageDispatchedEvent? left, ZeroAlloc.Outbox.MessageDispatchedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageDispatchedEvent.operator ==(ZeroAlloc.Outbox.MessageDispatchedEvent? left, ZeroAlloc.Outbox.MessageDispatchedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageFailedEvent.operator !=(ZeroAlloc.Outbox.MessageFailedEvent? left, ZeroAlloc.Outbox.MessageFailedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageFailedEvent.operator ==(ZeroAlloc.Outbox.MessageFailedEvent? left, ZeroAlloc.Outbox.MessageFailedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageQueuedEvent.operator !=(ZeroAlloc.Outbox.MessageQueuedEvent? left, ZeroAlloc.Outbox.MessageQueuedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageQueuedEvent.operator ==(ZeroAlloc.Outbox.MessageQueuedEvent? left, ZeroAlloc.Outbox.MessageQueuedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageRequeuedEvent.operator !=(ZeroAlloc.Outbox.MessageRequeuedEvent? left, ZeroAlloc.Outbox.MessageRequeuedEvent? right) -> bool
+static ZeroAlloc.Outbox.MessageRequeuedEvent.operator ==(ZeroAlloc.Outbox.MessageRequeuedEvent? left, ZeroAlloc.Outbox.MessageRequeuedEvent? right) -> bool
+static ZeroAlloc.Outbox.OutboxDashboardEvent.operator !=(ZeroAlloc.Outbox.OutboxDashboardEvent? left, ZeroAlloc.Outbox.OutboxDashboardEvent? right) -> bool
+static ZeroAlloc.Outbox.OutboxDashboardEvent.operator ==(ZeroAlloc.Outbox.OutboxDashboardEvent? left, ZeroAlloc.Outbox.OutboxDashboardEvent? right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageFsm.GetState(bool isSucceeded, bool isDeadLetter, int retryCount) -> ZeroAlloc.Outbox.OutboxMessageState
+static ZeroAlloc.Outbox.OutboxMessageId.New() -> ZeroAlloc.Outbox.OutboxMessageId
+static ZeroAlloc.Outbox.OutboxMessageId.Parse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider) -> ZeroAlloc.Outbox.OutboxMessageId
+static ZeroAlloc.Outbox.OutboxMessageId.Parse(string! s, System.IFormatProvider? provider = null) -> ZeroAlloc.Outbox.OutboxMessageId
+static ZeroAlloc.Outbox.OutboxMessageId.TryParse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider, out ZeroAlloc.Outbox.OutboxMessageId result) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.TryParse(string? s, System.IFormatProvider? provider, out ZeroAlloc.Outbox.OutboxMessageId result) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator !=(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator <(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator <=(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator ==(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator >(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageId.operator >=(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageView.operator !=(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
+static ZeroAlloc.Outbox.OutboxMessageView.operator ==(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure = null) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxSnapshot.operator !=(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
+static ZeroAlloc.Outbox.OutboxSnapshot.operator ==(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
+static ZeroAlloc.Outbox.ThroughputPoint.operator !=(ZeroAlloc.Outbox.ThroughputPoint? left, ZeroAlloc.Outbox.ThroughputPoint? right) -> bool
+static ZeroAlloc.Outbox.ThroughputPoint.operator ==(ZeroAlloc.Outbox.ThroughputPoint? left, ZeroAlloc.Outbox.ThroughputPoint? right) -> bool
+virtual ZeroAlloc.Outbox.OutboxDashboardEvent.EqualityContract.get -> System.Type!
+virtual ZeroAlloc.Outbox.OutboxDashboardEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
+virtual ZeroAlloc.Outbox.OutboxDashboardEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override ZeroAlloc.Outbox.OutboxMessageId.Equals(object obj) -> bool
