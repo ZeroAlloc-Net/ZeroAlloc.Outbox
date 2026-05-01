@@ -26,4 +26,19 @@
     <PackageReference Include="ZeroAlloc.StateMachine" Version="1.0.1" />
     <PackageReference Include="ZeroAlloc.Serialisation" Version="2.0.0" />
   </ItemGroup>
+
+  <!--
+    Bundle the source generator into the NuGet package so consumers get it by
+    referencing only ZeroAlloc.Outbox. The standalone ZeroAlloc.Outbox.Generator
+    package is still published for backwards compatibility, but new consumers
+    should reference the main package only.
+  -->
+  <Target Name="IncludeGeneratorInPackage" BeforeTargets="_GetPackageFiles">
+    <ItemGroup>
+      <None Include="$(MSBuildThisFileDirectory)..\ZeroAlloc.Outbox.Generator\bin\$(Configuration)\netstandard2.0\ZeroAlloc.Outbox.Generator.dll"
+            Pack="true"
+            PackagePath="analyzers/dotnet/cs"
+            Visible="false" />
+    </ItemGroup>
+  </Target>
 </Project>
