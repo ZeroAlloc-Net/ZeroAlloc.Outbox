@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.2.1...v2.3.0) (2026-05-01)
+
+
+### Features
+
+* bundle source generator into ZeroAlloc.Outbox package ([074bc4c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/074bc4cb9ac57db693c80356c2268c138aab3613))
+* bundle source generator into ZeroAlloc.Outbox package ([55f2a5d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/55f2a5d1a5a586cca891007dc9adcbcb77de546a))
+* lock public API surface (PublicApiAnalyzers + api-compat gate) ([#44](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/44)) ([f7d4ac1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/f7d4ac19190e7999c9f5f6f73f1c58141115ea74))
+
 ## [2.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.2.0...v2.2.1) (2026-04-30)
 
 
