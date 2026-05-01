@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.2.0...v2.2.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* pack generator DLL under analyzers/dotnet/cs ([ffbe6c2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/ffbe6c20fe5f7cf51f6ee6b2dd748c7e0988e0fe))
+* pack generator DLL under analyzers/dotnet/cs ([fe81be6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/fe81be6338e9f53cc0def5ee5a5ee057481c738f))
+
 ## [2.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.1.0...v2.2.0) (2026-04-28)
 
 
