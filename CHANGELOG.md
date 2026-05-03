@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.3.0...v2.3.1) (2026-05-03)
+
+
+### Bug Fixes
+
+* **release-please:** drop pre-major flags (package is post-1.0) ([#45](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/45)) ([8e72d47](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/8e72d47ece408f0771ea6159f3439c50cbd842ed))
+
 ## [2.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.2.1...v2.3.0) (2026-05-01)
 
 
