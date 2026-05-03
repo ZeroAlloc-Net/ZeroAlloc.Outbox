@@ -48,10 +48,6 @@ jobs:
           dotnet pack src/ZeroAlloc.Outbox.EfCore/ZeroAlloc.Outbox.EfCore.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
           dotnet pack src/ZeroAlloc.Outbox.InMemory/ZeroAlloc.Outbox.InMemory.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
 
-      - name: Push to NuGet (pre-release)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-
   aot-smoke:
     runs-on: ubuntu-latest
     # Publishes samples/ZeroAlloc.Outbox.AotSmoke with PublishAot=true. Exercises
