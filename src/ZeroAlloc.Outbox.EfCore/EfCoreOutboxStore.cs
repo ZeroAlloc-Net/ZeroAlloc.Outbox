@@ -39,6 +39,26 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         }
     }
 
+    /// <summary>
+    /// Tracks the outbox row in the scoped <see cref="DbContext"/>'s <c>ChangeTracker</c>
+    /// WITHOUT calling <c>SaveChangesAsync</c>. The next sibling write against the same
+    /// <see cref="DbContext"/> (e.g. another EF Core consumer's <c>SaveChangesAsync</c>)
+    /// commits this row in the same implicit transaction — the basis of <c>Saga.Outbox</c>'s
+    /// atomic-dispatch contract.
+    /// </summary>
+    public ValueTask EnqueueDeferredAsync(
+        string typeName,
+        ReadOnlyMemory<byte> payload,
+        CancellationToken ct)
+    {
+        _db.Set<OutboxMessageEntity>().Add(new OutboxMessageEntity
+        {
+            TypeName = typeName,
+            Payload = payload.ToArray(),
+        });
+        return ValueTask.CompletedTask;
+    }
+
     public async ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;

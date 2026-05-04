@@ -30,6 +30,7 @@ ZeroAlloc.Outbox.IOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemor
 ZeroAlloc.Outbox.IOutboxStore
 ZeroAlloc.Outbox.IOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.EnqueueDeferredAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxStore.FetchPendingAsync(int batchSize, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
 ZeroAlloc.Outbox.IOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
