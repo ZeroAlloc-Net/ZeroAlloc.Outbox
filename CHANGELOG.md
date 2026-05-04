@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.3.1...v2.4.0) (2026-05-04)
+
+
+### Features
+
+* enqueuedeferredasync — track outbox row without committing ([88ed404](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/88ed4042fe76b015059b0b52422927a3eca3d0c0))
+* enqueuedeferredasync — track outbox row without committing ([7f7ec8d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/7f7ec8dd5b81f61e2439ff9b1f67dd6f44c03983))
+
 ## [2.3.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.3.0...v2.3.1) (2026-05-03)
 
 
