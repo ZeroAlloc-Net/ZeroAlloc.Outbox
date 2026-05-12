@@ -8,7 +8,7 @@
 
 Source-generated transactional outbox for .NET. Annotate a message type with `[OutboxMessage]` and a Roslyn source generator emits a typed writer and dispatcher bridge — no reflection, no boxing, AOT-safe. Backed by EF Core (production) or in-memory (tests), with a built-in polling worker, exponential-backoff retry, and dead-letter support.
 
-Multiple packages in this family — see [Documentation](docs/) or NuGet for the full list.
+Multiple packages in this family — see [Documentation](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/tree/main/docs/) or NuGet for the full list.
 
 ---
 
@@ -69,7 +69,7 @@ public class OrderService(IOutboxWriter<OrderPlaced> writer, AppDbContext db)
 }
 ```
 
-> For atomic writes (both or neither commit), pass the `DbTransaction` explicitly. See [EF Core Transaction](docs/cookbook/01-ef-core-transaction.md).
+> For atomic writes (both or neither commit), pass the `DbTransaction` explicitly. See [EF Core Transaction](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/01-ef-core-transaction.md).
 
 **4. Implement a dispatcher:**
 
@@ -146,12 +146,12 @@ as appropriate.
 
 | Tab | Screenshot |
 |-----|------------|
-| Pending — queue of messages awaiting first dispatch | ![Pending tab](docs/screenshots/pending-desktop.png) |
-| Retry — failed messages with back-off schedule | ![Retry tab](docs/screenshots/retry-desktop.png) |
-| Dead-lettered — exhausted retries with last error | ![Dead-lettered tab](docs/screenshots/dead-desktop.png) |
-| Dispatched — recently-succeeded history feeding the throughput chart | ![Dispatched tab](docs/screenshots/dispatched-desktop.png) |
+| Pending — queue of messages awaiting first dispatch | ![Pending tab](https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Outbox/main/docs/screenshots/pending-desktop.png) |
+| Retry — failed messages with back-off schedule | ![Retry tab](https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Outbox/main/docs/screenshots/retry-desktop.png) |
+| Dead-lettered — exhausted retries with last error | ![Dead-lettered tab](https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Outbox/main/docs/screenshots/dead-desktop.png) |
+| Dispatched — recently-succeeded history feeding the throughput chart | ![Dispatched tab](https://raw.githubusercontent.com/ZeroAlloc-Net/ZeroAlloc.Outbox/main/docs/screenshots/dispatched-desktop.png) |
 
-The dashboard is fully responsive — tablet (768 × 1024) and mobile (375 × 812) captures live in [`docs/screenshots/`](docs/screenshots/).
+The dashboard is fully responsive — tablet (768 × 1024) and mobile (375 × 812) captures live in [`docs/screenshots/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/tree/main/docs/screenshots/).
 
 **Blazor component**
 
@@ -192,24 +192,24 @@ around the mapped endpoints.
 
 | ID | Severity | Description |
 |----|----------|-------------|
-| [ZO0001](docs/diagnostics/ZO0001.md) | Warning | `[OutboxMessage]` applied to an interface — code will not be generated |
-| [ZO0002](docs/diagnostics/ZO0002.md) | Warning | `[OutboxMessage]` applied to a static class — code will not be generated |
-| [ZO0003](docs/diagnostics/ZO0003.md) | Warning | `[OutboxMessage]` applied to a nested type — use a top-level type for a stable type discriminator |
+| [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) | Warning | `[OutboxMessage]` applied to an interface — code will not be generated |
+| [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) | Warning | `[OutboxMessage]` applied to a static class — code will not be generated |
+| [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md) | Warning | `[OutboxMessage]` applied to a nested type — use a top-level type for a stable type discriminator |
 
 ---
 
 ## Documentation
 
-Full docs live in [`docs/`](docs/index.md):
+Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/index.md):
 
-- [Getting Started](docs/getting-started.md)
-- [Outbox Pattern](docs/outbox-pattern.md)
-- [Message Types](docs/message-types.md)
-- [Dispatchers](docs/dispatchers.md)
-- [Store Adapters](docs/store-adapters.md)
-- [Background Worker](docs/background-worker.md)
-- [Dependency Injection](docs/dependency-injection.md)
-- Diagnostics: [ZO0001](docs/diagnostics/ZO0001.md) · [ZO0002](docs/diagnostics/ZO0002.md) · [ZO0003](docs/diagnostics/ZO0003.md)
+- [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/getting-started.md)
+- [Outbox Pattern](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/outbox-pattern.md)
+- [Message Types](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/message-types.md)
+- [Dispatchers](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dispatchers.md)
+- [Store Adapters](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/store-adapters.md)
+- [Background Worker](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/background-worker.md)
+- [Dependency Injection](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dependency-injection.md)
+- Diagnostics: [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) · [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) · [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md)
 
 ---
 
