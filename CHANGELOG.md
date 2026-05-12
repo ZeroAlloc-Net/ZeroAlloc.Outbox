@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.4.0...v2.4.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* **readme:** absolute GitHub URLs so nuget.org links resolve ([#55](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/55)) ([2b38cdc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2b38cdcb76d7238a9d30a4220bffa4a9b3c33d57))
+
 ## [2.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.3.1...v2.4.0) (2026-05-04)
 
 
