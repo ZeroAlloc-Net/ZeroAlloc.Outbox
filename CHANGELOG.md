@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.4.1...v2.5.0) (2026-05-14)
+
+
+### Features
+
+* **benchmarks:** add hand-rolled SQLite outbox overhead comparison ([#57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/57)) ([7b976e1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/7b976e1b648fec52b1722e2a2ff41e30306f6716))
+
 ## [2.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.4.0...v2.4.1) (2026-05-12)
 
 
