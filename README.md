@@ -172,6 +172,19 @@ around the mapped endpoints.
 
 ---
 
+## Performance
+
+Correctness-matched overhead vs a hand-rolled SQLite outbox (same connection, both transactional). .NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+
+| Operation | Hand-rolled | ZA.Outbox | Overhead |
+|---|---:|---:|---:|
+| Enqueue (1 message) | 6.86 µs / 2.08 KB | **6.99 µs / 2.13 KB** | +2% time, +2% alloc |
+| Dispatch tick (10 messages) | 105.4 µs / 11.9 KB | **115.0 µs / 11.09 KB** | +9% time, **−7% alloc** |
+
+**Near-zero abstraction overhead** vs writing the same outbox by hand — the 2–9% delta is `IOutboxWriter<T>` + `IOutboxStore` interface dispatch. The value of ZA.Outbox is the `[OutboxMessage]` attribute + typed writer + ecosystem composability (resilience / telemetry / dispatcher bridges) at this cost.
+
+Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/performance.md).
+
 ## Features
 
 | Feature | Notes |
