@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="ZeroAlloc.Mediator" Version="[1.1.8,2.0.0)" />
     <!-- Pinned to 10.0.0 to match ZeroAlloc.Outbox's transitive minimum (Outbox#17) -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
   </ItemGroup>
 </Project>
