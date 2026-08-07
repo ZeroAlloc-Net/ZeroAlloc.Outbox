@@ -11,7 +11,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.18" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.18" />
     <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: pin the native SQLite binary (3.50.3) pulled
          transitively by Microsoft.Data.Sqlite / EF Core Sqlite (2.1.x is vulnerable). -->
