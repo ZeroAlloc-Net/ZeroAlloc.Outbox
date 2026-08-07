@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.0...v2.5.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **ci:** remove the duplicate release workflow ([#71](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/71)) ([3f6ac4e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/3f6ac4e0386c34fc75110b998e913d17ba2691cd))
+
 ## [2.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.4.1...v2.5.0) (2026-05-14)
 
 
