@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.1...v2.5.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **generator:** suppress EPS06 for Roslyn 4.14's larger pipeline struct ([#75](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/75)) ([895fb39](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/895fb3910f6a852a4cb796a30bf1f508b82ba48e))
+
 ## [2.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.0...v2.5.1) (2026-08-07)
 
 
