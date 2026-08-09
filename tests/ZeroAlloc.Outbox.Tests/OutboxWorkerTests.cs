@@ -95,7 +95,7 @@ public sealed class OutboxWorkerTests
 
         await host.StopAsync();
 
-        dispatchCalls.Should().BeGreaterOrEqualTo(2);
+        dispatchCalls.Should().BeGreaterThanOrEqualTo(2);
         var finalEntry = store.AllEntries().First();
         finalEntry.Status.Should().Be(InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter);
     }
