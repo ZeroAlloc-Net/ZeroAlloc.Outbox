@@ -4,6 +4,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ZeroAlloc.Outbox;
 
 internal sealed class PingMessageOutboxWriter : global::ZeroAlloc.Outbox.IOutboxWriter<global::PingMessage>
 {
@@ -55,13 +56,23 @@ internal sealed class PingMessageOutboxTypeDispatcher : global::ZeroAlloc.Outbox
 
 public static partial class OutboxServiceCollectionExtensions
 {
+    public static global::ZeroAlloc.Outbox.IOutboxBuilder AddPingMessageOutbox(
+        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)
+    {
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::PingMessage>, PingMessageOutboxWriter>();
+        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, PingMessageOutboxTypeDispatcher>();
+        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::PingMessage>,
+            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::PingMessage>>();
+        return builder;
+    }
+
+    [global::System.Obsolete("Use AddOutbox().AddPingMessageOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
+    [global::System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
+    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCode("AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddPingMessageOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::PingMessage>, PingMessageOutboxWriter>();
-        services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, PingMessageOutboxTypeDispatcher>();
-        services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::PingMessage>,
-            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::PingMessage>>();
+        services.AddOutbox().AddPingMessageOutbox();
         return services;
     }
 }
