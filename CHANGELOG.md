@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.2...v2.5.3) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** stamp the assembly version when publishing from a manifest ([#148](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/148)) ([36de945](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/36de945d31786c826d597e956a990d94d1059233))
+
 ## [2.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.1...v2.5.2) (2026-08-08)
 
 
