@@ -5,7 +5,7 @@ namespace ZeroAlloc.Outbox.Generator.Tests;
 public sealed class SnapshotTests
 {
     [Fact]
-    public Task SimpleRecord_WithNamespace_GeneratesWriterAndDispatcher()
+    public void SimpleRecord_WithNamespace_GeneratesWriterAndDispatcher()
         => GeneratorTestHelper.VerifyGenerator("""
             using ZeroAlloc.Outbox;
 
@@ -16,7 +16,7 @@ public sealed class SnapshotTests
             """);
 
     [Fact]
-    public Task GlobalNamespace_GeneratesProxy()
+    public void GlobalNamespace_GeneratesProxy()
         => GeneratorTestHelper.VerifyGenerator("""
             using ZeroAlloc.Outbox;
 
@@ -25,7 +25,7 @@ public sealed class SnapshotTests
             """);
 
     [Fact]
-    public Task StructType_GeneratesWriterAndDispatcher()
+    public void StructType_GeneratesWriterAndDispatcher()
         => GeneratorTestHelper.VerifyGenerator("""
             using ZeroAlloc.Outbox;
 
