@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.5...v2.6.0) (2026-09-20)
+
+
+### Features
+
+* add ZeroAlloc.Outbox.Orm store adapter ([#159](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/159)) ([f38d116](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/f38d11676130d2c6ef37410fb50a6786fb20ed5a))
+
+
+### Bug Fixes
+
+* pack every src package instead of a hardcoded list ([#161](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/161)) ([8ba8422](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/8ba842284c808037254309b8f3d0f53c729f51ef))
+
 ## [2.5.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.4...v2.5.5) (2026-09-20)
 
 
