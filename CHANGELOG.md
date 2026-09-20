@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.4...v2.5.5) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#156](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/156)) ([af38878](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/af38878c247897bc24719ad7ed3d1701201d39d2))
+
 ## [2.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.3...v2.5.4) (2026-09-20)
 
 
