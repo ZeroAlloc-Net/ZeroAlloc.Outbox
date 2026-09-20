@@ -2,6 +2,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using ZeroAlloc.Outbox.Generator;
 
+using ZeroAlloc.TestHelpers;
+
 namespace ZeroAlloc.Outbox.Generator.Tests;
 
 internal static class GeneratorTestHelper
@@ -28,7 +30,7 @@ internal static class GeneratorTestHelper
         return (output, (System.Collections.Generic.IReadOnlyList<Diagnostic>)diagnostics);
     }
 
-    public static System.Threading.Tasks.Task VerifyGenerator(string source)
+    public static void VerifyGenerator(string source)
     {
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -40,6 +42,6 @@ internal static class GeneratorTestHelper
         var driver = CSharpGeneratorDriver.Create(generator)
             .RunGenerators(compilation);
 
-        return Verifier.Verify(driver);
+        GeneratorSnapshot.Verify(driver);
     }
 }

@@ -1,0 +1,26 @@
+{
+  "baseUrl": "http://localhost:5123/outbox/",
+  "tabs": [
+    {
+      "viewport": "desktop",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "viewport": "tablet",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "pageErrors": [],
+      "failedRequests": []
+    },
+    {
+      "viewport": "mobile",
+      "consoleErrors": [],
+      "consoleWarnings": [],
+      "pageErrors": [],
+      "failedRequests": []
+    }
+  ]
+}

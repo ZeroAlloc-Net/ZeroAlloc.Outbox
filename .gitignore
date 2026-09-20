@@ -5,3 +5,6 @@ obj/
 .worktrees/
 
 BenchmarkDotNet.Artifacts/
+
+# Snapshot mismatch artifacts, written by GeneratorSnapshot on a failing run.
+*.received.*
