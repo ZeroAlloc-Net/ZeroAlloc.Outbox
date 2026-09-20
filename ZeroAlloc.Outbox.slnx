@@ -7,6 +7,7 @@
     <Project Path="src/ZeroAlloc.Outbox.Dashboard/ZeroAlloc.Outbox.Dashboard.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Dashboard.Blazor/ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Mediator/ZeroAlloc.Outbox.Mediator.csproj" />
+    <Project Path="src/ZeroAlloc.Outbox.Orm/ZeroAlloc.Outbox.Orm.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Resilience/ZeroAlloc.Outbox.Resilience.csproj" />
     <Project Path="src/ZeroAlloc.Outbox.Telemetry/ZeroAlloc.Outbox.Telemetry.csproj" />
   </Folder>
@@ -20,6 +21,7 @@
     <Project Path="tests/ZeroAlloc.Outbox.Generator.Tests/ZeroAlloc.Outbox.Generator.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Tests/ZeroAlloc.Outbox.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Mediator.Tests/ZeroAlloc.Outbox.Mediator.Tests.csproj" />
+    <Project Path="tests/ZeroAlloc.Outbox.Orm.Tests/ZeroAlloc.Outbox.Orm.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Resilience.Tests/ZeroAlloc.Outbox.Resilience.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.Outbox.Telemetry.Tests/ZeroAlloc.Outbox.Telemetry.Tests.csproj" />
   </Folder>
