@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.3...v2.5.4) (2026-09-20)
+
+
+### Bug Fixes
+
+* declare current sibling package versions ([#154](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/154)) ([cd0cfbc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/cd0cfbca6142b2549e031999e27be474bcd5c48a))
+
 ## [2.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.2...v2.5.3) (2026-09-19)
 
 
