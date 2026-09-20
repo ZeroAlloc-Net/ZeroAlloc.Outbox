@@ -12,7 +12,7 @@
     <!-- CVE-2025-6965: override the native SQLite binary, matching the repo root. -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-    <PackageReference Include="AdoNet.Async.Adapters" Version="1.4.0" />
+    <PackageReference Include="AdoNet.Async.Adapters" Version="1.4.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />

@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <PackageReference Include="ZeroAlloc.ORM" Version="1.6.6" />
-    <PackageReference Include="AdoNet.Async.Adapters" Version="1.4.0" />
+    <PackageReference Include="AdoNet.Async.Adapters" Version="1.4.1" />
     <PackageReference Include="ZeroAlloc.ORM.Generator" Version="1.6.6">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
