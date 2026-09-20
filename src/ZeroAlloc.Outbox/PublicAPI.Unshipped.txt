@@ -274,3 +274,8 @@ virtual ZeroAlloc.Outbox.OutboxDashboardEvent.EqualityContract.get -> System.Typ
 virtual ZeroAlloc.Outbox.OutboxDashboardEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
 virtual ZeroAlloc.Outbox.OutboxDashboardEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
 ~override ZeroAlloc.Outbox.OutboxMessageId.Equals(object obj) -> bool
+
+ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter
+ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.TypedIdJsonConverter() -> void
+override ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> ZeroAlloc.Outbox.OutboxMessageId
+override ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, ZeroAlloc.Outbox.OutboxMessageId value, System.Text.Json.JsonSerializerOptions! options) -> void
