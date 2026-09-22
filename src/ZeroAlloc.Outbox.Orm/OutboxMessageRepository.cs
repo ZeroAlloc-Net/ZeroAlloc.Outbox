@@ -63,16 +63,6 @@ internal sealed partial class OutboxMessageRepository(IAsyncDbConnection connect
         CancellationToken ct);
 
     [Query("""
-        SELECT Id, TypeName, Payload, RetryCount, CreatedAt
-        FROM OutboxMessages
-        WHERE Status = @status AND NextRetryAt <= @now
-        ORDER BY CreatedAt
-        LIMIT @batchSize
-        """)]
-    public partial Task<IReadOnlyList<OutboxMessageRow>> FetchPendingAsync(
-        int status, DateTimeOffset now, int batchSize, CancellationToken ct);
-
-    [Query("""
         SELECT Status, RetryCount FROM OutboxMessages WHERE Id = @id
         """)]
     public partial Task<OutboxMessageStateRow?> GetStateAsync(Guid id, CancellationToken ct);

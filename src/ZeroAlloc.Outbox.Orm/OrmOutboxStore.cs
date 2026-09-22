@@ -30,15 +30,37 @@ namespace ZeroAlloc.Outbox.Orm;
 public sealed class OrmOutboxStore : IOutboxStore
 {
     private readonly OutboxMessageRepository _repo;
+    private readonly IPendingOutboxQuery _pending;
 
     /// <summary>
     /// Creates a store over the application's connection.
     /// </summary>
     /// <param name="connection">The connection the outbox table lives on.</param>
     public OrmOutboxStore(IAsyncDbConnection connection)
+        : this(connection, OutboxOrmDialect.Sqlite)
+    {
+    }
+
+    /// <summary>
+    /// Creates a store over the application's connection, for a specific
+    /// database.
+    /// </summary>
+    /// <param name="connection">The connection the outbox table lives on.</param>
+    /// <param name="dialect">
+    /// Selects the paged-query spelling. Only the batch fetch differs; every
+    /// other statement is plain ANSI.
+    /// </param>
+    public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
     {
         ArgumentNullException.ThrowIfNull(connection);
         _repo = new OutboxMessageRepository(connection);
+        _pending = dialect switch
+        {
+            // SQL Server has no LIMIT. SQLite has no OFFSET/FETCH. Postgres
+            // accepts both and stays on LIMIT so its behaviour is unchanged.
+            OutboxOrmDialect.SqlServer => new FetchFirstPendingOutboxQuery(connection),
+            _ => new LimitPendingOutboxQuery(connection),
+        };
     }
 
     /// <inheritdoc />
@@ -96,7 +118,7 @@ public sealed class OrmOutboxStore : IOutboxStore
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
     {
-        var rows = await _repo.FetchPendingAsync(
+        var rows = await _pending.FetchPendingAsync(
             (int)OrmOutboxMessageStatus.Pending, DateTimeOffset.UtcNow, batchSize, ct)
             .ConfigureAwait(false);
 
