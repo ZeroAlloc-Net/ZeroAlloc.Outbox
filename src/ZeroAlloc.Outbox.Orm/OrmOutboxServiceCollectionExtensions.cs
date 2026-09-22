@@ -36,11 +36,14 @@ public static class OrmOutboxServiceCollectionExtensions
     /// services.AddOutbox().WithOrm();
     /// </code>
     /// </example>
-    public static IOutboxBuilder WithOrm(this IOutboxBuilder builder)
+    public static IOutboxBuilder WithOrm(
+        this IOutboxBuilder builder,
+        OutboxOrmDialect dialect = OutboxOrmDialect.Sqlite)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.AddScoped<OrmOutboxStore>();
+        builder.Services.AddScoped(sp =>
+            new OrmOutboxStore(sp.GetRequiredService<IAsyncDbConnection>(), dialect));
         builder.Services.AddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
         return builder;
     }

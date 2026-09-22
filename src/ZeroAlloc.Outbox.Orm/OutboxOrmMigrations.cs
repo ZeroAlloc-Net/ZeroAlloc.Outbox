@@ -63,6 +63,31 @@ public static class OutboxOrmMigrations
             ON OutboxMessages (Status, NextRetryAt);
         """);
 
+    /// <summary>Schema for Microsoft SQL Server.</summary>
+    /// <remarks>
+    /// Id is UNIQUEIDENTIFIER rather than a BLOB so it indexes as a value and
+    /// reads back as a Guid without a conversion. The table is keyed on it, and
+    /// at 16 bytes it is comfortably inside the clustered index key limit, so
+    /// unlike the saga table this one needs no NONCLUSTERED qualifier.
+    /// </remarks>
+    public static IMigrationSource SqlServer { get; } = new Source("""
+        IF OBJECT_ID(N'OutboxMessages', N'U') IS NULL
+        CREATE TABLE OutboxMessages (
+            Id              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+            TypeName        NVARCHAR(256) NOT NULL,
+            Payload         VARBINARY(MAX) NOT NULL,
+            Status          INT NOT NULL,
+            RetryCount      INT NOT NULL,
+            NextRetryAt     DATETIMEOFFSET NOT NULL,
+            CreatedAt       DATETIMEOFFSET NOT NULL,
+            ProcessedAt     DATETIMEOFFSET NULL,
+            DeadLetterError NVARCHAR(MAX) NULL
+        );
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OutboxMessages_Status_NextRetryAt')
+        CREATE INDEX IX_OutboxMessages_Status_NextRetryAt
+            ON OutboxMessages (Status, NextRetryAt);
+        """);
+
     private sealed class Source(string sql) : IMigrationSource
     {
         private readonly IReadOnlyList<Migration> _migrations =
