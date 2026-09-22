@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.6.0...v2.7.0) (2026-09-22)
+
+
+### Features
+
+* support SQL Server in ZeroAlloc.Outbox.Orm ([#166](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/166)) ([36ff1cf](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/36ff1cf8231ce1b603a90ecb85ba505dd1e0f542))
+
 ## [2.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.5.5...v2.6.0) (2026-09-20)
 
 
