@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.0...v2.7.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* restore the no-argument WithOrm overload in ZeroAlloc.Outbox.Orm ([#170](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/170)) ([a486ee1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/a486ee1dc146e5adfd0a7043efc3dd90a7e1ef8c))
+
 ## [2.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.6.0...v2.7.0) (2026-09-22)
 
 
