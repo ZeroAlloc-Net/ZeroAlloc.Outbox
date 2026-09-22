@@ -36,9 +36,18 @@ public static class OrmOutboxServiceCollectionExtensions
     /// services.AddOutbox().WithOrm();
     /// </code>
     /// </example>
+    public static IOutboxBuilder WithOrm(this IOutboxBuilder builder)
+        => builder.WithOrm(OutboxOrmDialect.Sqlite);
+
+    /// <inheritdoc cref="WithOrm(IOutboxBuilder)" />
+    /// <param name="builder">The outbox builder.</param>
+    /// <param name="dialect">
+    /// Which database the registered connection talks to. Only the batch fetch
+    /// differs between providers; everything else is plain ANSI.
+    /// </param>
     public static IOutboxBuilder WithOrm(
         this IOutboxBuilder builder,
-        OutboxOrmDialect dialect = OutboxOrmDialect.Sqlite)
+        OutboxOrmDialect dialect)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
