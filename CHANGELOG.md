@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.1...v2.7.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* drop the unused retry attribute from IOutboxTypeDispatcher ([#189](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/189)) ([43f775e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/43f775e0621a8555a0b722f51bc0ebc91522c095))
+
 ## [2.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.0...v2.7.1) (2026-09-22)
 
 
