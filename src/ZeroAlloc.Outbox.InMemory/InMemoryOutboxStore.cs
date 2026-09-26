@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using ZeroAlloc.Collections;
 
@@ -19,6 +20,14 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
 {
     private readonly ConcurrentHeapSpanDictionary<OutboxMessageId, InMemoryOutboxEntry> _entries = new();
     private readonly ConcurrentHeapSpanDictionary<DateTimeOffset, ThroughputAccumulator> _throughput = new();
+
+    // Serializes claimers against each other, so two of them never pick the same entry. The
+    // per-entry lock still guards each entry's fields against the Mark* and dashboard methods.
+#if NET9_0_OR_GREATER
+    private readonly Lock _claimGate = new();
+#else
+    private readonly object _claimGate = new();
+#endif
 
     public ValueTask EnqueueAsync(
         string typeName,
@@ -40,82 +49,178 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
+    public ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(int batchSize, OutboxLease lease, CancellationToken ct)
     {
+        ThrowIfNoHost(lease);
+
         var now = DateTimeOffset.UtcNow;
+        var until = now + lease.Duration;
         var results = new List<OutboxEntry>();
-        foreach (var kv in _entries)
+
+        lock (_claimGate)
         {
-            var e = kv.Value;
-            if (e.Status == InMemoryEntryStatus.Pending && e.NextRetryAt <= now)
+            var candidates = new List<InMemoryOutboxEntry>();
+            foreach (var kv in _entries)
             {
-                results.Add(new OutboxEntry
+                var e = kv.Value;
+                lock (e)
                 {
-                    Id = e.Id,
-                    TypeName = e.TypeName,
-                    RawPayload = e.Payload,
-                    RetryCount = e.RetryCount,
-                    CreatedAt = e.CreatedAt,
-                });
+                    if (IsClaimable(e, now))
+                        candidates.Add(e);
+                }
+            }
+
+            candidates.Sort(static (a, b) => a.CreatedAt.CompareTo(b.CreatedAt));
+
+            foreach (ref readonly var e in CollectionsMarshal.AsSpan(candidates))
+            {
                 if (results.Count >= batchSize) break;
+                lock (e)
+                {
+                    // A Mark* may have run since the scan; claim only what is still claimable.
+                    if (!IsClaimable(e, now)) continue;
+                    e.LockedBy = lease.HostId;
+                    e.LockedUntil = until;
+                    results.Add(new OutboxEntry
+                    {
+                        Id = e.Id,
+                        TypeName = e.TypeName,
+                        RawPayload = e.Payload,
+                        RetryCount = e.RetryCount,
+                        CreatedAt = e.CreatedAt,
+                    });
+                }
             }
         }
+
         return ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(results);
     }
 
-    public ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
+    public ValueTask<bool> RenewLeaseAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
     {
-        if (_entries.TryGetValue(id, out var entry))
+        ThrowIfNoHost(lease);
+
+        if (!_entries.TryGetValue(id, out var entry))
+            return ValueTask.FromResult(false);
+
+        var now = DateTimeOffset.UtcNow;
+        lock (entry)
         {
-            lock (entry)
+            if (entry.Status != InMemoryEntryStatus.Pending
+                || !string.Equals(entry.LockedBy, lease.HostId, StringComparison.Ordinal)
+                || entry.LockedUntil is not { } lockedUntil
+                || lockedUntil < now)
             {
-                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
-                if (!fsm.TryFire(OutboxMessageTrigger.Dispatch))
-                    throw new InvalidOperationException(
-                        $"Cannot mark message {id} as succeeded in state {fsm.Current}.");
-                entry.Status = InMemoryEntryStatus.Succeeded;
-                entry.ProcessedAt = DateTimeOffset.UtcNow;
+                return ValueTask.FromResult(false);
             }
-            BumpThroughput(isDispatched: true);
+
+            entry.LockedUntil = now + lease.Duration;
+            return ValueTask.FromResult(true);
         }
-        return ValueTask.CompletedTask;
     }
 
-    public ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
+    public ValueTask<int> ReleaseLeasesAsync(IReadOnlyList<OutboxMessageId> ids, OutboxLease lease, CancellationToken ct)
     {
-        if (_entries.TryGetValue(id, out var entry))
+        ArgumentNullException.ThrowIfNull(ids);
+        ThrowIfNoHost(lease);
+
+        var released = 0;
+        for (var i = 0; i < ids.Count; i++)
         {
+            if (!_entries.TryGetValue(ids[i], out var entry)) continue;
             lock (entry)
             {
-                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
-                if (!fsm.TryFire(OutboxMessageTrigger.Fail))
-                    throw new InvalidOperationException(
-                        $"Cannot mark message {id} as failed in state {fsm.Current}.");
-                entry.Status = InMemoryEntryStatus.Pending;
-                entry.RetryCount = retryCount;
-                entry.NextRetryAt = nextRetryAt;
+                if (entry.Status == InMemoryEntryStatus.Pending
+                    && string.Equals(entry.LockedBy, lease.HostId, StringComparison.Ordinal))
+                {
+                    ReleaseLease(entry);
+                    released++;
+                }
             }
-            BumpThroughput(isDispatched: false);
         }
-        return ValueTask.CompletedTask;
+
+        return ValueTask.FromResult(released);
     }
 
-    public ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
+    // Due, and either never leased or its lease has run out.
+    private static bool IsClaimable(InMemoryOutboxEntry e, DateTimeOffset now) =>
+        e.Status == InMemoryEntryStatus.Pending
+        && e.NextRetryAt <= now
+        && (e.LockedUntil is null || e.LockedUntil < now);
+
+    // Mark* move a message only while it is pending and this host holds its lease, checked and
+    // written under the entry lock. Pending, stored with RetryCount 0 or more, is exactly the set
+    // of OutboxMessageFsm states from which Dispatch, Fail and Exhaust are legal, so the condition
+    // is the state machine. The lease expiry is deliberately not checked: a host whose lease ran
+    // out but was not taken over by another host may still record its outcome.
+    private static bool IsMarkable(InMemoryOutboxEntry e, OutboxLease lease) =>
+        e.Status == InMemoryEntryStatus.Pending
+        && string.Equals(e.LockedBy, lease.HostId, StringComparison.Ordinal);
+
+    // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
+    // unleased, and a blank one identifies no host.
+    private static void ThrowIfNoHost(OutboxLease lease)
     {
-        if (_entries.TryGetValue(id, out var entry))
+        if (string.IsNullOrWhiteSpace(lease.HostId))
+            throw new ArgumentException("The lease has no HostId.", nameof(lease));
+    }
+
+    public ValueTask<bool> MarkSucceededAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+        if (!_entries.TryGetValue(id, out var entry))
+            return ValueTask.FromResult(false);
+
+        lock (entry)
         {
-            lock (entry)
-            {
-                var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
-                if (!fsm.TryFire(OutboxMessageTrigger.Exhaust))
-                    throw new InvalidOperationException(
-                        $"Cannot dead-letter message {id} in state {fsm.Current}.");
-                entry.Status = InMemoryEntryStatus.DeadLetter;
-                entry.DeadLetterError = error;
-            }
-            BumpThroughput(isDispatched: false);
+            if (!IsMarkable(entry, lease))
+                return ValueTask.FromResult(false);
+            entry.Status = InMemoryEntryStatus.Succeeded;
+            entry.ProcessedAt = DateTimeOffset.UtcNow;
+            ReleaseLease(entry);
         }
-        return ValueTask.CompletedTask;
+
+        BumpThroughput(isDispatched: true);
+        return ValueTask.FromResult(true);
+    }
+
+    public ValueTask<bool> MarkFailedAsync(
+        OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+        if (!_entries.TryGetValue(id, out var entry))
+            return ValueTask.FromResult(false);
+
+        lock (entry)
+        {
+            if (!IsMarkable(entry, lease))
+                return ValueTask.FromResult(false);
+            entry.RetryCount = retryCount;
+            entry.NextRetryAt = nextRetryAt;
+            ReleaseLease(entry);
+        }
+
+        BumpThroughput(isDispatched: false);
+        return ValueTask.FromResult(true);
+    }
+
+    public ValueTask<bool> DeadLetterAsync(OutboxMessageId id, string error, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+        if (!_entries.TryGetValue(id, out var entry))
+            return ValueTask.FromResult(false);
+
+        lock (entry)
+        {
+            if (!IsMarkable(entry, lease))
+                return ValueTask.FromResult(false);
+            entry.Status = InMemoryEntryStatus.DeadLetter;
+            entry.DeadLetterError = error;
+            ReleaseLease(entry);
+        }
+
+        BumpThroughput(isDispatched: false);
+        return ValueTask.FromResult(true);
     }
 
     /// <summary>Exposes all entries for test assertions.</summary>
@@ -221,6 +326,13 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         return ValueTask.CompletedTask;
     }
 
+    // Callers hold the entry lock.
+    private static void ReleaseLease(InMemoryOutboxEntry entry)
+    {
+        entry.LockedBy = null;
+        entry.LockedUntil = null;
+    }
+
     private static OutboxMessageState ToState(InMemoryEntryStatus status, int retryCount) => status switch
     {
         InMemoryEntryStatus.Succeeded => OutboxMessageState.Dispatched,
@@ -297,6 +409,12 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         public DateTimeOffset CreatedAt { get; init; }
         public DateTimeOffset? ProcessedAt { get; set; }
         public string? DeadLetterError { get; set; }
+
+        /// <summary>The host currently holding the claim on this entry, or null if unleased.</summary>
+        public string? LockedBy { get; set; }
+
+        /// <summary>When the current claim expires, or null if unleased.</summary>
+        public DateTimeOffset? LockedUntil { get; set; }
     }
 
     private sealed class ThroughputAccumulator

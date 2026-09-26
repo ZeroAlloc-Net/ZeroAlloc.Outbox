@@ -17,6 +17,14 @@
          are only provably correct against a real engine. -->
     <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.0" />
+    <!-- PostgreSQL integration fixture: FOR UPDATE SKIP LOCKED can only be proven
+         exclusive against a real engine. -->
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- One container per test class, a database per test; shared with ZeroAlloc.Outbox.Tests. -->
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />

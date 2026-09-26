@@ -12,6 +12,15 @@ namespace ZeroAlloc.Outbox.Tests;
 
 public sealed class DashboardRestEndpointsTests
 {
+    // Marks apply only to a message the marking host has leased, so each test claims first.
+    private static readonly OutboxLease s_lease = new("test-host", TimeSpan.FromMinutes(1));
+
+    private static async Task<OutboxMessageId> EnqueueAndClaimAsync(InMemoryOutboxStore store)
+    {
+        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None).ConfigureAwait(false);
+        return (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None).ConfigureAwait(false))[0].Id;
+    }
+
     private static async Task<(IHost Host, HttpClient Client)> CreateClientAsync(InMemoryOutboxStore store)
     {
         var host = await new HostBuilder()
@@ -78,10 +87,10 @@ public sealed class DashboardRestEndpointsTests
     public async Task Requeue_Returns204_ForDeadLetteredMessage()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
-        await store.DeadLetterAsync(id, "boom", CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, s_lease, CancellationToken.None);
+        (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None)).Should().ContainSingle();
+        await store.DeadLetterAsync(id, "boom", s_lease, CancellationToken.None);
 
         var (host, client) = await CreateClientAsync(store);
         using (host)
@@ -135,9 +144,8 @@ public sealed class DashboardRestEndpointsTests
     public async Task Cancel_Returns422_ForDispatchedMessage()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         var (host, client) = await CreateClientAsync(store);
         using (host)
@@ -154,9 +162,8 @@ public sealed class DashboardRestEndpointsTests
     public async Task ForceDispatch_Returns204_ForPendingMessage()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), s_lease, CancellationToken.None);
 
         var (host, client) = await CreateClientAsync(store);
         using (host)
@@ -176,9 +183,8 @@ public sealed class DashboardRestEndpointsTests
     public async Task ForceDispatch_Returns422_ForDispatchedMessage()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         var (host, client) = await CreateClientAsync(store);
         using (host)
@@ -195,10 +201,10 @@ public sealed class DashboardRestEndpointsTests
     public async Task Requeue_PublishesMessageRequeuedEvent()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
-        await store.DeadLetterAsync(id, "boom", CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, s_lease, CancellationToken.None);
+        (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None)).Should().ContainSingle();
+        await store.DeadLetterAsync(id, "boom", s_lease, CancellationToken.None);
 
         using var host = await new HostBuilder()
             .ConfigureWebHost(builder =>

@@ -25,6 +25,7 @@ public static class OutboxDbContextExtensions
             entity.Property(e => e.Id)
                   .HasConversion<TypedIdValueConverter<OutboxMessageId, Guid>>();
             entity.Property(e => e.TypeName).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.LockedBy).HasMaxLength(128);
             entity.HasIndex(e => new { e.Status, e.NextRetryAt })
                   .HasDatabaseName("IX_OutboxMessages_Status_NextRetryAt");
         });

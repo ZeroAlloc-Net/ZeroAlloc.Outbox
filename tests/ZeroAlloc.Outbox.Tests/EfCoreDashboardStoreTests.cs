@@ -7,6 +7,9 @@ namespace ZeroAlloc.Outbox.Tests;
 
 public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
 {
+    // Marks apply only to a message the marking host has leased, so each test claims first.
+    private static readonly OutboxLease s_lease = new("test-host", TimeSpan.FromMinutes(1));
+
     private SqliteConnection _conn = default!;
     private DashboardTestDbContext _db = default!;
     private EfCoreOutboxStore<DashboardTestDbContext> _store = default!;
@@ -29,6 +32,12 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
         await _conn.DisposeAsync().ConfigureAwait(false);
     }
 
+    private async Task<OutboxMessageId> EnqueueAndClaimAsync()
+    {
+        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None).ConfigureAwait(false);
+        return (await _store.ClaimPendingAsync(1, s_lease, CancellationToken.None).ConfigureAwait(false))[0].Id;
+    }
+
     [Fact]
     public async Task GetSnapshotAsync_GroupsPendingMessages()
     {
@@ -47,9 +56,8 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task GetSnapshotAsync_RetryCountGreaterThanZero_GoesToRetryQueue()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
-        await _store.MarkFailedAsync(id, 2, DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
+        var id = await EnqueueAndClaimAsync();
+        await _store.MarkFailedAsync(id, 2, DateTimeOffset.UtcNow.AddMinutes(5), s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         var snap = await dash.GetSnapshotAsync(10, CancellationToken.None);
@@ -62,10 +70,9 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task RequeueAsync_ResetsDeadLetteredMessageToPending()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var rawId = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
+        var rawId = await EnqueueAndClaimAsync();
         var id = rawId;
-        await _store.DeadLetterAsync(id, "err", CancellationToken.None);
+        await _store.DeadLetterAsync(id, "err", s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         await dash.RequeueAsync(id, CancellationToken.None);
@@ -104,9 +111,8 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task CancelAsync_ThrowsForDispatched()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
-        await _store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync();
+        await _store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -116,9 +122,8 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task CancelAsync_ThrowsForDeadLettered()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
-        await _store.DeadLetterAsync(id, "x", CancellationToken.None);
+        var id = await EnqueueAndClaimAsync();
+        await _store.DeadLetterAsync(id, "x", s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -143,14 +148,48 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ForceDispatchAsync_On_A_Leased_Message_Leaves_Its_Lease_In_Place()
+    {
+        // ForceDispatch makes a message due, it does not take it from its holder, which may be a
+        // host that crashed mid-dispatch. Another host gets it only once that lease runs out,
+        // which the lease-expiry tests cover; here the lease is long, so nothing depends on timing.
+        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
+        var holder = new OutboxLease("holder", TimeSpan.FromMinutes(5));
+        var id = (await _store.ClaimPendingAsync(1, holder, CancellationToken.None))[0].Id;
+        var lockedUntil = (await _db.OutboxMessages.AsNoTracking().FirstAsync(e => e.Id == id)).LockedUntil;
+
+        IOutboxDashboardStore dash = _store;
+        await dash.ForceDispatchAsync(id, CancellationToken.None);
+
+        (await _store.ClaimPendingAsync(1, new OutboxLease("other", TimeSpan.FromMinutes(1)), CancellationToken.None))
+            .Should().BeEmpty("the holder's lease is live");
+        var row = await _db.OutboxMessages.AsNoTracking().FirstAsync(e => e.Id == id);
+        row.LockedBy.Should().Be("holder");
+        row.LockedUntil.Should().Be(lockedUntil);
+    }
+
+    [Fact]
+    public async Task CancelAsync_Of_An_In_Flight_Message_Makes_The_Holders_Mark_Return_False()
+    {
+        // Cancel does not stop a dispatch in flight. The holder finishes, and its mark finds the
+        // row gone, which the worker counts as completed elsewhere.
+        var id = await EnqueueAndClaimAsync();
+
+        IOutboxDashboardStore dash = _store;
+        await dash.CancelAsync(id, CancellationToken.None);
+
+        (await _store.MarkSucceededAsync(id, s_lease, CancellationToken.None)).Should().BeFalse();
+        (await _db.OutboxMessages.AsNoTracking().AnyAsync(e => e.Id == id)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task GetSnapshotAsync_RespectsDispatchedLimit()
     {
         for (var i = 0; i < 5; i++)
             await _store.EnqueueAsync("T", new byte[] { (byte)i }, null, CancellationToken.None);
 
-        var rawIds = await _db.OutboxMessages.Select(m => m.Id).ToArrayAsync();
-        foreach (var rawId in rawIds)
-            await _store.MarkSucceededAsync(rawId, CancellationToken.None);
+        foreach (var entry in await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None))
+            await _store.MarkSucceededAsync(entry.Id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         var snap = await dash.GetSnapshotAsync(dispatchedLimit: 2, CancellationToken.None);
@@ -161,9 +200,8 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task ForceDispatchAsync_ThrowsForDispatched()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
-        await _store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync();
+        await _store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -173,9 +211,8 @@ public sealed class EfCoreDashboardStoreTests : IAsyncLifetime
     [Fact]
     public async Task GetThroughputAsync_YieldsBucketsWithinWindow()
     {
-        await _store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = await _db.OutboxMessages.Select(m => m.Id).FirstAsync();
-        await _store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync();
+        await _store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = _store;
         var points = new List<ThroughputPoint>();

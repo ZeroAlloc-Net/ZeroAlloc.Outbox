@@ -15,7 +15,7 @@ public sealed class DashboardTestDbContext : DbContext
         modelBuilder.AddOutboxMessages();
 
         // SQLite can't translate DateTimeOffset comparisons natively; convert to a
-        // sortable tick-based representation so FetchPendingAsync queries translate.
+        // sortable tick-based representation so ClaimPendingAsync queries translate.
         var dtoConverter = new ValueConverter<DateTimeOffset, long>(
             v => v.UtcTicks,
             v => new DateTimeOffset(v, TimeSpan.Zero));
@@ -27,6 +27,7 @@ public sealed class DashboardTestDbContext : DbContext
         entity.Property(m => m.CreatedAt).HasConversion(dtoConverter);
         entity.Property(m => m.NextRetryAt).HasConversion(dtoConverter);
         entity.Property(m => m.ProcessedAt).HasConversion(nullableDtoConverter);
+        entity.Property(m => m.LockedUntil).HasConversion(nullableDtoConverter);
 
         base.OnModelCreating(modelBuilder);
     }

@@ -10,9 +10,19 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The SQL is plain ANSI throughout, so the same repository serves SQLite and
-/// PostgreSQL. Only the DDL differs, and that lives in
-/// <see cref="OutboxOrmMigrations"/>.
+/// The SQL is plain ANSI throughout, so the same repository serves SQLite,
+/// PostgreSQL and SQL Server. Only the DDL and the batch claim differ; the DDL
+/// lives in <see cref="OutboxOrmMigrations"/>, and the claim in the
+/// <see cref="IPendingOutboxQuery"/> for each dialect.
+/// </para>
+/// <para>
+/// Every mark is guarded by <c>Status = @pending AND LockedBy = @hostId</c> and
+/// returns the number of rows it changed, so the caller learns whether it won
+/// the transition. The status condition is the outbox state machine for these
+/// triggers: Dispatch, Fail and Exhaust are legal exactly from the pending
+/// states. The lease condition means only the current lease holder can move a
+/// row. <c>LockedUntil</c> is deliberately not checked, so a host whose lease
+/// expired without being taken over can still record its outcome.
 /// </para>
 /// <para>
 /// Status is written as its integer value rather than a name. That keeps the
@@ -62,32 +72,56 @@ internal sealed partial class OutboxMessageRepository(IAsyncDbConnection connect
         IAsyncDbTransaction tx,
         CancellationToken ct);
 
-    [Query("""
-        SELECT Status, RetryCount FROM OutboxMessages WHERE Id = @id
-        """)]
-    public partial Task<OutboxMessageStateRow?> GetStateAsync(Guid id, CancellationToken ct);
-
     [Command("""
         UPDATE OutboxMessages
-        SET Status = @status, ProcessedAt = @processedAt
-        WHERE Id = @id
+        SET Status = @status, ProcessedAt = @processedAt,
+            LockedBy = NULL, LockedUntil = NULL
+        WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
         """)]
     public partial Task<int> MarkProcessedAsync(
-        Guid id, int status, DateTimeOffset processedAt, CancellationToken ct);
+        Guid id, int status, DateTimeOffset processedAt, int pending, string hostId, CancellationToken ct);
 
     [Command("""
         UPDATE OutboxMessages
-        SET Status = @status, RetryCount = @retryCount, NextRetryAt = @nextRetryAt
-        WHERE Id = @id
+        SET RetryCount = @retryCount, NextRetryAt = @nextRetryAt,
+            LockedBy = NULL, LockedUntil = NULL
+        WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
         """)]
     public partial Task<int> MarkForRetryAsync(
-        Guid id, int status, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct);
+        Guid id, int retryCount, DateTimeOffset nextRetryAt, int pending, string hostId, CancellationToken ct);
 
     [Command("""
         UPDATE OutboxMessages
-        SET Status = @status, DeadLetterError = @error, ProcessedAt = @processedAt
-        WHERE Id = @id
+        SET Status = @status, DeadLetterError = @error, ProcessedAt = @processedAt,
+            LockedBy = NULL, LockedUntil = NULL
+        WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
         """)]
     public partial Task<int> DeadLetterAsync(
-        Guid id, int status, string error, DateTimeOffset processedAt, CancellationToken ct);
+        Guid id, int status, string error, DateTimeOffset processedAt, int pending, string hostId,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Gives up this host's lease on a pending row. A row leased by another host,
+    /// or no longer pending, is left alone.
+    /// </summary>
+    [Command("""
+        UPDATE OutboxMessages
+        SET LockedBy = NULL, LockedUntil = NULL
+        WHERE Id = @id AND LockedBy = @hostId AND Status = @pending
+        """)]
+    public partial Task<int> ReleaseLeaseAsync(Guid id, string hostId, int pending, CancellationToken ct);
+
+    /// <summary>
+    /// Extends a lease the host still holds. An expired lease is not renewed,
+    /// even for the host that took it, because another host may already be
+    /// entitled to claim the row.
+    /// </summary>
+    /// <returns>The number of rows changed: 1 if renewed, 0 if the lease was lost.</returns>
+    [Command("""
+        UPDATE OutboxMessages
+        SET LockedUntil = @until
+        WHERE Id = @id AND LockedBy = @hostId AND LockedUntil >= @now AND Status = @status
+        """)]
+    public partial Task<int> RenewLeaseAsync(
+        Guid id, string hostId, int status, DateTimeOffset now, DateTimeOffset until, CancellationToken ct);
 }

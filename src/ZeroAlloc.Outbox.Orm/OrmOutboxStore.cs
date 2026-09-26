@@ -15,9 +15,15 @@ namespace ZeroAlloc.Outbox.Orm;
 /// same status values, so the two can be swapped without a data migration.
 /// </para>
 /// <para>
-/// State transitions are validated through <see cref="OutboxMessageFsm"/>, the
-/// same machine the EF Core adapter uses, so an illegal move is rejected here
-/// rather than quietly writing a row no dispatcher will pick up.
+/// State transitions follow <see cref="OutboxMessageFsm"/>, the same machine the
+/// EF Core adapter uses. Each mark is one conditional <c>UPDATE</c> guarded by
+/// the row still being pending, which is exactly the set of states from which
+/// Dispatch, Fail and Exhaust are legal, and by the row still being leased by
+/// the marking host. So the database, not a separate read, decides the
+/// transition: only the current lease holder can move the row, so of two
+/// concurrent marks from different hosts exactly one wins, and a terminal state
+/// is never overwritten. The lease expiry is not checked, so a host whose lease
+/// expired without being taken over can still record its outcome.
 /// </para>
 /// <para>
 /// This implements <see cref="IOutboxStore"/> only. The dashboard's
@@ -47,7 +53,7 @@ public sealed class OrmOutboxStore : IOutboxStore
     /// </summary>
     /// <param name="connection">The connection the outbox table lives on.</param>
     /// <param name="dialect">
-    /// Selects the paged-query spelling. Only the batch fetch differs; every
+    /// Selects the batch-claim spelling. Only the batch claim differs; every
     /// other statement is plain ANSI.
     /// </param>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
@@ -56,10 +62,11 @@ public sealed class OrmOutboxStore : IOutboxStore
         _repo = new OutboxMessageRepository(connection);
         _pending = dialect switch
         {
-            // SQL Server has no LIMIT. SQLite has no OFFSET/FETCH. Postgres
-            // accepts both and stays on LIMIT so its behaviour is unchanged.
-            OutboxOrmDialect.SqlServer => new FetchFirstPendingOutboxQuery(connection),
-            _ => new LimitPendingOutboxQuery(connection),
+            // SQL Server has neither LIMIT nor RETURNING. Postgres takes row
+            // locks with SKIP LOCKED, which SQLite neither has nor needs.
+            OutboxOrmDialect.SqlServer => new ClaimSqlServerPendingOutboxQuery(connection),
+            OutboxOrmDialect.Postgres => new ClaimPostgresPendingOutboxQuery(connection),
+            _ => new ClaimSqlitePendingOutboxQuery(connection),
         };
     }
 
@@ -116,10 +123,14 @@ public sealed class OrmOutboxStore : IOutboxStore
     // their DbTransaction to EnqueueAsync above.
 
     /// <inheritdoc />
-    public async ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(
+        int batchSize, OutboxLease lease, CancellationToken ct)
     {
-        var rows = await _pending.FetchPendingAsync(
-            (int)OrmOutboxMessageStatus.Pending, DateTimeOffset.UtcNow, batchSize, ct)
+        ThrowIfNoHost(lease);
+
+        var now = DateTimeOffset.UtcNow;
+        var rows = await _pending.ClaimPendingAsync(
+            (int)OrmOutboxMessageStatus.Pending, now, now + lease.Duration, lease.HostId, batchSize, ct)
             .ConfigureAwait(false);
 
         var result = new List<OutboxEntry>(rows.Count);
@@ -135,77 +146,94 @@ public sealed class OrmOutboxStore : IOutboxStore
             });
         }
 
+        // Neither RETURNING nor OUTPUT promises an order, so restore oldest-first here.
+        result.Sort(static (a, b) => a.CreatedAt.CompareTo(b.CreatedAt));
         return result;
     }
 
     /// <inheritdoc />
-    public async ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
+    public async ValueTask<bool> RenewLeaseAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
     {
-        if (!await TryTransitionAsync(id, OutboxMessageTrigger.Dispatch, "succeeded", ct).ConfigureAwait(false))
-            return;
+        ThrowIfNoHost(lease);
 
-        await _repo.MarkProcessedAsync(
-            id.Value, (int)OrmOutboxMessageStatus.Succeeded, DateTimeOffset.UtcNow, ct)
+        var now = DateTimeOffset.UtcNow;
+        var changed = await _repo.RenewLeaseAsync(
+            id.Value, lease.HostId, (int)OrmOutboxMessageStatus.Pending, now, now + lease.Duration, ct)
             .ConfigureAwait(false);
+        return changed == 1;
     }
 
     /// <inheritdoc />
-    public async ValueTask MarkFailedAsync(
-        OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
+    /// <remarks>
+    /// One conditional statement per id. ZeroAlloc.ORM binds a collection parameter only as
+    /// BulkInsert rows and cannot expand it into an <c>IN (…)</c> list, and the list is at most
+    /// one batch, released once on shutdown.
+    /// </remarks>
+    public async ValueTask<int> ReleaseLeasesAsync(
+        IReadOnlyList<OutboxMessageId> ids, OutboxLease lease, CancellationToken ct)
     {
-        if (!await TryTransitionAsync(id, OutboxMessageTrigger.Fail, "failed", ct).ConfigureAwait(false))
-            return;
+        ArgumentNullException.ThrowIfNull(ids);
+        ThrowIfNoHost(lease);
+
+        var released = 0;
+        for (var i = 0; i < ids.Count; i++)
+        {
+            released += await _repo.ReleaseLeaseAsync(
+                ids[i].Value, lease.HostId, (int)OrmOutboxMessageStatus.Pending, ct)
+                .ConfigureAwait(false);
+        }
+
+        return released;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> MarkSucceededAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+
+        var changed = await _repo.MarkProcessedAsync(
+            id.Value, (int)OrmOutboxMessageStatus.Succeeded, DateTimeOffset.UtcNow,
+            (int)OrmOutboxMessageStatus.Pending, lease.HostId, ct)
+            .ConfigureAwait(false);
+        return changed == 1;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> MarkFailedAsync(
+        OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
 
         // Stays Pending: the status column records dispatch outcome, and a
         // message awaiting another attempt is still pending. Retry versus
-        // first-attempt is carried by RetryCount, which is how ToState
-        // reconstructs the FSM position on the next read.
-        await _repo.MarkForRetryAsync(
-            id.Value, (int)OrmOutboxMessageStatus.Pending, retryCount, nextRetryAt, ct)
+        // first-attempt is carried by RetryCount. The retry time is stored in UTC like every
+        // other timestamp: SQLite compares these as text, so a mixed offset would sort wrongly,
+        // and a PostgreSQL timestamptz parameter rejects a non-zero offset.
+        var changed = await _repo.MarkForRetryAsync(
+            id.Value, retryCount, nextRetryAt.ToUniversalTime(), (int)OrmOutboxMessageStatus.Pending,
+            lease.HostId, ct)
             .ConfigureAwait(false);
+        return changed == 1;
     }
 
     /// <inheritdoc />
-    public async ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
+    public async ValueTask<bool> DeadLetterAsync(
+        OutboxMessageId id, string error, OutboxLease lease, CancellationToken ct)
     {
-        if (!await TryTransitionAsync(id, OutboxMessageTrigger.Exhaust, "dead-lettered", ct).ConfigureAwait(false))
-            return;
+        ThrowIfNoHost(lease);
 
-        await _repo.DeadLetterAsync(
-            id.Value, (int)OrmOutboxMessageStatus.DeadLetter, error, DateTimeOffset.UtcNow, ct)
+        var changed = await _repo.DeadLetterAsync(
+            id.Value, (int)OrmOutboxMessageStatus.DeadLetter, error, DateTimeOffset.UtcNow,
+            (int)OrmOutboxMessageStatus.Pending, lease.HostId, ct)
             .ConfigureAwait(false);
+        return changed == 1;
     }
 
-    /// <summary>
-    /// Reads the row's current state and checks the trigger is legal from there.
-    /// </summary>
-    /// <returns>
-    /// False when the row no longer exists, matching the EF Core adapter, which
-    /// returns quietly rather than throwing on a message someone else removed.
-    /// </returns>
-    /// <exception cref="InvalidOperationException">The transition is not legal.</exception>
-    private async ValueTask<bool> TryTransitionAsync(
-        OutboxMessageId id, OutboxMessageTrigger trigger, string verb, CancellationToken ct)
+    // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
+    // unleased, and a blank one identifies no host.
+    private static void ThrowIfNoHost(OutboxLease lease)
     {
-        var state = await _repo.GetStateAsync(id.Value, ct).ConfigureAwait(false);
-        if (state is null) return false;
-
-        var fsm = new OutboxMessageFsm(ToState(state.Status, state.RetryCount));
-        if (!fsm.TryFire(trigger))
-        {
-            throw new InvalidOperationException(
-                $"Cannot mark message {id} as {verb} in state {fsm.Current}.");
-        }
-
-        return true;
+        if (string.IsNullOrWhiteSpace(lease.HostId))
+            throw new ArgumentException("The lease has no HostId.", nameof(lease));
     }
-
-    // Mirrors the EF Core adapter exactly. Pending and Retry share a status
-    // value and are told apart by RetryCount.
-    private static OutboxMessageState ToState(int status, int retryCount) => status switch
-    {
-        (int)OrmOutboxMessageStatus.Succeeded => OutboxMessageState.Dispatched,
-        (int)OrmOutboxMessageStatus.DeadLetter => OutboxMessageState.DeadLetter,
-        _ => retryCount == 0 ? OutboxMessageState.Pending : OutboxMessageState.Retry,
-    };
 }

@@ -50,6 +50,7 @@ builder.Services.AddOutbox(options =>
             options.PollingInterval = TimeSpan.FromSeconds(5);
             options.BatchSize       = 50;
             options.MaxAttempts     = 3;
+            options.LeaseDuration   = TimeSpan.FromMinutes(2); // must exceed your slowest dispatch
         })
         .WithEfCore<AppDbContext>()      // or .WithInMemoryStore()
         .AddOrderPlacedOutbox();         // generated extension
@@ -194,6 +195,7 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | EF Core store | Writes and reads via `DbContext`; enlist in ambient transaction for atomicity |
 | InMemory store | Thread-safe in-process store for unit and integration tests |
 | Polling worker | `OutboxWorkerService` (`IHostedService`) polls on configurable interval with scope isolation |
+| Lease-based claim | `ClaimPendingAsync` atomically leases a batch to one host, so scaling out never double-dispatches a row |
 | Exponential backoff | Retry delay = `RetryBaseDelay × 2^(attempt-1)`; configurable via `OutboxOptions` |
 | Dead-letter | Entries that exceed `MaxAttempts` are dead-lettered with the failure reason |
 | AOT / trimmer safe | All dispatch code is generated; no `Type.GetType`, no `MakeGenericType` |
@@ -222,6 +224,7 @@ Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/bl
 - [Store Adapters](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/store-adapters.md)
 - [Background Worker](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/background-worker.md)
 - [Dependency Injection](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dependency-injection.md)
+- [Migrating to v3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/migrating-to-v3.md)
 - Diagnostics: [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) · [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) · [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md)
 
 ---

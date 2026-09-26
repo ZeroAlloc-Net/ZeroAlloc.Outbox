@@ -17,11 +17,21 @@
          transitively by Microsoft.Data.Sqlite / EF Core Sqlite (2.1.x is vulnerable). -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <!-- Server integration fixtures: the EF Core claim's re-checked conditional update can
+         only be proven exclusive against real engines. Providers match EF Core 9.0.20. -->
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.EfCore\ZeroAlloc.Outbox.EfCore.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard\ZeroAlloc.Outbox.Dashboard.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard.Blazor\ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- One container per test class, a database per test; shared with ZeroAlloc.Outbox.Orm.Tests. -->
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

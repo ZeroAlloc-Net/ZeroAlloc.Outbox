@@ -1,21 +1,20 @@
 namespace ZeroAlloc.Outbox.Orm;
 
 /// <summary>
-/// Selects the paged-query spelling for the target database.
+/// Selects the batch-claim spelling for the target database.
 /// </summary>
 /// <remarks>
-/// Only the batch fetch differs between providers; everything else the store
-/// issues is plain ANSI. SQLite and PostgreSQL both accept <c>LIMIT</c>, so they
-/// share an implementation and remain the default.
+/// Only the batch claim differs between providers; everything else the store
+/// issues is plain ANSI. SQLite is the default.
 /// </remarks>
 public enum OutboxOrmDialect
 {
-    /// <summary>SQLite. Uses <c>LIMIT</c>.</summary>
+    /// <summary>SQLite. Uses <c>UPDATE … RETURNING</c> over a <c>LIMIT</c> subquery.</summary>
     Sqlite = 0,
 
-    /// <summary>PostgreSQL. Uses <c>LIMIT</c>, which it accepts alongside the standard spelling.</summary>
+    /// <summary>PostgreSQL. Uses <c>UPDATE … FROM … RETURNING</c> over a <c>MATERIALIZED</c> CTE locked with <c>FOR UPDATE SKIP LOCKED</c>.</summary>
     Postgres = 1,
 
-    /// <summary>Microsoft SQL Server. Uses <c>OFFSET … FETCH NEXT</c>.</summary>
+    /// <summary>Microsoft SQL Server. Uses an updatable <c>TOP</c> CTE with <c>READPAST</c> and <c>OUTPUT</c>.</summary>
     SqlServer = 2,
 }

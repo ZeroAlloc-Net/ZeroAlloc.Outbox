@@ -1,26 +1,41 @@
 namespace ZeroAlloc.Outbox.Orm;
 
 /// <summary>
-/// The one query whose SQL cannot be written portably: fetching a bounded batch
-/// of due messages.
+/// The one statement whose SQL cannot be written portably: atomically claiming a
+/// bounded batch of due, unleased messages.
 /// </summary>
 /// <remarks>
 /// <para>
-/// SQLite supports only <c>LIMIT</c>; SQL Server supports only
-/// <c>OFFSET … FETCH NEXT</c>. PostgreSQL accepts both. The ORM composes SQL at
-/// compile time from the <c>[Query]</c> attribute, so one method cannot serve
-/// both spellings and the query is split into a small implementation per family
-/// instead.
+/// The claim is a single <c>UPDATE</c> that leases the rows it takes and returns
+/// them, and every provider spells that differently. SQLite uses
+/// <c>UPDATE … RETURNING</c> over a <c>LIMIT</c> subquery. PostgreSQL locks the
+/// batch in a <c>MATERIALIZED</c> CTE with <c>FOR UPDATE SKIP LOCKED</c>, so
+/// concurrent claimers pass over each other's rows instead of queueing behind
+/// them, and updates from it with <c>RETURNING</c>. SQL Server has neither <c>LIMIT</c> nor
+/// <c>RETURNING</c>, and uses an updatable <c>TOP</c> CTE with
+/// <c>READPAST</c>/<c>UPDLOCK</c> hints and an <c>OUTPUT</c> clause. The ORM
+/// composes SQL at compile time from the <c>[Query]</c> attribute, so one method
+/// cannot serve every spelling, and the claim is split into a small
+/// implementation per dialect instead.
 /// </para>
 /// <para>
-/// Only this query differs. The other six statements the store issues are plain
+/// Only this statement differs. The other statements the store issues are plain
 /// ANSI and live on the shared <see cref="OutboxMessageRepository"/>, so the
-/// split costs one duplicated query rather than a duplicated repository.
+/// split costs one duplicated statement rather than a duplicated repository.
+/// </para>
+/// <para>
+/// The order of the returned rows is unspecified on every dialect, since
+/// neither <c>RETURNING</c> nor <c>OUTPUT</c> guarantees one. The store sorts
+/// them by <c>CreatedAt</c> itself.
 /// </para>
 /// </remarks>
 internal interface IPendingOutboxQuery
 {
-    /// <summary>Reads up to <paramref name="batchSize"/> messages that are due.</summary>
-    Task<IReadOnlyList<OutboxMessageRow>> FetchPendingAsync(
-        int status, DateTimeOffset now, int batchSize, CancellationToken ct);
+    /// <summary>
+    /// Leases up to <paramref name="batchSize"/> messages that are due and
+    /// unleased to <paramref name="hostId"/> until <paramref name="until"/>, and
+    /// returns exactly those messages.
+    /// </summary>
+    Task<IReadOnlyList<OutboxMessageRow>> ClaimPendingAsync(
+        int status, DateTimeOffset now, DateTimeOffset until, string hostId, int batchSize, CancellationToken ct);
 }

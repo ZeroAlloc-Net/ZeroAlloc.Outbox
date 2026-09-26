@@ -42,7 +42,7 @@ public static class OrmOutboxServiceCollectionExtensions
     /// <inheritdoc cref="WithOrm(IOutboxBuilder)" />
     /// <param name="builder">The outbox builder.</param>
     /// <param name="dialect">
-    /// Which database the registered connection talks to. Only the batch fetch
+    /// Which database the registered connection talks to. Only the batch claim
     /// differs between providers; everything else is plain ANSI.
     /// </param>
     public static IOutboxBuilder WithOrm(

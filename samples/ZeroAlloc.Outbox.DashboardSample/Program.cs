@@ -29,7 +29,7 @@ app.MapOutboxDashboard("/outbox");
 app.MapPost("/sample/publish", async (IOutboxDashboardEventPublisher pub, CancellationToken ct) =>
 {
     await pub.PublishAsync(
-        new MessageDispatchedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1),
+        new MessageDispatchedEvent(OutboxMessageId.New(), DateTimeOffset.UtcNow, 1),
         ct);
     return Results.NoContent();
 });
@@ -41,7 +41,7 @@ static async Task SeedAsync(IServiceProvider services)
     var store = services.GetRequiredService<IOutboxStore>();
     var inMemory = (InMemoryOutboxStore)store;
 
-    async Task<Guid> EnqueueAsync(string typeName, object payload)
+    async Task<OutboxMessageId> EnqueueAsync(string typeName, object payload)
     {
         var before = inMemory.AllEntries().Select(e => e.Id).ToHashSet();
         var bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
@@ -49,27 +49,25 @@ static async Task SeedAsync(IServiceProvider services)
         return inMemory.AllEntries().Select(e => e.Id).First(id => !before.Contains(id));
     }
 
-    // ── Pending — fresh, awaiting first dispatch ───────────────────────────────
-    // 12 messages across 5 realistic event types, demonstrating a warm queue.
-    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a1f",      customerId = "cust_4421", total = 129.95m,  currency = "EUR" });
-    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a20",      customerId = "cust_9013", total = 42.00m,   currency = "EUR" });
-    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a21",      customerId = "cust_1122", total = 1_849.00m, currency = "USD" });
-    await EnqueueAsync("Fulfilment.StockReserved",        new { orderId = "ord_8a1f",      warehouse = "ams-1", lines = 3 });
-    await EnqueueAsync("Fulfilment.StockReserved",        new { orderId = "ord_8a21",      warehouse = "fra-2", lines = 7 });
-    await EnqueueAsync("Billing.InvoiceIssued",           new { invoiceId = "inv_2026_0042", orderId = "ord_8a1f", amount = 129.95m });
-    await EnqueueAsync("Billing.InvoiceIssued",           new { invoiceId = "inv_2026_0043", orderId = "ord_8a20", amount = 42.00m });
-    await EnqueueAsync("Identity.UserRegistered",         new { userId = "usr_01K8P4", email = "alice@example.com",   source = "web" });
-    await EnqueueAsync("Identity.UserRegistered",         new { userId = "usr_01K8P5", email = "bob@example.com",     source = "mobile" });
-    await EnqueueAsync("Notifications.EmailQueued",       new { template = "welcome-v2", to = "alice@example.com",    locale = "en-US" });
-    await EnqueueAsync("Notifications.EmailQueued",       new { template = "order-receipt", to = "alice@example.com", locale = "en-US" });
-    await EnqueueAsync("Notifications.PushQueued",        new { deviceId = "dev_Ro3p", title = "Your order shipped",  priority = "normal" });
+    // A mark applies only to a message the marking host has leased, so each fixture that ends
+    // up retried, dead-lettered or dispatched is claimed first. These run before the fresh
+    // pending messages are enqueued, so the claim picks exactly the message just enqueued.
+    var lease = new OutboxLease("dashboard-sample-seed", TimeSpan.FromMinutes(1));
+    async Task<OutboxMessageId> EnqueueClaimedAsync(string typeName, object payload)
+    {
+        var id = await EnqueueAsync(typeName, payload);
+        var claimed = await store.ClaimPendingAsync(1, lease, CancellationToken.None);
+        return claimed.Count == 1 && claimed[0].Id == id
+            ? claimed[0].Id
+            : throw new InvalidOperationException("The seed claimed an unexpected message.");
+    }
 
     // ── Retry queue — failed at least once, waiting for next attempt ──────────
     // 5 messages with varying retry counts showing the back-off pattern.
     async Task QueueRetryAsync(string typeName, object payload, int retryCount, int nextInMinutes)
     {
-        var id = await EnqueueAsync(typeName, payload);
-        await store.MarkFailedAsync(id, retryCount, DateTimeOffset.UtcNow.AddMinutes(nextInMinutes), CancellationToken.None);
+        var id = await EnqueueClaimedAsync(typeName, payload);
+        await store.MarkFailedAsync(id, retryCount, DateTimeOffset.UtcNow.AddMinutes(nextInMinutes), lease, CancellationToken.None);
     }
 
     await QueueRetryAsync("Billing.PaymentAuthorized", new { paymentId = "pmt_Q1m", orderId = "ord_8a22", amount = 89.00m },   retryCount: 1, nextInMinutes: 2);
@@ -81,8 +79,8 @@ static async Task SeedAsync(IServiceProvider services)
     // ── Dead-lettered — retries exhausted, requires human attention ────────────
     async Task DeadLetterAsync(string typeName, object payload, string error)
     {
-        var id = await EnqueueAsync(typeName, payload);
-        await store.DeadLetterAsync(id, error, CancellationToken.None);
+        var id = await EnqueueClaimedAsync(typeName, payload);
+        await store.DeadLetterAsync(id, error, lease, CancellationToken.None);
     }
 
     await DeadLetterAsync("Billing.PaymentAuthorized",  new { paymentId = "pmt_P0x", orderId = "ord_7f99", amount = 1_459.00m }, "Gateway returned 502 after 5 retries");
@@ -111,7 +109,22 @@ static async Task SeedAsync(IServiceProvider services)
     for (var i = 0; i < 25; i++)
     {
         var type = dispatchedTypes[i % dispatchedTypes.Length];
-        var id = await EnqueueAsync(type, new { sequenceId = i + 1, note = "historical fixture" });
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueClaimedAsync(type, new { sequenceId = i + 1, note = "historical fixture" });
+        await store.MarkSucceededAsync(id, lease, CancellationToken.None);
     }
+
+    // ── Pending — fresh, awaiting first dispatch ───────────────────────────────
+    // 12 messages across 5 realistic event types, demonstrating a warm queue.
+    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a1f",      customerId = "cust_4421", total = 129.95m,  currency = "EUR" });
+    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a20",      customerId = "cust_9013", total = 42.00m,   currency = "EUR" });
+    await EnqueueAsync("Commerce.OrderPlaced",            new { orderId = "ord_8a21",      customerId = "cust_1122", total = 1_849.00m, currency = "USD" });
+    await EnqueueAsync("Fulfilment.StockReserved",        new { orderId = "ord_8a1f",      warehouse = "ams-1", lines = 3 });
+    await EnqueueAsync("Fulfilment.StockReserved",        new { orderId = "ord_8a21",      warehouse = "fra-2", lines = 7 });
+    await EnqueueAsync("Billing.InvoiceIssued",           new { invoiceId = "inv_2026_0042", orderId = "ord_8a1f", amount = 129.95m });
+    await EnqueueAsync("Billing.InvoiceIssued",           new { invoiceId = "inv_2026_0043", orderId = "ord_8a20", amount = 42.00m });
+    await EnqueueAsync("Identity.UserRegistered",         new { userId = "usr_01K8P4", email = "alice@example.com",   source = "web" });
+    await EnqueueAsync("Identity.UserRegistered",         new { userId = "usr_01K8P5", email = "bob@example.com",     source = "mobile" });
+    await EnqueueAsync("Notifications.EmailQueued",       new { template = "welcome-v2", to = "alice@example.com",    locale = "en-US" });
+    await EnqueueAsync("Notifications.EmailQueued",       new { template = "order-receipt", to = "alice@example.com", locale = "en-US" });
+    await EnqueueAsync("Notifications.PushQueued",        new { deviceId = "dev_Ro3p", title = "Your order shipped",  priority = "normal" });
 }

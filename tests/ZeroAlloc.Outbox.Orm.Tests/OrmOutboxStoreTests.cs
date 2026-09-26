@@ -9,10 +9,11 @@ namespace ZeroAlloc.Outbox.Orm.Tests;
 /// </summary>
 public sealed class OrmOutboxStoreTests
 {
+    private static readonly OutboxLease s_lease = new("test-host", TimeSpan.FromMinutes(1));
     private static readonly byte[] s_payload = [1, 2, 3];
 
     [Fact]
-    public async Task Enqueue_Then_FetchPending_Round_Trips()
+    public async Task Enqueue_Then_ClaimPending_Round_Trips()
     {
         await using var fx = new SqliteFixture();
         await fx.MigrateAsync();
@@ -20,7 +21,7 @@ public sealed class OrmOutboxStoreTests
 
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
 
-        var pending = await store.FetchPendingAsync(10, CancellationToken.None);
+        var pending = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
 
         pending.Should().HaveCount(1);
         pending[0].TypeName.Should().Be("Test.Cmd");
@@ -29,7 +30,7 @@ public sealed class OrmOutboxStoreTests
     }
 
     [Fact]
-    public async Task FetchPending_Honours_BatchSize_And_Orders_By_CreatedAt()
+    public async Task ClaimPending_Honours_BatchSize_And_Orders_By_CreatedAt()
     {
         await using var fx = new SqliteFixture();
         await fx.MigrateAsync();
@@ -40,7 +41,7 @@ public sealed class OrmOutboxStoreTests
             await store.EnqueueAsync($"Cmd.{i}", s_payload, transaction: null, CancellationToken.None);
         }
 
-        var batch = await store.FetchPendingAsync(3, CancellationToken.None);
+        var batch = await store.ClaimPendingAsync(3, s_lease, CancellationToken.None);
 
         batch.Should().HaveCount(3);
         batch.Should().BeInAscendingOrder(e => e.CreatedAt);
@@ -53,11 +54,11 @@ public sealed class OrmOutboxStoreTests
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
-        var entry = (await store.FetchPendingAsync(1, CancellationToken.None))[0];
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0];
 
-        await store.MarkSucceededAsync(entry.Id, CancellationToken.None);
+        await store.MarkSucceededAsync(entry.Id, s_lease, CancellationToken.None);
 
-        (await store.FetchPendingAsync(10, CancellationToken.None)).Should().BeEmpty();
+        (await store.ClaimPendingAsync(10, s_lease, CancellationToken.None)).Should().BeEmpty();
         (await fx.CountAsync()).Should().Be(1, "a dispatched message is kept, not deleted");
     }
 
@@ -68,13 +69,13 @@ public sealed class OrmOutboxStoreTests
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
-        var entry = (await store.FetchPendingAsync(1, CancellationToken.None))[0];
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0];
 
         await store.MarkFailedAsync(
-            entry.Id, retryCount: 1, DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
+            entry.Id, retryCount: 1, DateTimeOffset.UtcNow.AddMinutes(5), s_lease, CancellationToken.None);
 
         // NextRetryAt is in the future, so the poller must not see it yet.
-        (await store.FetchPendingAsync(10, CancellationToken.None)).Should().BeEmpty();
+        (await store.ClaimPendingAsync(10, s_lease, CancellationToken.None)).Should().BeEmpty();
     }
 
     [Fact]
@@ -84,12 +85,12 @@ public sealed class OrmOutboxStoreTests
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
-        var entry = (await store.FetchPendingAsync(1, CancellationToken.None))[0];
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0];
 
         await store.MarkFailedAsync(
-            entry.Id, retryCount: 1, DateTimeOffset.UtcNow.AddSeconds(-1), CancellationToken.None);
+            entry.Id, retryCount: 1, DateTimeOffset.UtcNow.AddSeconds(-1), s_lease, CancellationToken.None);
 
-        var again = await store.FetchPendingAsync(10, CancellationToken.None);
+        var again = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
 
         again.Should().HaveCount(1);
         again[0].RetryCount.Should().Be(1, "the attempt count must survive the round-trip");
@@ -102,30 +103,30 @@ public sealed class OrmOutboxStoreTests
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
-        var entry = (await store.FetchPendingAsync(1, CancellationToken.None))[0];
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0];
 
-        await store.DeadLetterAsync(entry.Id, "boom", CancellationToken.None);
+        await store.DeadLetterAsync(entry.Id, "boom", s_lease, CancellationToken.None);
 
-        (await store.FetchPendingAsync(10, CancellationToken.None)).Should().BeEmpty();
+        (await store.ClaimPendingAsync(10, s_lease, CancellationToken.None)).Should().BeEmpty();
         (await fx.CountAsync()).Should().Be(1, "a dead letter is kept for inspection");
     }
 
     [Fact]
-    public async Task An_Illegal_Transition_Is_Rejected()
+    public async Task An_Illegal_Transition_Changes_Nothing_And_Reports_False()
     {
         // Dispatched is terminal. Marking it succeeded twice would otherwise
         // overwrite ProcessedAt and hide that something dispatched it twice.
+        // The conditional update refuses it and says so, rather than throwing.
         await using var fx = new SqliteFixture();
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
         await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
-        var entry = (await store.FetchPendingAsync(1, CancellationToken.None))[0];
-        await store.MarkSucceededAsync(entry.Id, CancellationToken.None);
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0];
+        await store.MarkSucceededAsync(entry.Id, s_lease, CancellationToken.None);
 
-        var act = async () => await store.MarkSucceededAsync(entry.Id, CancellationToken.None)
-            .ConfigureAwait(false);
-
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        (await store.MarkSucceededAsync(entry.Id, s_lease, CancellationToken.None)).Should().BeFalse();
+        (await store.MarkFailedAsync(entry.Id, 1, DateTimeOffset.UtcNow, s_lease, CancellationToken.None)).Should().BeFalse();
+        (await store.DeadLetterAsync(entry.Id, "late", s_lease, CancellationToken.None)).Should().BeFalse();
     }
 
     [Fact]
@@ -137,10 +138,8 @@ public sealed class OrmOutboxStoreTests
         await fx.MigrateAsync();
         var store = new OrmOutboxStore(await fx.ConnectAsync());
 
-        var act = async () => await store.MarkSucceededAsync(
-            OutboxMessageId.New(), CancellationToken.None).ConfigureAwait(false);
-
-        await act.Should().NotThrowAsync();
+        (await store.MarkSucceededAsync(OutboxMessageId.New(), s_lease, CancellationToken.None))
+            .Should().BeFalse();
     }
 
     [Fact]

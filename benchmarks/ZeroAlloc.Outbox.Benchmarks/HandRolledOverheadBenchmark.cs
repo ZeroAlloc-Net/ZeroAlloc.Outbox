@@ -23,6 +23,7 @@ public class HandRolledOverheadBenchmark
     private OrderPlacedOutboxWriter _zaWriter = null!;
     private OrderPlaced _message = null!;
     private static readonly byte[] s_payload = new byte[32];
+    private static readonly OutboxLease s_lease = new("benchmark", TimeSpan.FromMinutes(1));
 
     [GlobalSetup]
     public void Setup()
@@ -81,12 +82,12 @@ public class HandRolledOverheadBenchmark
     [BenchmarkCategory("DispatchTick10")]
     public async ValueTask<int> Za_DispatchTick()
     {
-        var entries = await _zaStore.FetchPendingAsync(10, CancellationToken.None).ConfigureAwait(false);
+        var entries = await _zaStore.ClaimPendingAsync(10, s_lease, CancellationToken.None).ConfigureAwait(false);
         foreach (var entry in entries)
         {
             // simulated handler — no-op (matches the hand-rolled side)
             _ = entry.Payload;
-            await _zaStore.MarkSucceededAsync(entry.Id, CancellationToken.None).ConfigureAwait(false);
+            await _zaStore.MarkSucceededAsync(entry.Id, s_lease, CancellationToken.None).ConfigureAwait(false);
         }
         return entries.Count;
     }
