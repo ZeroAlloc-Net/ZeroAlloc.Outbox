@@ -24,7 +24,11 @@ jobs:
           # that SDK at all and only works when the runner image happens to ship one
           # satisfying the pin, which is how a publish failed on a lagging image.
           global-json-file: global.json
-          dotnet-version: 10.0.x
+          # ZeroAlloc.Outbox.Tests targets net8.0 as well, to run the EF Core store against
+          # EF Core 9; install that runtime explicitly rather than trusting the runner image.
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore tools
         run: dotnet tool restore

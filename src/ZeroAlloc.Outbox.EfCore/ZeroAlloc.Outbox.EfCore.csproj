@@ -6,11 +6,19 @@
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- ZeroAlloc.ValueObjects.EfCore 1.3.1 requires EF Core 9.0.0+ across all TFMs.
-         EF Core 9.0.x supports net8.0 (LTS), so we unify on 9.0.4 for all targets. -->
+  <!-- Each target compiles against the EF Core line it runs on. EF Core 10 changed the
+       ExecuteUpdateAsync setter parameter from SetPropertyCalls<T> to UpdateSettersBuilder<T>,
+       so a net10.0 build against EF Core 9 throws TypeLoadException on the first claim once the
+       app resolves EF Core 10. net8.0 and net9.0 stay on EF Core 9, the newest line they support.
+       ZeroAlloc.ValueObjects.EfCore ships net8.0 and net9.0 only, with an EF Core 9 floor, so on
+       net10.0 it takes its net9.0 build and runs on the EF Core 10 referenced here. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net9.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.20" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />

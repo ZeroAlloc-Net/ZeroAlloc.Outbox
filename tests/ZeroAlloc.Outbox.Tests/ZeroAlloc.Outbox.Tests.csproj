@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- One target per EF Core line the store ships against: net8.0 runs the store on EF Core 9,
+         net10.0 on EF Core 10. EF Core 10 changed ExecuteUpdateAsync's setter type, so a store built
+         against EF Core 9 fails to load under EF Core 10; only running both lines catches that. -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <!-- Suppress obsoletion diagnostics for builder-pattern shims; tests deliberately
          exercise the legacy v1.x extension shape to validate back-compat. -->
@@ -12,22 +15,31 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.20" />
     <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: pin the native SQLite binary (3.50.3) pulled
          transitively by Microsoft.Data.Sqlite / EF Core Sqlite (2.1.x is vulnerable). -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
     <!-- Server integration fixtures: the EF Core claim's re-checked conditional update can
-         only be proven exclusive against real engines. Providers match EF Core 9.0.20. -->
+         only be proven exclusive against real engines. -->
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.EfCore\ZeroAlloc.Outbox.EfCore.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard\ZeroAlloc.Outbox.Dashboard.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard.Blazor\ZeroAlloc.Outbox.Dashboard.Blazor.csproj" />
+  </ItemGroup>
+  <!-- The EF Core providers match the EF Core line of each target; TestHost ships per runtime. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.20" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.31" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup>
     <!-- One container per test class, a database per test; shared with ZeroAlloc.Outbox.Orm.Tests. -->
