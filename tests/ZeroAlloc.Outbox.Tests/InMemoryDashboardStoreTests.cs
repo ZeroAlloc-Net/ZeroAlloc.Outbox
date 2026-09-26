@@ -4,6 +4,15 @@ namespace ZeroAlloc.Outbox.Tests;
 
 public class InMemoryDashboardStoreTests
 {
+    // Marks apply only to a message the marking host has leased, so each test claims first.
+    private static readonly OutboxLease s_lease = new("test-host", TimeSpan.FromMinutes(1));
+
+    private static async Task<OutboxMessageId> EnqueueAndClaimAsync(InMemoryOutboxStore store)
+    {
+        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None).ConfigureAwait(false);
+        return (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None).ConfigureAwait(false))[0].Id;
+    }
+
     [Fact]
     public async Task GetSnapshotAsync_GroupsPendingMessages()
     {
@@ -24,9 +33,8 @@ public class InMemoryDashboardStoreTests
     public async Task GetSnapshotAsync_MovesRetryCountGreaterThanZeroToRetryQueue()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, retryCount: 2, nextRetryAt: DateTimeOffset.UtcNow.AddMinutes(5), CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, retryCount: 2, nextRetryAt: DateTimeOffset.UtcNow.AddMinutes(5), s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         var snap = await dash.GetSnapshotAsync(10, CancellationToken.None);
@@ -44,9 +52,9 @@ public class InMemoryDashboardStoreTests
         {
             await store.EnqueueAsync($"T{i}", new byte[] { (byte)i }, null, CancellationToken.None);
         }
-        foreach (var e in store.AllEntries())
+        foreach (var e in await store.ClaimPendingAsync(10, s_lease, CancellationToken.None))
         {
-            await store.MarkSucceededAsync(e.Id, CancellationToken.None);
+            await store.MarkSucceededAsync(e.Id, s_lease, CancellationToken.None);
         }
 
         IOutboxDashboardStore dash = store;
@@ -59,10 +67,10 @@ public class InMemoryDashboardStoreTests
     public async Task RequeueAsync_MovesDeadLetterBackToPending_ResetsRetryCount()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, CancellationToken.None);
-        await store.DeadLetterAsync(id, "boom", CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, 3, DateTimeOffset.UtcNow, s_lease, CancellationToken.None);
+        (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None)).Should().ContainSingle();
+        await store.DeadLetterAsync(id, "boom", s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         await dash.RequeueAsync(id, CancellationToken.None);
@@ -86,6 +94,43 @@ public class InMemoryDashboardStoreTests
     }
 
     [Fact]
+    public async Task ForceDispatchAsync_On_A_Leased_Message_Leaves_Its_Lease_In_Place()
+    {
+        // ForceDispatch makes a message due, it does not take it from its holder, which may be a
+        // host that crashed mid-dispatch. Another host gets it only once that lease runs out,
+        // which the lease-expiry tests cover; here the lease is long, so nothing depends on timing.
+        using var store = new InMemoryOutboxStore();
+        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
+        var holder = new OutboxLease("holder", TimeSpan.FromMinutes(5));
+        var id = (await store.ClaimPendingAsync(1, holder, CancellationToken.None))[0].Id;
+        var lockedUntil = store.AllEntries().First(e => e.Id == id).LockedUntil;
+
+        IOutboxDashboardStore dash = store;
+        await dash.ForceDispatchAsync(id, CancellationToken.None);
+
+        (await store.ClaimPendingAsync(1, new OutboxLease("other", TimeSpan.FromMinutes(1)), CancellationToken.None))
+            .Should().BeEmpty("the holder's lease is live");
+        var entry = store.AllEntries().First(e => e.Id == id);
+        entry.LockedBy.Should().Be("holder");
+        entry.LockedUntil.Should().Be(lockedUntil);
+    }
+
+    [Fact]
+    public async Task CancelAsync_Of_An_In_Flight_Message_Makes_The_Holders_Mark_Return_False()
+    {
+        // Cancel does not stop a dispatch in flight. The holder finishes, and its mark finds the
+        // message gone, which the worker counts as completed elsewhere.
+        using var store = new InMemoryOutboxStore();
+        var id = await EnqueueAndClaimAsync(store);
+
+        IOutboxDashboardStore dash = store;
+        await dash.CancelAsync(id, CancellationToken.None);
+
+        (await store.MarkSucceededAsync(id, s_lease, CancellationToken.None)).Should().BeFalse();
+        store.AllEntries().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task CancelAsync_RemovesPendingMessage()
     {
         using var store = new InMemoryOutboxStore();
@@ -102,9 +147,8 @@ public class InMemoryDashboardStoreTests
     public async Task CancelAsync_ThrowsForDispatched()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -115,9 +159,8 @@ public class InMemoryDashboardStoreTests
     public async Task CancelAsync_ThrowsForDeadLettered()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.DeadLetterAsync(id, "x", CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.DeadLetterAsync(id, "x", s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -128,9 +171,8 @@ public class InMemoryDashboardStoreTests
     public async Task ForceDispatchAsync_SetsNextRetryToNow()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkFailedAsync(id, 1, DateTimeOffset.UtcNow.AddHours(1), s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         await dash.ForceDispatchAsync(id, CancellationToken.None);
@@ -143,9 +185,8 @@ public class InMemoryDashboardStoreTests
     public async Task ForceDispatchAsync_ThrowsForDispatched()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -156,9 +197,8 @@ public class InMemoryDashboardStoreTests
     public async Task GetThroughputAsync_YieldsBucketsWithinWindow()
     {
         using var store = new InMemoryOutboxStore();
-        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
-        var id = store.AllEntries()[0].Id;
-        await store.MarkSucceededAsync(id, CancellationToken.None);
+        var id = await EnqueueAndClaimAsync(store);
+        await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
 
         IOutboxDashboardStore dash = store;
         var points = new List<ThroughputPoint>();

@@ -81,4 +81,28 @@ See [Testing with Host](cookbook/05-testing-with-host.md) for a full helper clas
 
 ## Testing without the worker
 
-If you want to test only the write side (not dispatch), skip `AddOutbox()` and call `store.FetchPendingAsync` + your dispatcher manually, or simply inspect `AllEntries()`.
+If you want to test only the write side (not dispatch), skip `AddOutbox()` and call `store.ClaimPendingAsync` + your dispatcher manually, or simply inspect `AllEntries()`. A message must be claimed before `MarkSucceededAsync`, `MarkFailedAsync` or `DeadLetterAsync` will do anything to it — each is a conditional update that only applies to a row this host currently leases, so marking a freshly-enqueued row directly, without claiming it first, returns `false` and changes nothing.
+
+### Claiming before marking
+
+To drive a message through its states by hand, claim it under a lease and mark it with that same
+lease:
+
+```csharp
+var store = new InMemoryOutboxStore();
+await store.EnqueueAsync("MyApp.OrderPlaced", payload, transaction: null, ct);
+
+var lease = new OutboxLease("test-host", TimeSpan.FromMinutes(1));
+var claimed = await store.ClaimPendingAsync(batchSize: 10, lease, ct);
+var id = claimed.Should().ContainSingle().Subject.Id;
+
+// Marking with the lease that claimed the message moves it and returns true.
+(await store.MarkSucceededAsync(id, lease, ct)).Should().BeTrue();
+
+// A second mark, or a mark under a lease that never claimed the message, returns false.
+(await store.MarkSucceededAsync(id, lease, ct)).Should().BeFalse();
+```
+
+The same pattern works against the EF Core and ORM stores. To seed a failed or dead-lettered
+message, claim it, then call `MarkFailedAsync` or `DeadLetterAsync` with the lease; a message
+marked failed is claimable again once its `nextRetryAt` has passed.

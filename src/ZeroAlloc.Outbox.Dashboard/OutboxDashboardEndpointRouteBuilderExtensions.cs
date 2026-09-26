@@ -245,11 +245,10 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         {
             await publisher.PublishAsync(evt, ct).ConfigureAwait(false);
         }
-#pragma warning disable CA1031 // intentional broad catch — dashboard publish errors must not break write endpoints
         catch (Exception ex) when (ex is not OperationCanceledException)
-#pragma warning restore CA1031
         {
-            // Publisher errors are telemetry-only; swallow so the API response still succeeds.
+            // Publisher errors are telemetry-only, and dashboard publish errors must not break write
+            // endpoints; swallow so the API response still succeeds.
             _ = ex;
         }
     }

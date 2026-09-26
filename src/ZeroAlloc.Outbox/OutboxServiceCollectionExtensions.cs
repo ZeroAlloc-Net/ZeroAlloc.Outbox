@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using ZeroAlloc.Serialisation;
 
 namespace ZeroAlloc.Outbox;
@@ -37,6 +38,8 @@ public static partial class OutboxServiceCollectionExtensions
         services.AddOptions<OutboxOptions>();
         if (configure is not null)
             services.Configure(configure);
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<OutboxOptions>, OutboxOptionsValidator>());
 
         // Prefer DispatchingOutboxSerializer when ISerializerDispatcher is registered (AOT-safe).
         // Fall back to the reflection-based SystemTextJsonOutboxSerializer otherwise.

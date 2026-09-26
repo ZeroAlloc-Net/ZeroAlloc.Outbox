@@ -32,7 +32,12 @@ The dashboard is single-page with four tabs, a live badge ribbon, and a throughp
 
 ### Pending
 
-Messages awaiting their first dispatch attempt. Each row shows the message type, the generated ID, enqueue time, attempt counter (always `0/N` on this tab), and the JSON payload. `Force dispatch` runs the message immediately; `Cancel` removes it from the queue.
+Messages awaiting their first dispatch attempt. Each row shows the message type, the generated ID, enqueue time, attempt counter (always `0/N` on this tab), and the JSON payload. `Force dispatch` makes the message due now; `Cancel` removes it from the queue.
+
+Both actions respect a worker's lease on the message:
+
+- **Force dispatch** on a message a worker has claimed does not take it from that worker. It is dispatched by the holder, or, if the holder crashed, by another host once the lease expires — which can take up to `LeaseDuration`.
+- **Cancel** does not stop a dispatch already in flight. The worker finishes it, finds the message gone when it marks the outcome, and reports it on `outbox.lease.lost` with `reason=completed-elsewhere`. The message may therefore still be delivered once.
 
 ![Pending tab — desktop](screenshots/pending-desktop.png)
 

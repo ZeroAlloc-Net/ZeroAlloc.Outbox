@@ -30,7 +30,8 @@ namespace ZeroAlloc.Outbox.Orm;
 public static class OutboxOrmMigrations
 {
     /// <summary>Schema for SQLite.</summary>
-    public static IMigrationSource Sqlite { get; } = new Source("""
+    public static IMigrationSource Sqlite { get; } = new Source(
+        """
         CREATE TABLE IF NOT EXISTS OutboxMessages (
             Id              BLOB NOT NULL PRIMARY KEY,
             TypeName        TEXT NOT NULL,
@@ -44,10 +45,15 @@ public static class OutboxOrmMigrations
         );
         CREATE INDEX IF NOT EXISTS IX_OutboxMessages_Status_NextRetryAt
             ON OutboxMessages (Status, NextRetryAt);
+        """,
+        """
+        ALTER TABLE OutboxMessages ADD COLUMN LockedBy TEXT NULL;
+        ALTER TABLE OutboxMessages ADD COLUMN LockedUntil TEXT NULL;
         """);
 
     /// <summary>Schema for PostgreSQL.</summary>
-    public static IMigrationSource Postgres { get; } = new Source("""
+    public static IMigrationSource Postgres { get; } = new Source(
+        """
         CREATE TABLE IF NOT EXISTS OutboxMessages (
             Id              UUID NOT NULL PRIMARY KEY,
             TypeName        VARCHAR(256) NOT NULL,
@@ -61,6 +67,10 @@ public static class OutboxOrmMigrations
         );
         CREATE INDEX IF NOT EXISTS IX_OutboxMessages_Status_NextRetryAt
             ON OutboxMessages (Status, NextRetryAt);
+        """,
+        """
+        ALTER TABLE OutboxMessages ADD COLUMN IF NOT EXISTS LockedBy VARCHAR(128) NULL;
+        ALTER TABLE OutboxMessages ADD COLUMN IF NOT EXISTS LockedUntil TIMESTAMPTZ NULL;
         """);
 
     /// <summary>Schema for Microsoft SQL Server.</summary>
@@ -70,7 +80,8 @@ public static class OutboxOrmMigrations
     /// at 16 bytes it is comfortably inside the clustered index key limit, so
     /// unlike the saga table this one needs no NONCLUSTERED qualifier.
     /// </remarks>
-    public static IMigrationSource SqlServer { get; } = new Source("""
+    public static IMigrationSource SqlServer { get; } = new Source(
+        """
         IF OBJECT_ID(N'OutboxMessages', N'U') IS NULL
         CREATE TABLE OutboxMessages (
             Id              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -86,12 +97,21 @@ public static class OutboxOrmMigrations
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_OutboxMessages_Status_NextRetryAt')
         CREATE INDEX IX_OutboxMessages_Status_NextRetryAt
             ON OutboxMessages (Status, NextRetryAt);
+        """,
+        """
+        IF COL_LENGTH(N'OutboxMessages', N'LockedBy') IS NULL
+            ALTER TABLE OutboxMessages ADD LockedBy NVARCHAR(128) NULL;
+        IF COL_LENGTH(N'OutboxMessages', N'LockedUntil') IS NULL
+            ALTER TABLE OutboxMessages ADD LockedUntil DATETIMEOFFSET NULL;
         """);
 
-    private sealed class Source(string sql) : IMigrationSource
+    private sealed class Source(string createSql, string leaseSql) : IMigrationSource
     {
         private readonly IReadOnlyList<Migration> _migrations =
-            [new Migration(1, "create_outbox_messages", sql)];
+        [
+            new Migration(1, "create_outbox_messages", createSql),
+            new Migration(2, "add_outbox_lease", leaseSql),
+        ];
 
         public IReadOnlyList<Migration> GetMigrations() => _migrations;
     }

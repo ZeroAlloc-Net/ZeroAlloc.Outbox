@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/ZeroAlloc.Outbox.AotSmoke/ZeroAlloc.Outbox.AotSmoke.csproj" />
+    <Project Path="samples/ZeroAlloc.Outbox.DashboardSample/ZeroAlloc.Outbox.DashboardSample.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ZeroAlloc.Outbox.Generator.Tests/ZeroAlloc.Outbox.Generator.Tests.csproj" />

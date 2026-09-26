@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace ZeroAlloc.Outbox.EfCore;
 
@@ -59,15 +61,74 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
+    /// <summary>
+    /// How many times one claim selects candidates and tries to lease them. A retry happens only
+    /// when a concurrent claimer leased some of this attempt's candidates first.
+    /// </summary>
+    private const int MaxClaimAttempts = 3;
+
+    /// <summary>
+    /// Claims up to <paramref name="batchSize"/> due, unleased messages, since EF Core has no
+    /// <c>UPDATE … RETURNING</c>: select candidates, lease them, then read back what was leased.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each attempt reads the ids of the oldest due, unleased candidates, then leases them with
+    /// one conditional <c>ExecuteUpdate</c> that repeats the unleased predicate. The database
+    /// re-checks that predicate on each row under the row's update lock, so a row a concurrent
+    /// claimer leased in between is skipped rather than taken over. That holds on PostgreSQL and
+    /// SQL Server at READ COMMITTED, and on SQLite, which serializes writers.
+    /// </para>
+    /// <para>
+    /// Concurrent claimers select the same oldest candidates, so all but one of them can lose
+    /// every row. When the update leases fewer rows than were selected, the claim selects again
+    /// for the rest of the batch. The rows it already leased carry an unexpired lease, so the
+    /// unleased predicate leaves them out. It stops when the batch is full, when every candidate
+    /// it selected was leased, meaning no more are due, or after
+    /// <see cref="MaxClaimAttempts"/> attempts. Without the retry, a host that lost the race would
+    /// come away empty and sit out a whole polling interval while work was waiting.
+    /// </para>
+    /// <para>
+    /// Finally it reads back the candidates of every attempt that now carry this host's id and
+    /// this call's exact expiry, which are the rows this call claimed and no others, and returns
+    /// them as one batch.
+    /// </para>
+    /// <para>
+    /// If the claim is interrupted after it has leased rows but before it has returned them, by
+    /// cancellation or a database error, nobody would process those rows until the lease ran
+    /// out. So it releases them first, best effort and under a short budget of its own, since
+    /// <paramref name="ct"/> may be the one that was cancelled, and then rethrows.
+    /// </para>
+    /// </remarks>
+    public async ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(
+        int batchSize, OutboxLease lease, CancellationToken ct)
     {
+        ThrowIfNoHost(lease);
+
         var now = DateTimeOffset.UtcNow;
-        var rows = await _db.Set<OutboxMessageEntity>()
-            .Where(e => e.Status == OutboxMessageStatus.Pending && e.NextRetryAt <= now)
-            .OrderBy(e => e.CreatedAt)
-            .Take(batchSize)
-            .ToListAsync(ct)
-            .ConfigureAwait(false);
+        DateTimeOffset? until = now + lease.Duration;
+        var hostId = lease.HostId;
+
+        var candidateIds = new List<OutboxMessageId>();
+        List<OutboxMessageEntity> rows;
+        try
+        {
+            await LeaseCandidatesAsync(batchSize, now, until, hostId, candidateIds, ct).ConfigureAwait(false);
+            if (candidateIds.Count == 0)
+                return Array.Empty<OutboxEntry>();
+
+            rows = await _db.Set<OutboxMessageEntity>()
+                .AsNoTracking()
+                .Where(e => candidateIds.Contains(e.Id) && e.LockedBy == hostId && e.LockedUntil == until)
+                .OrderBy(e => e.CreatedAt)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception) when (candidateIds.Count > 0)
+        {
+            await ReleaseInterruptedClaimAsync(candidateIds, hostId, until).ConfigureAwait(false);
+            throw;
+        }
 
         var result = new List<OutboxEntry>(rows.Count);
         foreach (ref readonly var row in CollectionsMarshal.AsSpan(rows))
@@ -84,49 +145,211 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         return result;
     }
 
-    public async ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
+    /// <summary>
+    /// Selects and leases candidates until <paramref name="batchSize"/> rows are leased, no more
+    /// are due, or <see cref="MaxClaimAttempts"/> attempts are spent. Adds every candidate
+    /// selected, leased by this call or not, to <paramref name="selected"/> as it goes, so an
+    /// interrupted claim still knows which rows it may have leased.
+    /// </summary>
+    private async Task LeaseCandidatesAsync(
+        int batchSize, DateTimeOffset now, DateTimeOffset? until, string hostId,
+        List<OutboxMessageId> selected, CancellationToken ct)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
-        if (entity is null) return;
-        var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
-        if (!fsm.TryFire(OutboxMessageTrigger.Dispatch))
-            throw new InvalidOperationException(
-                $"Cannot mark message {id} as succeeded in state {fsm.Current}.");
-        entity.Status = OutboxMessageStatus.Succeeded;
-        entity.ProcessedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        var leased = 0;
+
+        for (var attempt = 0; attempt < MaxClaimAttempts && leased < batchSize; attempt++)
+        {
+            var before = selected.Count;
+            var changed = await LeaseAttemptAsync(batchSize - leased, now, until, hostId, selected, ct)
+                .ConfigureAwait(false);
+            leased += changed;
+
+            // Every candidate leased, or none selected: the batch is full, or no more are due.
+            if (changed == selected.Count - before)
+                break;
+        }
     }
 
-    public async ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
+    /// <summary>How long an interrupted claim may spend handing back the rows it leased.</summary>
+    private static readonly TimeSpan s_releaseTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Best-effort release of the rows an interrupted claim leased: those among
+    /// <paramref name="candidateIds"/> that carry this claim's host and exact expiry. A failure
+    /// is logged through the context's logger factory rather than thrown, because the caller
+    /// rethrows the error that interrupted the claim; the leases then simply expire.
+    /// </summary>
+    private async Task ReleaseInterruptedClaimAsync(
+        List<OutboxMessageId> candidateIds, string hostId, DateTimeOffset? until)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
-        if (entity is null) return;
-        var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
-        if (!fsm.TryFire(OutboxMessageTrigger.Fail))
-            throw new InvalidOperationException(
-                $"Cannot mark message {id} as failed in state {fsm.Current}.");
-        entity.Status = OutboxMessageStatus.Pending;
-        entity.RetryCount = retryCount;
-        entity.NextRetryAt = nextRetryAt;
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        using var timeout = new CancellationTokenSource(s_releaseTimeout);
+        try
+        {
+            await _db.Set<OutboxMessageEntity>()
+                .Where(e => candidateIds.Contains(e.Id) && e.LockedBy == hostId && e.LockedUntil == until
+                    && e.Status == OutboxMessageStatus.Pending)
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(e => e.LockedBy, (string?)null)
+                          .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                    timeout.Token)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _db.GetService<ILoggerFactory>()
+                .CreateLogger<EfCoreOutboxStore<TContext>>()
+                .LogWarning(ex,
+                    "Could not release {Count} outbox rows leased by an interrupted claim; they expire at {LockedUntil}.",
+                    candidateIds.Count, until);
+        }
     }
 
-    public async ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
+    /// <summary>
+    /// One claim attempt: select up to <paramref name="take"/> of the oldest due, unleased ids,
+    /// then lease them with a conditional update that repeats the unleased predicate. Returns how
+    /// many of them this attempt leased.
+    /// </summary>
+    /// <remarks>
+    /// The ids go into <paramref name="selected"/> before the update runs. An update can commit
+    /// on the server and still throw on the client, and the caller can only release rows it knows
+    /// about. Listing a row this claim did not lease is harmless: the release matches only rows
+    /// carrying this claim's host and exact expiry.
+    /// </remarks>
+    private async Task<int> LeaseAttemptAsync(
+        int take, DateTimeOffset now, DateTimeOffset? until, string hostId,
+        List<OutboxMessageId> selected, CancellationToken ct)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
-        if (entity is null) return;
-        var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
-        if (!fsm.TryFire(OutboxMessageTrigger.Exhaust))
-            throw new InvalidOperationException(
-                $"Cannot dead-letter message {id} in state {fsm.Current}.");
-        entity.Status = OutboxMessageStatus.DeadLetter;
-        entity.DeadLetterError = error;
-        entity.ProcessedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        var set = _db.Set<OutboxMessageEntity>();
+        var candidateIds = await set
+            .AsNoTracking()
+            .Where(e => e.Status == OutboxMessageStatus.Pending && e.NextRetryAt <= now
+                && (e.LockedUntil == null || e.LockedUntil < now))
+            .OrderBy(e => e.CreatedAt)
+            .Take(take)
+            .Select(e => e.Id)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        if (candidateIds.Count == 0)
+            return 0;
+
+        selected.AddRange(candidateIds);
+        return await set
+            .Where(e => candidateIds.Contains(e.Id) && e.Status == OutboxMessageStatus.Pending
+                && (e.LockedUntil == null || e.LockedUntil < now))
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.LockedBy, hostId).SetProperty(e => e.LockedUntil, until),
+                ct)
+            .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Extends this host's unexpired lease on a pending message, in one conditional
+    /// <c>ExecuteUpdate</c>.
+    /// </summary>
+    public async ValueTask<bool> RenewLeaseAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+
+        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset? until = now + lease.Duration;
+        var hostId = lease.HostId;
+
+        var changed = await _db.Set<OutboxMessageEntity>()
+            .Where(e => e.Id == id && e.LockedBy == hostId && e.LockedUntil >= now
+                && e.Status == OutboxMessageStatus.Pending)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.LockedUntil, until), ct)
+            .ConfigureAwait(false);
+        return changed == 1;
+    }
+
+    /// <summary>
+    /// Gives up this host's leases on the given pending messages, in one conditional
+    /// <c>ExecuteUpdate</c>.
+    /// </summary>
+    public async ValueTask<int> ReleaseLeasesAsync(
+        IReadOnlyList<OutboxMessageId> ids, OutboxLease lease, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        ThrowIfNoHost(lease);
+        if (ids.Count == 0) return 0;
+
+        var idList = ids.ToList();
+        var hostId = lease.HostId;
+        return await _db.Set<OutboxMessageEntity>()
+            .Where(e => idList.Contains(e.Id) && e.LockedBy == hostId && e.Status == OutboxMessageStatus.Pending)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.LockedBy, (string?)null)
+                      .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                ct)
+            .ConfigureAwait(false);
+    }
+
+    // Each mark is one conditional ExecuteUpdate guarded by the row still being pending, which
+    // is exactly the set of OutboxMessageFsm states from which Dispatch, Fail and Exhaust are
+    // legal, and by the row still being leased by the marking host. The database decides the
+    // transition: only the current lease holder can move the row, so of two concurrent marks from
+    // different hosts exactly one wins, and a terminal state is never overwritten. The lease
+    // expiry is deliberately not checked, so a host whose lease expired without being taken over
+    // can still record its outcome. The update also bypasses any instance the context tracks,
+    // which may be stale because the claim writes through ExecuteUpdate too.
+
+    public async ValueTask<bool> MarkSucceededAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+
+        DateTimeOffset? processedAt = DateTimeOffset.UtcNow;
+        var changed = await LeasedPendingRow(id, lease.HostId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.Status, OutboxMessageStatus.Succeeded)
+                      .SetProperty(e => e.ProcessedAt, processedAt)
+                      .SetProperty(e => e.LockedBy, (string?)null)
+                      .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                ct)
+            .ConfigureAwait(false);
+        return changed == 1;
+    }
+
+    public async ValueTask<bool> MarkFailedAsync(
+        OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+
+        // Stays Pending: retry versus first attempt is carried by RetryCount. The retry time is
+        // stored in UTC like every other timestamp: a PostgreSQL timestamptz rejects a non-zero
+        // offset, and due-time comparisons must never mix offsets.
+        var retryAt = nextRetryAt.ToUniversalTime();
+        var changed = await LeasedPendingRow(id, lease.HostId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.RetryCount, retryCount)
+                      .SetProperty(e => e.NextRetryAt, retryAt)
+                      .SetProperty(e => e.LockedBy, (string?)null)
+                      .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                ct)
+            .ConfigureAwait(false);
+        return changed == 1;
+    }
+
+    public async ValueTask<bool> DeadLetterAsync(OutboxMessageId id, string error, OutboxLease lease, CancellationToken ct)
+    {
+        ThrowIfNoHost(lease);
+
+        DateTimeOffset? processedAt = DateTimeOffset.UtcNow;
+        var changed = await LeasedPendingRow(id, lease.HostId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.Status, OutboxMessageStatus.DeadLetter)
+                      .SetProperty(e => e.DeadLetterError, error)
+                      .SetProperty(e => e.ProcessedAt, processedAt)
+                      .SetProperty(e => e.LockedBy, (string?)null)
+                      .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                ct)
+            .ConfigureAwait(false);
+        return changed == 1;
+    }
+
+    private IQueryable<OutboxMessageEntity> LeasedPendingRow(OutboxMessageId id, string hostId) =>
+        _db.Set<OutboxMessageEntity>()
+            .Where(e => e.Id == id && e.Status == OutboxMessageStatus.Pending && e.LockedBy == hostId);
 
     /// <summary>
     /// Returns a snapshot partitioned into pending / retry / dead-letter / dispatched buckets.
@@ -263,8 +486,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Requeue))
@@ -280,8 +502,7 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     public async ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
         if (!fsm.TryFire(OutboxMessageTrigger.Cancel))
@@ -293,13 +514,49 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
 
     public async ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
     {
-        var entity = await _db.Set<OutboxMessageEntity>()
-            .FindAsync(new object[] { id }, ct).ConfigureAwait(false)
+        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
         if (entity.Status != OutboxMessageStatus.Pending)
             throw new InvalidOperationException($"Message {id} is not pending (status: {entity.Status}).");
         entity.NextRetryAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Loads the message as the database holds it now, for the dashboard operations.
+    /// </summary>
+    /// <remarks>
+    /// <c>FindAsync</c> returns an already-tracked instance without querying. The claim, the
+    /// renewal and every mark write through <c>ExecuteUpdate</c>, which bypasses the change
+    /// tracker, and other hosts change rows too, so a tracked instance can be stale. Deciding a
+    /// dashboard transition on stale state would, for example, requeue a message that is no
+    /// longer dead-lettered. So a tracked instance is reloaded first. An instance tracked as
+    /// Added has never been saved, and is left as is.
+    /// </remarks>
+    private async ValueTask<OutboxMessageEntity?> FindCurrentAsync(OutboxMessageId id, CancellationToken ct)
+    {
+        var tracked = _db.Set<OutboxMessageEntity>().Local.FindEntry(id);
+        if (tracked is null)
+        {
+            return await _db.Set<OutboxMessageEntity>()
+                .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
+        }
+
+        if (tracked.State != EntityState.Added)
+        {
+            await tracked.ReloadAsync(ct).ConfigureAwait(false);
+            if (tracked.State == EntityState.Detached) return null;
+        }
+
+        return tracked.Entity;
+    }
+
+    // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
+    // unleased, and a blank one identifies no host.
+    private static void ThrowIfNoHost(OutboxLease lease)
+    {
+        if (string.IsNullOrWhiteSpace(lease.HostId))
+            throw new ArgumentException("The lease has no HostId.", nameof(lease));
     }
 
     private static OutboxMessageState ToState(OutboxMessageStatus status, int retryCount) => status switch

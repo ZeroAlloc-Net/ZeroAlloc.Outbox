@@ -35,7 +35,9 @@ The `[OutboxMessage]` attribute and the generator are pure Roslyn — there is n
 
 ## Worker overhead
 
-The worker creates one `IServiceScope` per batch cycle, not per entry. For a batch of 50 entries there is one scope creation and one `FetchPendingAsync` query regardless of batch size.
+The worker creates one `IServiceScope` per batch cycle, not per entry. For a batch of 50 entries there is one scope creation and one `ClaimPendingAsync` call regardless of batch size, plus one `RenewLeaseAsync` call per entry right before it is dispatched. Against a real database each renewal is a round trip, so a batch of 50 costs 50 renewals on top of its 50 marks.
+
+The head-to-head dispatch tick below claims and marks, but does not renew, so its figures leave out that per-entry renewal round trip. They measure the abstraction overhead of the claim and mark path, not the full cost of a worker cycle.
 
 ## Head-to-head vs hand-rolled SQLite outbox
 

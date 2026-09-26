@@ -7,6 +7,7 @@ namespace ZeroAlloc.Outbox.Tests;
 
 public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
 {
+    private static readonly OutboxLease s_lease = new("test-host", TimeSpan.FromMinutes(1));
     private SqliteConnection _conn = default!;
     private DashboardTestDbContext _db = default!;
     private EfCoreOutboxStore<DashboardTestDbContext> _store = default!;
@@ -37,12 +38,12 @@ public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
         // Tracked entity exists but no row yet (no SaveChanges called).
 #pragma warning disable HLQ005 // Assert.Single is xUnit's API, not LINQ Single
         Assert.Single(_db.ChangeTracker.Entries<OutboxMessageEntity>());
-        var pending = await _store.FetchPendingAsync(10, CancellationToken.None);
+        var pending = await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
         Assert.Empty(pending);
 
         // Caller's SaveChangesAsync flushes — exactly the contract Saga.Outbox needs.
         await _db.SaveChangesAsync(CancellationToken.None);
-        pending = await _store.FetchPendingAsync(10, CancellationToken.None);
+        pending = await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
         Assert.Single(pending);
 #pragma warning restore HLQ005
         Assert.Equal("Test.Cmd", pending[0].TypeName);
@@ -60,10 +61,10 @@ public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
         await tx.RollbackAsync(CancellationToken.None);
 
         // The clear-changetracker is needed because RollbackAsync does NOT detach tracked entities;
-        // FetchPendingAsync would still see the tracked-but-uncommitted entity via DbContext's
+        // ClaimPendingAsync would still see the tracked-but-uncommitted entity via DbContext's
         // local cache. Detach so the next read goes to the database.
         _db.ChangeTracker.Clear();
-        var pending = await _store.FetchPendingAsync(10, CancellationToken.None);
+        var pending = await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
         Assert.Empty(pending);
     }
 
@@ -89,10 +90,12 @@ public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
+        public ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(int batchSize, OutboxLease lease, CancellationToken ct)
             => ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(System.Array.Empty<OutboxEntry>());
-        public ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct) => ValueTask.CompletedTask;
-        public ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, CancellationToken ct) => ValueTask.CompletedTask;
-        public ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct) => ValueTask.CompletedTask;
+        public ValueTask<bool> RenewLeaseAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct) => ValueTask.FromResult(false);
+        public ValueTask<int> ReleaseLeasesAsync(IReadOnlyList<OutboxMessageId> ids, OutboxLease lease, CancellationToken ct) => ValueTask.FromResult(0);
+        public ValueTask<bool> MarkSucceededAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct) => ValueTask.FromResult(false);
+        public ValueTask<bool> MarkFailedAsync(OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, OutboxLease lease, CancellationToken ct) => ValueTask.FromResult(false);
+        public ValueTask<bool> DeadLetterAsync(OutboxMessageId id, string error, OutboxLease lease, CancellationToken ct) => ValueTask.FromResult(false);
     }
 }

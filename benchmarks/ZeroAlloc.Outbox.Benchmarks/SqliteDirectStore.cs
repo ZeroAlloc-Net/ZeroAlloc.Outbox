@@ -64,10 +64,14 @@ internal sealed class SqliteDirectStore : IOutboxStore
     }
 
     // Maps generated OutboxMessageId values to the SQLite rowid for the duration
-    // of a fetch→mark cycle. Cleared on each fetch.
+    // of a claim→mark cycle. Cleared on each claim.
     private readonly Dictionary<OutboxMessageId, long> _idToRowid = new();
 
-    public ValueTask<IReadOnlyList<OutboxEntry>> FetchPendingAsync(int batchSize, CancellationToken ct)
+    // The benchmark runs one consumer on one connection, so this store reads the
+    // batch without leasing it, every renewal succeeds and marks ignore the lease.
+    // It matches the hand-rolled baseline's single-consumer shape; it is not safe
+    // for two hosts.
+    public ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(int batchSize, OutboxLease lease, CancellationToken ct)
     {
         var list = new List<OutboxEntry>(batchSize);
         _idToRowid.Clear();
@@ -94,20 +98,25 @@ internal sealed class SqliteDirectStore : IOutboxStore
         return ValueTask.FromResult<IReadOnlyList<OutboxEntry>>(list);
     }
 
-    public ValueTask MarkSucceededAsync(OutboxMessageId id, CancellationToken ct)
+    public ValueTask<int> ReleaseLeasesAsync(IReadOnlyList<OutboxMessageId> ids, OutboxLease lease, CancellationToken ct)
+        => ValueTask.FromResult(0); // nothing is leased, so nothing to release
+
+    public ValueTask<bool> MarkSucceededAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
     {
         if (!_idToRowid.TryGetValue(id, out var rowid))
-            return ValueTask.CompletedTask;
+            return ValueTask.FromResult(false);
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "UPDATE za_outbox SET status='done' WHERE id=$id;";
+        cmd.CommandText = "UPDATE za_outbox SET status='done' WHERE id=$id AND status='pending';";
         cmd.Parameters.AddWithValue("$id", rowid);
-        cmd.ExecuteNonQuery();
-        return ValueTask.CompletedTask;
+        return ValueTask.FromResult(cmd.ExecuteNonQuery() == 1);
     }
 
-    public ValueTask MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, CancellationToken ct)
-        => ValueTask.CompletedTask; // not exercised by this benchmark
+    public ValueTask<bool> RenewLeaseAsync(OutboxMessageId id, OutboxLease lease, CancellationToken ct)
+        => ValueTask.FromResult(true); // single consumer: the lease is never contended
 
-    public ValueTask DeadLetterAsync(OutboxMessageId id, string error, CancellationToken ct)
-        => ValueTask.CompletedTask; // not exercised by this benchmark
+    public ValueTask<bool> MarkFailedAsync(OutboxMessageId id, int retryCount, DateTimeOffset nextRetryAt, OutboxLease lease, CancellationToken ct)
+        => ValueTask.FromResult(false); // not exercised by this benchmark
+
+    public ValueTask<bool> DeadLetterAsync(OutboxMessageId id, string error, OutboxLease lease, CancellationToken ct)
+        => ValueTask.FromResult(false); // not exercised by this benchmark
 }

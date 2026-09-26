@@ -28,12 +28,14 @@ ZeroAlloc.Outbox.IOutboxSerializer
 ZeroAlloc.Outbox.IOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
 ZeroAlloc.Outbox.IOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
 ZeroAlloc.Outbox.IOutboxStore
-ZeroAlloc.Outbox.IOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.ClaimPendingAsync(int batchSize, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
+ZeroAlloc.Outbox.IOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
 ZeroAlloc.Outbox.IOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxStore.EnqueueDeferredAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
-ZeroAlloc.Outbox.IOutboxStore.FetchPendingAsync(int batchSize, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
-ZeroAlloc.Outbox.IOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
-ZeroAlloc.Outbox.IOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.IOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.IOutboxStore.ReleaseLeasesAsync(System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageId>! ids, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<int>
+ZeroAlloc.Outbox.IOutboxStore.RenewLeaseAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
 ZeroAlloc.Outbox.IOutboxTypeDispatcher
 ZeroAlloc.Outbox.IOutboxTypeDispatcher.DispatchAsync(System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxTypeDispatcher.TypeName.get -> string!
@@ -105,6 +107,15 @@ ZeroAlloc.Outbox.OutboxEntry.RetryCount.get -> int
 ZeroAlloc.Outbox.OutboxEntry.RetryCount.init -> void
 ZeroAlloc.Outbox.OutboxEntry.TypeName.get -> string!
 ZeroAlloc.Outbox.OutboxEntry.TypeName.init -> void
+ZeroAlloc.Outbox.OutboxLease
+ZeroAlloc.Outbox.OutboxLease.Deconstruct(out string! HostId, out System.TimeSpan Duration) -> void
+ZeroAlloc.Outbox.OutboxLease.Duration.get -> System.TimeSpan
+ZeroAlloc.Outbox.OutboxLease.Duration.init -> void
+ZeroAlloc.Outbox.OutboxLease.Equals(ZeroAlloc.Outbox.OutboxLease other) -> bool
+ZeroAlloc.Outbox.OutboxLease.HostId.get -> string!
+ZeroAlloc.Outbox.OutboxLease.HostId.init -> void
+ZeroAlloc.Outbox.OutboxLease.OutboxLease() -> void
+ZeroAlloc.Outbox.OutboxLease.OutboxLease(string! HostId, System.TimeSpan Duration) -> void
 ZeroAlloc.Outbox.OutboxMessageAttribute
 ZeroAlloc.Outbox.OutboxMessageAttribute.OutboxMessageAttribute() -> void
 ZeroAlloc.Outbox.OutboxMessageFsm
@@ -152,6 +163,10 @@ ZeroAlloc.Outbox.OutboxMessageView.TypeName.init -> void
 ZeroAlloc.Outbox.OutboxOptions
 ZeroAlloc.Outbox.OutboxOptions.BatchSize.get -> int
 ZeroAlloc.Outbox.OutboxOptions.BatchSize.set -> void
+ZeroAlloc.Outbox.OutboxOptions.HostId.get -> string!
+ZeroAlloc.Outbox.OutboxOptions.HostId.set -> void
+ZeroAlloc.Outbox.OutboxOptions.LeaseDuration.get -> System.TimeSpan
+ZeroAlloc.Outbox.OutboxOptions.LeaseDuration.set -> void
 ZeroAlloc.Outbox.OutboxOptions.MaxAttempts.get -> int
 ZeroAlloc.Outbox.OutboxOptions.MaxAttempts.set -> void
 ZeroAlloc.Outbox.OutboxOptions.OutboxOptions() -> void
@@ -218,6 +233,7 @@ override ZeroAlloc.Outbox.MessageRequeuedEvent.ToString() -> string!
 override ZeroAlloc.Outbox.OutboxDashboardEvent.Equals(object? obj) -> bool
 override ZeroAlloc.Outbox.OutboxDashboardEvent.GetHashCode() -> int
 override ZeroAlloc.Outbox.OutboxDashboardEvent.ToString() -> string!
+override ZeroAlloc.Outbox.OutboxLease.GetHashCode() -> int
 override ZeroAlloc.Outbox.OutboxMessageId.GetHashCode() -> int
 override ZeroAlloc.Outbox.OutboxMessageId.ToString() -> string!
 override ZeroAlloc.Outbox.OutboxMessageView.Equals(object? obj) -> bool
@@ -251,6 +267,8 @@ static ZeroAlloc.Outbox.MessageRequeuedEvent.operator !=(ZeroAlloc.Outbox.Messag
 static ZeroAlloc.Outbox.MessageRequeuedEvent.operator ==(ZeroAlloc.Outbox.MessageRequeuedEvent? left, ZeroAlloc.Outbox.MessageRequeuedEvent? right) -> bool
 static ZeroAlloc.Outbox.OutboxDashboardEvent.operator !=(ZeroAlloc.Outbox.OutboxDashboardEvent? left, ZeroAlloc.Outbox.OutboxDashboardEvent? right) -> bool
 static ZeroAlloc.Outbox.OutboxDashboardEvent.operator ==(ZeroAlloc.Outbox.OutboxDashboardEvent? left, ZeroAlloc.Outbox.OutboxDashboardEvent? right) -> bool
+static ZeroAlloc.Outbox.OutboxLease.operator !=(ZeroAlloc.Outbox.OutboxLease left, ZeroAlloc.Outbox.OutboxLease right) -> bool
+static ZeroAlloc.Outbox.OutboxLease.operator ==(ZeroAlloc.Outbox.OutboxLease left, ZeroAlloc.Outbox.OutboxLease right) -> bool
 static ZeroAlloc.Outbox.OutboxMessageFsm.GetState(bool isSucceeded, bool isDeadLetter, int retryCount) -> ZeroAlloc.Outbox.OutboxMessageState
 static ZeroAlloc.Outbox.OutboxMessageId.New() -> ZeroAlloc.Outbox.OutboxMessageId
 static ZeroAlloc.Outbox.OutboxMessageId.Parse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider) -> ZeroAlloc.Outbox.OutboxMessageId
@@ -273,6 +291,8 @@ static ZeroAlloc.Outbox.ThroughputPoint.operator ==(ZeroAlloc.Outbox.ThroughputP
 virtual ZeroAlloc.Outbox.OutboxDashboardEvent.EqualityContract.get -> System.Type!
 virtual ZeroAlloc.Outbox.OutboxDashboardEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
 virtual ZeroAlloc.Outbox.OutboxDashboardEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~override ZeroAlloc.Outbox.OutboxLease.Equals(object obj) -> bool
+~override ZeroAlloc.Outbox.OutboxLease.ToString() -> string
 ~override ZeroAlloc.Outbox.OutboxMessageId.Equals(object obj) -> bool
 
 ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter
