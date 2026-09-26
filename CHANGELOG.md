@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.2...v3.0.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* IOutboxStore.FetchPendingAsync is replaced by ClaimPendingAsync, RenewLeaseAsync and ReleaseLeasesAsync are new, and the three mark methods take an OutboxLease and return ValueTask<bool>. A message must be claimed before it can be marked. EF Core users must add a migration for the LockedBy and LockedUntil columns. See docs/migrating-to-v3.md.
+
+### Features
+
+* claim outbox messages with a lease so concurrent hosts never dispatch twice ([#201](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/201)) ([979f974](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/979f974bf2968d0ada0bfc642f4da7c6c08be0b2)), closes [#191](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/191) [#198](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/198) [#199](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/199)
+
 ## [2.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.1...v2.7.2) (2026-09-25)
 
 
