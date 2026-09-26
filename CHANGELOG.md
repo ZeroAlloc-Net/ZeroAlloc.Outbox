@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v3.0.0...v3.0.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **efcore:** build the net10.0 target against EF Core 10 ([#208](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/208)) ([cea95a9](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/cea95a9ed191dd58607daef76b2801039d386998))
+
 ## [3.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v2.7.2...v3.0.0) (2026-09-26)
 
 
