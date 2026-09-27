@@ -5,9 +5,6 @@ using ZeroAlloc.Outbox;
 namespace ZeroAlloc.Outbox.EfCore;
 
 /// <summary>EF Core entity that maps to the OutboxMessages table.</summary>
-// TODO(#200): the dashboard's Requeue/Cancel/ForceDispatch check the state and write it in
-// separate steps, so they can race a worker's mark. Fix that there, for example with a
-// conditional update or a [Timestamp] RowVersion.
 [Table("OutboxMessages")]
 public sealed class OutboxMessageEntity
 {

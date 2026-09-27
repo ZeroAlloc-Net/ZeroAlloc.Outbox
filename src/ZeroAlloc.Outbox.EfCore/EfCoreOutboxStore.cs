@@ -484,71 +484,109 @@ public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboard
         }
     }
 
+    // Each dashboard operation is one conditional ExecuteUpdate or ExecuteDelete that carries its
+    // precondition in the WHERE clause, like the marks. The database checks the state and writes it
+    // in one statement under the row's lock, so a mark or another operator's action that lands
+    // first makes the operation match no row, rather than being overwritten. Only when no row
+    // matched is the row read again, to report whether it is missing or in the wrong state. The
+    // statements bypass any instance the context tracks, and never flush its pending changes.
+
+    /// <summary>
+    /// Moves a dead-lettered message back to pending, due now, with a fresh attempt counter and
+    /// no lease, in one conditional <c>ExecuteUpdate</c> guarded by the row being dead-lettered.
+    /// </summary>
     public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
     {
-        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Message {id} not found.");
-        var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
-        if (!fsm.TryFire(OutboxMessageTrigger.Requeue))
-            throw new InvalidOperationException(
-                $"Message {id} cannot be requeued in state {fsm.Current}.");
-        entity.Status = OutboxMessageStatus.Pending;
-        entity.RetryCount = 0;
-        entity.NextRetryAt = DateTimeOffset.UtcNow;
-        entity.DeadLetterError = null;
-        entity.ProcessedAt = null;
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
-    }
+        var now = DateTimeOffset.UtcNow;
+        var changed = await _db.Set<OutboxMessageEntity>()
+            .Where(e => e.Id == id && e.Status == OutboxMessageStatus.DeadLetter)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(e => e.Status, OutboxMessageStatus.Pending)
+                      .SetProperty(e => e.RetryCount, 0)
+                      .SetProperty(e => e.NextRetryAt, now)
+                      .SetProperty(e => e.DeadLetterError, (string?)null)
+                      .SetProperty(e => e.ProcessedAt, (DateTimeOffset?)null)
+                      .SetProperty(e => e.LockedBy, (string?)null)
+                      .SetProperty(e => e.LockedUntil, (DateTimeOffset?)null),
+                ct)
+            .ConfigureAwait(false);
+        if (changed == 1) return;
 
-    public async ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
-    {
-        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
+        var state = await ReadStateAsync(id, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Message {id} not found.");
-        var fsm = new OutboxMessageFsm(ToState(entity.Status, entity.RetryCount));
-        if (!fsm.TryFire(OutboxMessageTrigger.Cancel))
-            throw new InvalidOperationException(
-                $"Message {id} cannot be cancelled in state {fsm.Current}.");
-        _db.Set<OutboxMessageEntity>().Remove(entity);
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
-    }
-
-    public async ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
-    {
-        var entity = await FindCurrentAsync(id, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Message {id} not found.");
-        if (entity.Status != OutboxMessageStatus.Pending)
-            throw new InvalidOperationException($"Message {id} is not pending (status: {entity.Status}).");
-        entity.NextRetryAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        throw new InvalidOperationException($"Message {id} cannot be requeued in state {state}.");
     }
 
     /// <summary>
-    /// Loads the message as the database holds it now, for the dashboard operations.
+    /// Deletes a pending or retry-queue message, in one conditional <c>ExecuteDelete</c> guarded
+    /// by the row being pending.
     /// </summary>
     /// <remarks>
-    /// <c>FindAsync</c> returns an already-tracked instance without querying. The claim, the
-    /// renewal and every mark write through <c>ExecuteUpdate</c>, which bypasses the change
-    /// tracker, and other hosts change rows too, so a tracked instance can be stale. Deciding a
-    /// dashboard transition on stale state would, for example, requeue a message that is no
-    /// longer dead-lettered. So a tracked instance is reloaded first. An instance tracked as
-    /// Added has never been saved, and is left as is.
+    /// A leased message can be cancelled: the cancel does not stop a dispatch in flight. The
+    /// holder finishes, its mark matches no row, and the worker reports the message as completed
+    /// elsewhere. A message the holder has already marked dispatched or dead-lettered is no longer
+    /// pending, so it is not deleted and the cancel is rejected.
     /// </remarks>
-    private async ValueTask<OutboxMessageEntity?> FindCurrentAsync(OutboxMessageId id, CancellationToken ct)
+    public async ValueTask CancelAsync(OutboxMessageId id, CancellationToken ct)
     {
-        var tracked = _db.Set<OutboxMessageEntity>().Local.FindEntry(id);
-        if (tracked is null)
+        var changed = await _db.Set<OutboxMessageEntity>()
+            .Where(e => e.Id == id && e.Status == OutboxMessageStatus.Pending)
+            .ExecuteDeleteAsync(ct)
+            .ConfigureAwait(false);
+        if (changed == 1)
         {
-            return await _db.Set<OutboxMessageEntity>()
-                .FindAsync(new object[] { id }, ct).ConfigureAwait(false);
+            // The row is gone; a tracked instance of it would only fail a later SaveChanges.
+            var tracked = _db.Set<OutboxMessageEntity>().Local.FindEntry(id);
+            if (tracked is not null && tracked.State != EntityState.Added)
+                tracked.State = EntityState.Detached;
+            return;
         }
 
-        if (tracked.State != EntityState.Added)
-        {
-            await tracked.ReloadAsync(ct).ConfigureAwait(false);
-            if (tracked.State == EntityState.Detached) return null;
-        }
+        var state = await ReadStateAsync(id, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Message {id} not found.");
+        throw new InvalidOperationException($"Message {id} cannot be cancelled in state {state}.");
+    }
 
-        return tracked.Entity;
+    /// <summary>
+    /// Makes a pending message due now, in one conditional <c>ExecuteUpdate</c> guarded by the
+    /// row being pending.
+    /// </summary>
+    /// <remarks>
+    /// The lease is left in place: a message a worker has claimed is dispatched by that worker,
+    /// or by another host once the lease expires.
+    /// </remarks>
+    public async ValueTask ForceDispatchAsync(OutboxMessageId id, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var changed = await _db.Set<OutboxMessageEntity>()
+            .Where(e => e.Id == id && e.Status == OutboxMessageStatus.Pending)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.NextRetryAt, now), ct)
+            .ConfigureAwait(false);
+        if (changed == 1) return;
+
+        var status = await _db.Set<OutboxMessageEntity>()
+            .AsNoTracking()
+            .Where(e => e.Id == id)
+            .Select(e => (OutboxMessageStatus?)e.Status)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Message {id} not found.");
+        throw new InvalidOperationException($"Message {id} is not pending (status: {status}).");
+    }
+
+    /// <summary>
+    /// Reads the message's state as the database holds it now, or null if there is no such
+    /// message. Used only to explain why a dashboard operation matched no row.
+    /// </summary>
+    private async ValueTask<OutboxMessageState?> ReadStateAsync(OutboxMessageId id, CancellationToken ct)
+    {
+        var row = await _db.Set<OutboxMessageEntity>()
+            .AsNoTracking()
+            .Where(e => e.Id == id)
+            .Select(e => new { e.Status, e.RetryCount })
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+        return row is null ? null : ToState(row.Status, row.RetryCount);
     }
 
     // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
