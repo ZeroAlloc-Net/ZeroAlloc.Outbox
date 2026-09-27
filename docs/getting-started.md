@@ -122,7 +122,7 @@ Replace the EF Core store with the in-memory adapter for unit and integration te
 
 ```csharp
 // In your test host setup
-services.AddOutbox().WithInMemoryStore()    // replaces .WithEfCore<T>()
+services.AddOutbox().WithInMemoryStore()    // instead of .WithEfCore<T>()
         .AddOrderPlacedOutbox()
         .WithSystemTextJsonSerializer();
 

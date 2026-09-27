@@ -43,6 +43,11 @@ public static partial class OutboxServiceCollectionExtensions
     /// only for ZeroAlloc.Saga commands, needs no serializer at all.
     /// </para>
     /// <para>
+    /// A container hosts one outbox pipeline. Calling this method again adds its
+    /// <paramref name="configure"/> delegate but no second worker, and the store adapters throw
+    /// when a second, different store is registered.
+    /// </para>
+    /// <para>
     /// Logging is not registered by this method. When using a bare <c>HostBuilder</c> in tests,
     /// add <c>services.AddLogging()</c> explicitly.
     /// </para>
@@ -67,6 +72,8 @@ public static partial class OutboxServiceCollectionExtensions
                 : throw new InvalidOperationException(MissingSerializerMessage);
         });
 
+        // AddHostedService registers through TryAddEnumerable, so calling AddOutbox() twice still
+        // starts one worker. OutboxRegistrationTests pins that.
         services.AddHostedService<OutboxWorkerService>();
         return new OutboxBuilder(services);
     }

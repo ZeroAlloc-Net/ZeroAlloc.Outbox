@@ -116,6 +116,7 @@ The `IOutboxTypeDispatcher` is registered as `Transient` so it is resolved fresh
 ## Lifetime rules
 
 - `IOutboxStore` implementations must be **Scoped** (EF Core) or **Singleton** (InMemory). Do not register a Singleton EF Core store — it captures the `DbContext` and causes data corruption.
+- A container hosts one outbox pipeline, so it has one `IOutboxStore`. Registering the same store again is a no-op; registering a different one, such as `WithOrm()` after `WithEfCore<T>()`, throws an `InvalidOperationException`. See [Migrating to v4](migrating-to-v4.md#one-store-per-container).
 - `IOutboxDispatcher<T>` implementations can be any lifetime. `Transient` is the safest default.
 - The worker creates a new `IServiceScope` per batch cycle, so Scoped services are correctly isolated.
 

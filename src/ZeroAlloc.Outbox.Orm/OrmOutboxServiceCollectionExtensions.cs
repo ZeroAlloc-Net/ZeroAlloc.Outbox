@@ -1,5 +1,6 @@
 using System.Data.Async;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ZeroAlloc.Outbox.Orm;
 
@@ -30,7 +31,14 @@ public static class OrmOutboxServiceCollectionExtensions
     /// non-functional one would leave the dashboard silently empty rather than
     /// failing where the mistake was made.
     /// </para>
+    /// <para>
+    /// Calling this again with the same dialect is a no-op.
+    /// </para>
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered, such as another store adapter
+    /// or the ORM store with another dialect. One container hosts one outbox pipeline.
+    /// </exception>
     /// <example>
     /// <code>
     /// services.AddOutbox().WithOrm();
@@ -51,9 +59,32 @@ public static class OrmOutboxServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.AddScoped(sp =>
-            new OrmOutboxStore(sp.GetRequiredService<IAsyncDbConnection>(), dialect));
-        builder.Services.AddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
+        var services = builder.Services;
+        OutboxStoreRegistration.ThrowIfConflicting(services, typeof(OrmOutboxStore), "WithOrm()");
+
+        // The same store with another dialect conflicts too; TryAdd would silently keep the first.
+        var existing = services.LastOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(OrmOutboxStore));
+        if (existing?.ImplementationFactory?.Target is OrmOutboxStoreFactory registered
+            && registered.Dialect != dialect)
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
+        }
+
+        services.TryAddScoped(new OrmOutboxStoreFactory(dialect).Create);
+        services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
         return builder;
+    }
+
+    /// <summary>
+    /// Creates the store with the dialect it was registered with. A named class rather than a
+    /// lambda, so a later <c>WithOrm</c> call can read the dialect back from the registration.
+    /// </summary>
+    private sealed class OrmOutboxStoreFactory(OutboxOrmDialect dialect)
+    {
+        public OutboxOrmDialect Dialect { get; } = dialect;
+
+        public OrmOutboxStore Create(IServiceProvider sp)
+            => new(sp.GetRequiredService<IAsyncDbConnection>(), Dialect);
     }
 }
