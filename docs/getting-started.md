@@ -63,11 +63,19 @@ builder.Services.AddOutbox(options =>
             options.RetryBaseDelay  = TimeSpan.FromSeconds(2);
         })
         .WithEfCore<AppDbContext>()         // EF Core store (wraps your existing DbContext)
-        .AddOrderPlacedOutbox();            // source-generated, one per [OutboxMessage] type
+        .AddOrderPlacedOutbox()             // source-generated, one per [OutboxMessage] type
+        .WithSystemTextJsonSerializer();    // reflection-based JSON; see below for AOT
 
 // Register your dispatcher for each message type
 builder.Services.AddTransient<IOutboxDispatcher<OrderPlaced>, OrderPlacedEmailDispatcher>();
 ```
+
+`AddOutbox()` does not pick a payload serializer for you. `WithSystemTextJsonSerializer()` opts in to
+reflection-based System.Text.Json, which is simple but not trim- or AOT-safe. For NativeAOT, leave it
+out, annotate your message types with `[ZeroAllocSerializable]` and call
+`builder.Services.AddSerializerDispatcher()` instead; see
+[AOT-Safe Serialisation](cookbook/06-aot-serialisation.md). With neither, the host fails to start
+with an error naming both options.
 
 ---
 
@@ -114,7 +122,9 @@ Replace the EF Core store with the in-memory adapter for unit and integration te
 
 ```csharp
 // In your test host setup
-services.AddOutbox().WithInMemoryStore();   // replaces .WithEfCore<T>()
+services.AddOutbox().WithInMemoryStore()    // replaces .WithEfCore<T>()
+        .AddOrderPlacedOutbox()
+        .WithSystemTextJsonSerializer();
 
 // Inspect store state directly for assertions
 var store = host.Services.GetRequiredService<InMemoryOutboxStore>();

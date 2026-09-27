@@ -56,6 +56,26 @@ public sealed class OutboxWorkerService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Builds every <see cref="IOutboxTypeDispatcher"/> once, then starts the poll loop.
+    /// </summary>
+    /// <remarks>
+    /// Every batch resolves all the dispatchers before it claims anything, so one that cannot be
+    /// built would fail every batch forever. Building them here fails the host start instead,
+    /// with the dispatcher's own exception, such as the one for a missing
+    /// <see cref="IOutboxSerializer"/>.
+    /// </remarks>
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var scope = _scopeFactory.CreateAsyncScope();
+        await using (scope.ConfigureAwait(false))
+        {
+            _ = scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>();
+        }
+
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)

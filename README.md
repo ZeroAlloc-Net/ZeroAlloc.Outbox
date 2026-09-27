@@ -56,7 +56,20 @@ builder.Services.AddOutbox(options =>
         .AddOrderPlacedOutbox();         // generated extension
 ```
 
-**3. Write in a transaction:**
+**3. Choose a serializer.** `AddOutbox()` has no implicit serializer since 4.0; pick one:
+
+```csharp
+// AOT-safe: annotate OrderPlaced with [ZeroAllocSerializable] (ZeroAlloc.Serialisation)
+builder.Services.AddSerializerDispatcher();
+
+// or reflection-based System.Text.Json, not trim- or AOT-safe:
+builder.Services.AddOutbox().WithSystemTextJsonSerializer();
+```
+
+Without either, the host fails to start with an error that names both options. See
+[AOT-Safe Serialisation](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/06-aot-serialisation.md).
+
+**4. Write in a transaction:**
 
 ```csharp
 public class OrderService(IOutboxWriter<OrderPlaced> writer, AppDbContext db)
@@ -72,7 +85,7 @@ public class OrderService(IOutboxWriter<OrderPlaced> writer, AppDbContext db)
 
 > For atomic writes (both or neither commit), pass the `DbTransaction` explicitly. See [EF Core Transaction](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/01-ef-core-transaction.md).
 
-**4. Implement a dispatcher:**
+**5. Implement a dispatcher:**
 
 ```csharp
 public class OrderPlacedDispatcher(IMessageBus bus) : IOutboxDispatcher<OrderPlaced>
@@ -198,7 +211,7 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | Lease-based claim | `ClaimPendingAsync` atomically leases a batch to one host, so scaling out never double-dispatches a row |
 | Exponential backoff | Retry delay = `RetryBaseDelay × 2^(attempt-1)`; configurable via `OutboxOptions` |
 | Dead-letter | Entries that exceed `MaxAttempts` are dead-lettered with the failure reason |
-| AOT / trimmer safe | All dispatch code is generated; no `Type.GetType`, no `MakeGenericType` |
+| AOT / trimmer safe | All dispatch code is generated; no `Type.GetType`, no `MakeGenericType`. `AddOutbox()` is trim- and AOT-safe; reflection JSON is an explicit opt-in |
 | `IOptions<OutboxOptions>` | Full options support with hot-reload via standard `Microsoft.Extensions.Options` |
 
 ---
@@ -225,6 +238,7 @@ Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/bl
 - [Background Worker](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/background-worker.md)
 - [Dependency Injection](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dependency-injection.md)
 - [Migrating to v3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/migrating-to-v3.md)
+- [Migrating to v4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/migrating-to-v4.md)
 - Diagnostics: [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) · [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) · [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md)
 
 ---

@@ -2,10 +2,11 @@ namespace ZeroAlloc.Outbox;
 
 /// <summary>Serializes and deserializes outbox message payloads.</summary>
 /// <remarks>
-/// The default implementation (<see cref="SystemTextJsonOutboxSerializer"/>) uses reflection-based
-/// JSON and is not AOT-safe. For AOT/trimming scenarios, register an <c>ISerializerDispatcher</c>
-/// from <c>ZeroAlloc.Serialisation</c> before calling <c>AddOutbox()</c> — the framework will
-/// automatically use <see cref="DispatchingOutboxSerializer"/> instead.
+/// <c>AddOutbox()</c> resolves this to the AOT-safe <see cref="DispatchingOutboxSerializer"/> when an
+/// <c>ISerializerDispatcher</c> from <c>ZeroAlloc.Serialisation</c> is registered, for example with
+/// <c>services.AddSerializerDispatcher()</c>. The reflection-based
+/// <see cref="SystemTextJsonOutboxSerializer"/>, which is not trim- or AOT-safe, is used only when
+/// the application opts in with <c>WithSystemTextJsonSerializer()</c>. There is no implicit fallback.
 /// </remarks>
 public interface IOutboxSerializer
 {

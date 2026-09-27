@@ -21,8 +21,6 @@ internal sealed class StockReservedOutboxWriter : global::ZeroAlloc.Outbox.IOutb
         _serializer = serializer;
     }
 
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "IOutboxSerializer is provided by the consumer; its trim-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IOutboxSerializer is provided by the consumer; its AOT-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
     public global::System.Threading.Tasks.ValueTask WriteAsync(
         global::MyApp.StockReserved message,
         global::System.Data.Common.DbTransaction? transaction,
@@ -45,8 +43,6 @@ internal sealed class StockReservedOutboxTypeDispatcher : global::ZeroAlloc.Outb
 
     public string TypeName => "MyApp.StockReserved";
 
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "IOutboxSerializer is provided by the consumer; its trim-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IOutboxSerializer is provided by the consumer; its AOT-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
     public global::System.Threading.Tasks.ValueTask DispatchAsync(
         global::System.ReadOnlyMemory<byte> payload,
         global::System.Threading.CancellationToken ct)
@@ -69,8 +65,6 @@ public static partial class OutboxServiceCollectionExtensions
     }
 
     [global::System.Obsolete("Use AddOutbox().AddStockReservedOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
-    [global::System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
-    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCode("AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddStockReservedOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {

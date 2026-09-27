@@ -19,8 +19,6 @@ internal sealed class PingMessageOutboxWriter : global::ZeroAlloc.Outbox.IOutbox
         _serializer = serializer;
     }
 
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "IOutboxSerializer is provided by the consumer; its trim-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IOutboxSerializer is provided by the consumer; its AOT-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
     public global::System.Threading.Tasks.ValueTask WriteAsync(
         global::PingMessage message,
         global::System.Data.Common.DbTransaction? transaction,
@@ -43,8 +41,6 @@ internal sealed class PingMessageOutboxTypeDispatcher : global::ZeroAlloc.Outbox
 
     public string TypeName => "PingMessage";
 
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "IOutboxSerializer is provided by the consumer; its trim-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
-    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "IOutboxSerializer is provided by the consumer; its AOT-unsafety is their concern. The generated writer/dispatcher only forwards the call.")]
     public global::System.Threading.Tasks.ValueTask DispatchAsync(
         global::System.ReadOnlyMemory<byte> payload,
         global::System.Threading.CancellationToken ct)
@@ -67,8 +63,6 @@ public static partial class OutboxServiceCollectionExtensions
     }
 
     [global::System.Obsolete("Use AddOutbox().AddPingMessageOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
-    [global::System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("AddOutbox may register SystemTextJsonOutboxSerializer which uses reflection-based JSON. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
-    [global::System.Diagnostics.CodeAnalysis.RequiresDynamicCode("AddOutbox may register SystemTextJsonOutboxSerializer which may require runtime code generation. Call services.AddSerializerDispatcher() first for AOT-safe serialisation.")]
     public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddPingMessageOutbox(
         this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
     {

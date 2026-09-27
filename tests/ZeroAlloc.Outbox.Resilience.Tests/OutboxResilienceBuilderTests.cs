@@ -12,10 +12,8 @@ public class OutboxResilienceBuilderTests
         var services = new ServiceCollection();
         services.AddTransient<OrderDispatcherImpl>();
 
-#pragma warning disable IL2026, IL3050
         services.AddOutbox()
                 .WithResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
-#pragma warning restore IL2026, IL3050
 
         var sp = services.BuildServiceProvider();
         var dispatcher = sp.GetRequiredService<IOutboxDispatcher<OrderCreated>>();

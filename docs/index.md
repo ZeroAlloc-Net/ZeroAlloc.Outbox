@@ -18,6 +18,7 @@ Source-generated transactional outbox for .NET. Annotate a message type with `[O
 - [Background Worker](background-worker.md) — polling, retry back-off, dead-letter, `OutboxOptions` reference
 - [Dependency Injection](dependency-injection.md) — `AddOutbox` builder, `WithEfCore`, `AddOrderPlacedOutbox`, lifetime rules, v1.x → v2.x migration table
 - [Migrating to v3](migrating-to-v3.md) — the lease-based claim, `IOutboxStore` changes, and the EF Core migration step
+- [Migrating to v4](migrating-to-v4.md) — choose a serializer explicitly; `AddOutbox()` is now trim- and AOT-safe
 - [Diagnostics](diagnostics.md) — ZO0001, ZO0002, ZO0003
 - [Performance](performance.md) — zero-alloc design, AOT safety, source-gen vs reflection
 - [Testing](testing.md) — `InMemoryOutboxStore`, `AllEntries()`, worker integration tests

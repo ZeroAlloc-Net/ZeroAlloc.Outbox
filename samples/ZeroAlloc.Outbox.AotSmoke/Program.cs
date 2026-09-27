@@ -1,34 +1,66 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using ZeroAlloc.Outbox;
 using ZeroAlloc.Outbox.AotSmoke;
+using ZeroAlloc.Outbox.InMemory;
 
-// Exercise the generator-emitted OrderPlacedOutboxWriter under PublishAot=true.
-// Directly instantiate with fake store + serializer (writer is internal but
-// we're in the same namespace). The DI extension AddOrderPlacedOutbox is
-// still part of the compilation — ILC analyses it even when unused.
+// Exercises the documented registration under PublishAot=true: AddSerializerDispatcher() plus
+// AddOutbox(), with no trim or AOT suppression anywhere. A message goes through the
+// generator-emitted writer into the in-memory store, and the outbox worker claims it and hands
+// it to the generator-emitted type dispatcher, which deserializes it through the
+// ZeroAlloc.Serialisation dispatcher.
 
-var store = new FakeOutboxStore();
-var serializer = new FakeOutboxSerializer();
-var writer = new OrderPlacedOutboxWriter(store, serializer);
+var received = new TaskCompletionSource<OrderPlaced>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-await writer.WriteAsync(
-    new OrderPlaced("ord-42", 99.95m),
-    transaction: null,
-    ct: CancellationToken.None).ConfigureAwait(false);
+var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
+builder.Services.AddLogging();
+builder.Services.AddSerializerDispatcher();
+builder.Services
+    .AddOutbox(o => o.PollingInterval = TimeSpan.FromMilliseconds(50))
+    .WithInMemoryStore()
+    .AddOrderPlacedOutbox();
+builder.Services.AddSingleton<IOutboxDispatcher<OrderPlaced>>(new RecordingDispatcher(received));
 
-if (store.Recorded.Count != 1)
+using var host = builder.Build();
+
+var serializer = host.Services.GetRequiredService<IOutboxSerializer>();
+if (serializer is not DispatchingOutboxSerializer)
+    return Fail($"expected DispatchingOutboxSerializer, got {serializer.GetType().Name}");
+
+var sent = new OrderPlaced("ord-42", 99.95m);
+var scope = host.Services.CreateAsyncScope();
+await using (scope.ConfigureAwait(false))
 {
-    Console.Error.WriteLine($"AOT smoke: FAIL — expected 1 recorded enqueue, got {store.Recorded.Count}");
-    return 1;
+    var writer = scope.ServiceProvider.GetRequiredService<IOutboxWriter<OrderPlaced>>();
+    await writer.WriteAsync(sent, transaction: null, ct: CancellationToken.None).ConfigureAwait(false);
 }
 
-if (!string.Equals(store.Recorded[0].TypeName, "ZeroAlloc.Outbox.AotSmoke.OrderPlaced", StringComparison.Ordinal))
+await host.StartAsync().ConfigureAwait(false);
+OrderPlaced delivered;
+try
 {
-    Console.Error.WriteLine($"AOT smoke: FAIL — TypeName expected 'ZeroAlloc.Outbox.AotSmoke.OrderPlaced', got '{store.Recorded[0].TypeName}'");
-    return 1;
+    delivered = await received.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 }
+catch (TimeoutException)
+{
+    return Fail("the worker did not dispatch the message within 10 seconds");
+}
+finally
+{
+    await host.StopAsync().ConfigureAwait(false);
+}
+
+if (delivered != sent)
+    return Fail($"expected {sent}, got {delivered}");
 
 Console.WriteLine("AOT smoke: PASS");
 return 0;
+
+static int Fail(string reason)
+{
+    Console.Error.WriteLine($"AOT smoke: FAIL - {reason}");
+    return 1;
+}

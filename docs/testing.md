@@ -53,7 +53,8 @@ public async Task OrderPlaced_IsDispatched()
         {
             services.AddOutbox(o => { o.PollingInterval = TimeSpan.FromMilliseconds(50); })
                     .WithInMemoryStore()
-                    .AddOrderPlacedOutbox();
+                    .AddOrderPlacedOutbox()
+                    .WithSystemTextJsonSerializer();
             services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
                 _ => new DelegateDispatcher<OrderPlaced>(msg =>
                 {

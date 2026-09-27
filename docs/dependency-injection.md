@@ -36,9 +36,28 @@ Registers:
 |---------|----------|-------|
 | `IOptions<OutboxOptions>` | Singleton | Bound from `OutboxOptions` section or inline configuration |
 | `OutboxWorkerService` | Singleton | `IHostedService`; polls the store in a background loop |
-| `IOutboxSerializer` | Singleton | `DispatchingOutboxSerializer` if `ISerializerDispatcher` is registered; otherwise `SystemTextJsonOutboxSerializer` |
+| `IValidateOptions<OutboxOptions>` | Singleton | Rejects invalid `OutboxOptions` when the worker starts |
+| `IOutboxSerializer` | Singleton | `DispatchingOutboxSerializer` if `ISerializerDispatcher` is registered; otherwise resolving it throws. Not registered when the application registered its own first |
 
-**Serializer selection** — if `ISerializerDispatcher` (from `ZeroAlloc.Serialisation`) is registered in the container before `AddOutbox()` is called, the AOT-safe `DispatchingOutboxSerializer` is used automatically. See [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md) for setup details.
+`AddOutbox()` is trim- and AOT-safe: it carries no `[RequiresUnreferencedCode]` or `[RequiresDynamicCode]`.
+
+**Serializer selection** — `AddOutbox()` never falls back to reflection-based JSON. The `IOutboxSerializer` resolves as follows, first match wins:
+
+1. `WithSystemTextJsonSerializer()` was called: `SystemTextJsonOutboxSerializer`. It replaces every serializer registered before it, including the dispatcher default. It is `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`.
+2. The application registered its own `IOutboxSerializer` before `AddOutbox()`: that one.
+3. An `ISerializerDispatcher` from `ZeroAlloc.Serialisation` is registered, before or after `AddOutbox()`: the AOT-safe `DispatchingOutboxSerializer`.
+4. Otherwise: resolving `IOutboxSerializer` throws an `InvalidOperationException` that names `services.AddSerializerDispatcher()` and `.WithSystemTextJsonSerializer()`. Because `OutboxWorkerService` builds every `IOutboxTypeDispatcher` when it starts, and each generated one needs the serializer, this surfaces as a failed host start.
+
+An application whose dispatchers never deserialize an outbox payload, such as one that runs the worker only for ZeroAlloc.Saga commands, needs no serializer. See [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md) for setup details.
+
+## `WithSystemTextJsonSerializer`
+
+```csharp
+builder.Services.AddOutbox()
+        .WithSystemTextJsonSerializer();
+```
+
+Registers `SystemTextJsonOutboxSerializer` as the `IOutboxSerializer` singleton. Use it when reflection is acceptable, that is, when you do not trim or publish with NativeAOT.
 
 ## `WithEfCore<TContext>`
 

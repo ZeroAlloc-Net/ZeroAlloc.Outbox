@@ -34,7 +34,8 @@ public sealed class OutboxTestHost : IAsyncDisposable
                     {
                         o.PollingInterval = pollingInterval ?? TimeSpan.FromMilliseconds(50);
                     })
-                    .WithInMemoryStore();
+                    .WithInMemoryStore()
+                    .WithSystemTextJsonSerializer();
                 configure(builder);
             })
             .StartAsync();
