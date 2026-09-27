@@ -22,9 +22,8 @@ public sealed class DashboardEndToEndTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.AddSingleton<IOutboxTypeDispatcher, SuccessDispatcher>();
-        services.AddOutboxDashboardEvents();
         services.Configure<OutboxOptions>(o =>
         {
             o.PollingInterval = TimeSpan.FromMilliseconds(50);
@@ -73,7 +72,7 @@ public sealed class DashboardEndToEndTests
         services.AddScoped<EfCoreOutboxStore<DashboardTestDbContext>>();
         services.AddScoped<IOutboxStore>(sp => sp.GetRequiredService<EfCoreOutboxStore<DashboardTestDbContext>>());
         services.AddScoped<IOutboxTypeDispatcher, SuccessDispatcher>();
-        services.AddOutboxDashboardEvents();
+        services.AddSingleton<IOutboxDashboardEventPublisher, ChannelOutboxDashboardEventPublisher>();
         services.Configure<OutboxOptions>(o =>
         {
             o.PollingInterval = TimeSpan.FromMilliseconds(50);
@@ -109,9 +108,8 @@ public sealed class DashboardEndToEndTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.AddSingleton<IOutboxTypeDispatcher, FailingDispatcher>();
-        services.AddOutboxDashboardEvents();
         services.Configure<OutboxOptions>(o =>
         {
             o.MaxAttempts = 1;

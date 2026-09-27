@@ -72,5 +72,30 @@ When more than one serializer source is present, the first match wins:
 - The generator no longer emits `[UnconditionalSuppressMessage]` for `IL2026` and `IL3050` on the
   generated writer and type dispatcher. `IOutboxSerializer` has not carried trim attributes since
   1.3.0, so they suppressed nothing, and they would have hidden a real warning.
-- The generated legacy `services.AddXxxOutbox()` shim, obsolete as `ZAOBOX010`, no longer carries
-  `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, because `AddOutbox()` no longer does.
+
+## Removed v1.x aliases
+
+The v1.x DI extensions have been `[Obsolete]` since 2.0 and are removed in 4.0. Each has a direct
+replacement on the `IOutboxBuilder` that `AddOutbox()` returns:
+
+| Removed | Obsolete ID | Replacement |
+|---|---|---|
+| `services.AddOutboxInMemory()` | `ZAOBOX002` | `services.AddOutbox().WithInMemoryStore()` |
+| `services.AddOutbox().AddOutboxInMemory()` | `ZAOBOX002` | `services.AddOutbox().WithInMemoryStore()` |
+| `services.AddOutboxEfCore<TContext>()` | `ZAOBOX003` | `services.AddOutbox().WithEfCore<TContext>()` |
+| `services.AddOutbox().AddOutboxEfCore<TContext>()` | `ZAOBOX003` | `services.AddOutbox().WithEfCore<TContext>()` |
+| `services.AddOutboxMediator<T>()` | `ZAOBOX004` | `services.AddOutbox().WithMediator<T>()` |
+| `services.AddOutbox().AddOutboxMediator<T>()` | `ZAOBOX004` | `services.AddOutbox().WithMediator<T>()` |
+| `services.AddOutboxResilience<T, TDispatcherInterface, TResilienceProxy>()` | `ZAOBOX005` | `services.AddOutbox().WithResilience<T, TDispatcherInterface, TResilienceProxy>()` |
+| `services.AddOutbox().AddOutboxResilience<T, TDispatcherInterface, TResilienceProxy>()` | `ZAOBOX005` | `services.AddOutbox().WithResilience<T, TDispatcherInterface, TResilienceProxy>()` |
+| `services.AddOutboxDashboardEvents()` | `ZAOBOX006` | `services.AddOutbox().WithDashboardEvents()` |
+| generated `services.Add{Type}Outbox()` on `IServiceCollection` | `ZAOBOX010` | generated `services.AddOutbox().Add{Type}Outbox()` |
+
+The `IServiceCollection` forms registered only their own piece, without `AddOutbox()`'s worker and
+options. The replacements hang off `AddOutbox()`, so call it once and chain everything on the
+builder it returns. A host that needs a piece without the worker, such as a dashboard-only host,
+registers it directly, for example
+`services.AddSingleton<IOutboxDashboardEventPublisher, ChannelOutboxDashboardEventPublisher>()`.
+
+The IDs `ZAOBOX002`–`ZAOBOX006` and `ZAOBOX010` are retired and will not be reused, so a `NoWarn`
+entry that names them is now dead and can be deleted. See [Diagnostics](diagnostics.md#retired-ids).

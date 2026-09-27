@@ -63,12 +63,4 @@ public static partial class OutboxServiceCollectionExtensions
             global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
         return builder;
     }
-
-    [global::System.Obsolete("Use AddOutbox().AddStockReservedOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
-    public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddStockReservedOutbox(
-        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
-    {
-        services.AddOutbox().AddStockReservedOutbox();
-        return services;
-    }
 }

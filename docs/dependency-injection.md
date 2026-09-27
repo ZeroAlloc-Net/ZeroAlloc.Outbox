@@ -18,7 +18,7 @@ sidebar_position: 8
 | `services.AddOutboxResilience<T, …>()` | `services.AddOutbox().WithResilience<T, …>()` |
 | `services.AddOutboxDashboardEvents()` | `services.AddOutbox().WithDashboardEvents()` |
 
-The v1.x extensions remain as `[Obsolete]` shims (diagnostic IDs `ZAOBOX001`–`ZAOBOX010`) for one minor version, then are removed.
+The v1.x extensions were kept as `[Obsolete]` shims through 2.x and 3.x, under diagnostic IDs `ZAOBOX002`–`ZAOBOX006` and `ZAOBOX010`. They were removed in 4.0; see [Migrating to v4](migrating-to-v4.md#removed-v1x-aliases).
 
 ## `AddOutbox`
 

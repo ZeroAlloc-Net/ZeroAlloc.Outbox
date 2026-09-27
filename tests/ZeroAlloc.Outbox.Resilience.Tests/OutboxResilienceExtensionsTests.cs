@@ -5,17 +5,17 @@ using ZeroAlloc.Outbox.Resilience;
 namespace ZeroAlloc.Outbox.Resilience.Tests;
 
 /// <summary>
-/// Validates that AddOutboxResilience wires a proxy as IOutboxDispatcher&lt;T&gt;.
+/// Validates that WithResilience wires a proxy as IOutboxDispatcher&lt;T&gt;.
 /// Uses a hand-written proxy to represent what the Resilience generator would emit.
 /// </summary>
 public class OutboxResilienceExtensionsTests
 {
     [Fact]
-    public void AddOutboxResilience_RegistersProxyAsDispatcher()
+    public void WithResilience_RegistersProxyAsDispatcher()
     {
         var services = new ServiceCollection();
         services.AddTransient<OrderDispatcherImpl>();
-        services.AddOutboxResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
+        services.AddOutbox().WithResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
 
         var provider = services.BuildServiceProvider();
         var dispatcher = provider.GetRequiredService<IOutboxDispatcher<OrderCreated>>();
@@ -24,11 +24,11 @@ public class OutboxResilienceExtensionsTests
     }
 
     [Fact]
-    public async Task AddOutboxResilience_ProxyDelegatesToInnerDispatcher()
+    public async Task WithResilience_ProxyDelegatesToInnerDispatcher()
     {
         var services = new ServiceCollection();
         services.AddTransient<OrderDispatcherImpl>();
-        services.AddOutboxResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
+        services.AddOutbox().WithResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
 
         var provider = services.BuildServiceProvider();
         var dispatcher = provider.GetRequiredService<IOutboxDispatcher<OrderCreated>>();

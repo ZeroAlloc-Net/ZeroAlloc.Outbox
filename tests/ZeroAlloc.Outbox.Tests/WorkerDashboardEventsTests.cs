@@ -12,9 +12,8 @@ public sealed class WorkerDashboardEventsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.AddSingleton<IOutboxTypeDispatcher, SuccessfulTypeDispatcher>();
-        services.AddOutboxDashboardEvents();
         services.Configure<OutboxOptions>(opt =>
         {
             opt.PollingInterval = TimeSpan.FromMilliseconds(50);
@@ -46,9 +45,8 @@ public sealed class WorkerDashboardEventsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.AddSingleton<IOutboxTypeDispatcher, FailingTypeDispatcher>();
-        services.AddOutboxDashboardEvents();
         services.Configure<OutboxOptions>(opt =>
         {
             opt.MaxAttempts = 5; // so a single failure does not dead-letter
@@ -82,9 +80,8 @@ public sealed class WorkerDashboardEventsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.AddSingleton<IOutboxTypeDispatcher, FailingTypeDispatcher>();
-        services.AddOutboxDashboardEvents();
         services.Configure<OutboxOptions>(opt =>
         {
             opt.MaxAttempts = 1; // first failure dead-letters
@@ -117,8 +114,7 @@ public sealed class WorkerDashboardEventsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutboxInMemory();
-        services.AddOutboxDashboardEvents();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
         services.Configure<OutboxOptions>(opt =>
         {
             opt.PollingInterval = TimeSpan.FromMilliseconds(50);

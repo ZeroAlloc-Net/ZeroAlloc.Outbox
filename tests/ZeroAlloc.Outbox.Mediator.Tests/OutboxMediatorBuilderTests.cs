@@ -22,21 +22,5 @@ public class OutboxMediatorBuilderTests
         dispatcher.Should().BeOfType<MediatorOutboxDispatcher<OrderPlaced>>();
     }
 
-    [Fact]
-    public void AddOutboxMediator_LegacyShim_StillRegisters()
-    {
-        var services = new ServiceCollection();
-
-#pragma warning disable CS0618 // exercise the legacy shim
-        services.AddOutboxMediator<OrderPlaced>();
-#pragma warning restore CS0618
-
-        var sp = services.BuildServiceProvider();
-        var dispatcher = sp.GetService<IOutboxDispatcher<OrderPlaced>>();
-
-        dispatcher.Should().NotBeNull();
-        dispatcher.Should().BeOfType<MediatorOutboxDispatcher<OrderPlaced>>();
-    }
-
     public sealed record OrderPlaced(string OrderId) : INotification;
 }

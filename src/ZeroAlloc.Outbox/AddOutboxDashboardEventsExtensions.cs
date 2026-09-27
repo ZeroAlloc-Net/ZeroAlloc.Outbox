@@ -16,14 +16,4 @@ public static class AddOutboxDashboardEventsExtensions
         builder.Services.TryAddSingleton<IOutboxDashboardEventPublisher, ChannelOutboxDashboardEventPublisher>();
         return builder;
     }
-
-    /// <summary>
-    /// Legacy shim that preserves the v1.x extension shape. Will be removed in the next major.
-    /// </summary>
-    [Obsolete("Use AddOutbox().WithDashboardEvents() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX006")]
-    public static IServiceCollection AddOutboxDashboardEvents(this IServiceCollection services)
-    {
-        services.TryAddSingleton<IOutboxDashboardEventPublisher, ChannelOutboxDashboardEventPublisher>();
-        return services;
-    }
 }
