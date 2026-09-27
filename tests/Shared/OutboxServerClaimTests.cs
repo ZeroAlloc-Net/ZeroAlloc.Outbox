@@ -49,11 +49,12 @@ public abstract class OutboxServerClaimTests : IAsyncLifetime
         for (var i = 0; i < messages; i++)
             await writer.EnqueueAsync("T", s_payload, transaction: null, CancellationToken.None);
 
-        // A claimer stops at its first empty batch. The bounded EF Core retry can still hand the
-        // loser of a race nothing, so this only guarantees that the work does not all go to one
-        // claimer; the EF Core retry itself is pinned down deterministically in
-        // EfCoreServerClaimTests. Counting claims bounds a broken claim that hands out the same
-        // rows again and again, so it fails on the duplicates rather than running into the timeout.
+        // Every claimer keeps claiming until all messages are claimed. The bounded EF Core retry
+        // can hand the loser of a race an empty batch, so a claimer that stopped there could
+        // leave all the work to one claimer; an empty batch only means waiting and trying again.
+        // The EF Core retry itself is pinned down deterministically in EfCoreServerClaimTests.
+        // Counting claims, not rows, bounds a broken claim that hands out the same rows again
+        // and again, so it fails on the duplicates rather than running into the timeout.
         var claims = new ConcurrentBag<(int Claimer, OutboxMessageId Id)>();
         var claimed = 0;
         var rejectedMarks = 0;
@@ -71,7 +72,11 @@ public abstract class OutboxServerClaimTests : IAsyncLifetime
                 while (Volatile.Read(ref claimed) < messages)
                 {
                     var batch = await store.ClaimPendingAsync(10, lease, timeout.Token).ConfigureAwait(false);
-                    if (batch.Count == 0) return;
+                    if (batch.Count == 0)
+                    {
+                        await Task.Delay(5, timeout.Token).ConfigureAwait(false);
+                        continue;
+                    }
 
                     foreach (var entry in batch)
                     {
