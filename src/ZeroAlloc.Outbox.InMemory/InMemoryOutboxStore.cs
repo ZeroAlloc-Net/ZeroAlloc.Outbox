@@ -77,8 +77,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
                 if (results.Count >= batchSize) break;
                 lock (e)
                 {
-                    // A Mark* may have run since the scan; claim only what is still claimable.
-                    if (!IsClaimable(e, now)) continue;
+                    // A Mark* or a cancel may have run since the scan; claim only what is still claimable.
+                    if (!IsClaimable(e, now) || !IsLive(e)) continue;
                     e.LockedBy = lease.HostId;
                     e.LockedUntil = until;
                     results.Add(new OutboxEntry
@@ -106,7 +106,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         var now = DateTimeOffset.UtcNow;
         lock (entry)
         {
-            if (entry.Status != InMemoryEntryStatus.Pending
+            if (!IsLive(entry)
+                || entry.Status != InMemoryEntryStatus.Pending
                 || !string.Equals(entry.LockedBy, lease.HostId, StringComparison.Ordinal)
                 || entry.LockedUntil is not { } lockedUntil
                 || lockedUntil < now)
@@ -130,8 +131,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             if (!_entries.TryGetValue(ids[i], out var entry)) continue;
             lock (entry)
             {
-                if (entry.Status == InMemoryEntryStatus.Pending
-                    && string.Equals(entry.LockedBy, lease.HostId, StringComparison.Ordinal))
+                if (IsMarkable(entry, lease))
                 {
                     ReleaseLease(entry);
                     released++;
@@ -148,13 +148,22 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
         && e.NextRetryAt <= now
         && (e.LockedUntil is null || e.LockedUntil < now);
 
+    // Whether the entry is still in the store. A cancel removes the entry under its lock, but an
+    // operation looks the entry up before it takes that lock, so it can end up holding an entry
+    // that was cancelled in between. Checked under the entry lock, this is authoritative: every
+    // operation that finds the entry removed treats it as gone, as if its lookup had missed.
+    // Callers hold the entry lock.
+    private bool IsLive(InMemoryOutboxEntry e) =>
+        _entries.TryGetValue(e.Id, out var current) && ReferenceEquals(current, e);
+
     // Mark* move a message only while it is pending and this host holds its lease, checked and
     // written under the entry lock. Pending, stored with RetryCount 0 or more, is exactly the set
     // of OutboxMessageFsm states from which Dispatch, Fail and Exhaust are legal, so the condition
     // is the state machine. The lease expiry is deliberately not checked: a host whose lease ran
     // out but was not taken over by another host may still record its outcome.
-    private static bool IsMarkable(InMemoryOutboxEntry e, OutboxLease lease) =>
-        e.Status == InMemoryEntryStatus.Pending
+    private bool IsMarkable(InMemoryOutboxEntry e, OutboxLease lease) =>
+        IsLive(e)
+        && e.Status == InMemoryEntryStatus.Pending
         && string.Equals(e.LockedBy, lease.HostId, StringComparison.Ordinal);
 
     // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
@@ -286,6 +295,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             throw new InvalidOperationException($"Message {id} not found.");
         lock (entry)
         {
+            if (!IsLive(entry))
+                throw new InvalidOperationException($"Message {id} not found.");
             var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
             if (!fsm.TryFire(OutboxMessageTrigger.Requeue))
                 throw new InvalidOperationException(
@@ -304,6 +315,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             throw new InvalidOperationException($"Message {id} not found.");
         lock (entry)
         {
+            if (!IsLive(entry))
+                throw new InvalidOperationException($"Message {id} not found.");
             var fsm = new OutboxMessageFsm(ToState(entry.Status, entry.RetryCount));
             if (!fsm.TryFire(OutboxMessageTrigger.Cancel))
                 throw new InvalidOperationException(
@@ -319,6 +332,8 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
             throw new InvalidOperationException($"Message {id} not found.");
         lock (entry)
         {
+            if (!IsLive(entry))
+                throw new InvalidOperationException($"Message {id} not found.");
             if (entry.Status != InMemoryEntryStatus.Pending)
                 throw new InvalidOperationException($"Message {id} is not pending (status: {entry.Status}).");
             entry.NextRetryAt = DateTimeOffset.UtcNow;

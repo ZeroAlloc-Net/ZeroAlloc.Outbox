@@ -208,4 +208,100 @@ public class InMemoryDashboardStoreTests
         Assert.NotEmpty(points);
         Assert.Equal(1, points.Sum(p => p.Dispatched));
     }
+
+    // A cancel removes the entry under its lock. An operation that looked the entry up before the
+    // cancel and then waits for that lock must find it removed, not act on the orphaned entry.
+
+    [Fact]
+    public async Task A_Mark_Waiting_On_A_Cancel_Returns_False()
+    {
+        using var store = new InMemoryOutboxStore();
+        var id = await EnqueueAndClaimAsync(store);
+
+        var marked = await CancelWhileBlockedOnEntryLockAsync(store, id,
+            () => store.MarkSucceededAsync(id, s_lease, CancellationToken.None).AsTask());
+
+        marked.Should().BeFalse("the message was cancelled, so the worker reports it completed elsewhere");
+        var points = new List<ThroughputPoint>();
+        await foreach (var p in ((IOutboxDashboardStore)store).GetThroughputAsync(TimeSpan.FromHours(1), CancellationToken.None))
+            points.Add(p);
+        points.Sum(p => p.Dispatched).Should().Be(0, "a cancelled message is not counted as dispatched");
+    }
+
+    [Fact]
+    public async Task A_Lease_Renewal_Waiting_On_A_Cancel_Returns_False()
+    {
+        using var store = new InMemoryOutboxStore();
+        var id = await EnqueueAndClaimAsync(store);
+
+        var renewed = await CancelWhileBlockedOnEntryLockAsync(store, id,
+            () => store.RenewLeaseAsync(id, s_lease, CancellationToken.None).AsTask());
+
+        renewed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_Claim_Waiting_On_A_Cancel_Does_Not_Hand_Out_The_Cancelled_Message()
+    {
+        using var store = new InMemoryOutboxStore();
+        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
+        var id = store.AllEntries()[0].Id;
+
+        var batch = await CancelWhileBlockedOnEntryLockAsync(store, id,
+            () => store.ClaimPendingAsync(1, s_lease, CancellationToken.None).AsTask());
+
+        batch.Should().BeEmpty("a cancelled message must never be dispatched");
+    }
+
+    [Fact]
+    public async Task A_Force_Dispatch_Waiting_On_A_Cancel_Reports_The_Message_Not_Found()
+    {
+        using var store = new InMemoryOutboxStore();
+        await store.EnqueueAsync("T", new byte[] { 1 }, null, CancellationToken.None);
+        var id = store.AllEntries()[0].Id;
+
+        var outcome = await CancelWhileBlockedOnEntryLockAsync(store, id, async () =>
+        {
+            try
+            {
+                await ((IOutboxDashboardStore)store).ForceDispatchAsync(id, CancellationToken.None).ConfigureAwait(false);
+                return "force-dispatched";
+            }
+            catch (InvalidOperationException ex)
+            {
+                return ex.Message;
+            }
+        });
+
+        outcome.Should().Be($"Message {id} not found.");
+    }
+
+    /// <summary>
+    /// Holds the entry's lock, starts <paramref name="operation"/> and waits until it blocks on
+    /// that lock, cancels the message, then lets the operation go on and returns its result.
+    /// </summary>
+    private static async Task<T> CancelWhileBlockedOnEntryLockAsync<T>(
+        InMemoryOutboxStore store, OutboxMessageId id, Func<Task<T>> operation)
+    {
+        var entry = store.AllEntries().First(e => e.Id == id);
+        Task<T> blocked;
+        Monitor.Enter(entry);
+        try
+        {
+            var contentions = Monitor.LockContentionCount;
+            blocked = Task.Run(operation);
+            SpinWait.SpinUntil(() => Monitor.LockContentionCount > contentions, TimeSpan.FromSeconds(10))
+                .Should().BeTrue("the operation must be waiting on the entry's lock");
+
+            // The lock is re-entrant, and the cancel completes synchronously on this thread.
+            var cancel = ((IOutboxDashboardStore)store).CancelAsync(id, CancellationToken.None);
+            cancel.IsCompletedSuccessfully.Should().BeTrue();
+        }
+        finally
+        {
+            Monitor.Exit(entry);
+        }
+
+        return await blocked.ConfigureAwait(false);
+    }
 }

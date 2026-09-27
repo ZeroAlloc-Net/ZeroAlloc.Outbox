@@ -39,6 +39,8 @@ Both actions respect a worker's lease on the message:
 - **Force dispatch** on a message a worker has claimed does not take it from that worker. It is dispatched by the holder, or, if the holder crashed, by another host once the lease expires — which can take up to `LeaseDuration`.
 - **Cancel** does not stop a dispatch already in flight. The worker finishes it, finds the message gone when it marks the outcome, and reports it on `outbox.lease.lost` with `reason=completed-elsewhere`. The message may therefore still be delivered once.
 
+Every action, including `Requeue` on the Dead-lettered tab, checks the message's state and applies the change in one step. If a worker has dispatched or dead-lettered the message, or another operator has acted on it, since the tab was loaded, the action is rejected with `422` and leaves that outcome in place instead of overwriting it.
+
 ![Pending tab — desktop](screenshots/pending-desktop.png)
 
 ### Retry
