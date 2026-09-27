@@ -49,12 +49,29 @@ jobs:
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
 
-      - name: Pack
+      - name: Pack (verify)
+        env:
+          VERSION: ${{ steps.gitversion.outputs.version }}
         run: |
-          dotnet pack src/ZeroAlloc.Outbox/ZeroAlloc.Outbox.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
-          dotnet pack src/ZeroAlloc.Outbox.Generator/ZeroAlloc.Outbox.Generator.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
-          dotnet pack src/ZeroAlloc.Outbox.EfCore/ZeroAlloc.Outbox.EfCore.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
-          dotnet pack src/ZeroAlloc.Outbox.InMemory/ZeroAlloc.Outbox.InMemory.csproj --no-build -c Release -p:PackageVersion=${{ steps.gitversion.outputs.version }} -o ./artifacts
+          set -euo pipefail
+          mkdir -p ./artifacts
+          # The same discovery the release workflow uses, so CI pack-tests exactly the set
+          # a release ships. The hardcoded list here covered 4 of the 10 packages, so a pack
+          # failure in any other package surfaced only at release time.
+          # See ZeroAlloc-Net/.github#36.
+          for csproj in src/*/*.csproj; do
+            if grep -q "<IsPackable>false</IsPackable>" "$csproj"; then
+              echo "Skipping $csproj (IsPackable=false)"
+              continue
+            fi
+            echo "Packing $csproj at $VERSION"
+            dotnet pack "$csproj" --no-build -c Release -p:Version="$VERSION" -o ./artifacts
+          done
+          ls -la ./artifacts
+          if ! ls ./artifacts/*.nupkg >/dev/null 2>&1; then
+            echo "::error::no packages were produced"
+            exit 1
+          fi
 
   aot-smoke:
     runs-on: ubuntu-latest
