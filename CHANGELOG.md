@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v3.0.1...v4.0.0) (2026-09-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* a container hosts one outbox store. Registering a different second store, such as WithOrm after WithEfCore, now throws an InvalidOperationException at registration instead of silently replacing the first; registering the same store again is a no-op. A test host that swaps the store must RemoveAll IOutboxStore and IOutboxDashboardStore first. See docs/migrating-to-v4.md.
+* the v1.x obsolete aliases are removed; see docs/migrating-to-v4.md.
+* AddOutbox no longer falls back to SystemTextJsonOutboxSerializer. Call services.AddSerializerDispatcher for AOT-safe serialisation, or AddOutbox().WithSystemTextJsonSerializer for the reflection-based serializer 3.x used. Without either, the host fails to start when a generated dispatcher needs a serializer. See docs/migrating-to-v4.md.
+
+### Features
+
+* make AddOutbox trim- and AOT-safe with an explicit serializer choice ([#216](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/216)) ([637c4ba](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/637c4ba77e57fbdefcd9c44a5deafc47e44f2aab))
+* reject a second, different outbox store instead of silently replacing the first ([#226](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/226)) ([11d594a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/11d594ab76ebab456df8da16cfa561ca4c9990f1))
+* remove the v1.x obsolete aliases ZAOBOX002 to ZAOBOX010 ([#218](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/218)) ([bb2e75c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/bb2e75c19b6555c7b8f3f21de43898bc6297fb01))
+
+
+### Bug Fixes
+
+* make the EF Core dashboard operations atomic against concurrent worker marks ([5bd9f6a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/5bd9f6a3d896b2fbba8021cce1a0b9934cfaddd7))
+* stop InMemory store operations from acting on an entry a concurrent cancel removed ([5bd9f6a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/5bd9f6a3d896b2fbba8021cce1a0b9934cfaddd7))
+
 ## [3.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v3.0.0...v3.0.1) (2026-09-26)
 
 
