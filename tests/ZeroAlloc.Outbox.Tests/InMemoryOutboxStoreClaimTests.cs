@@ -22,21 +22,28 @@ public sealed class InMemoryOutboxStoreClaimTests : IDisposable
         for (var i = 0; i < messages; i++)
             await _store.EnqueueAsync("T", s_payload, null, default);
 
+        // Counting claims bounds a broken claim that hands out the same rows again and again, so
+        // it fails on the duplicates rather than looping forever; the timeout bounds a hung store.
         var claimed = new ConcurrentBag<OutboxMessageId>();
+        var claimCount = 0;
+        var rejectedMarks = 0;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(1));
         var tasks = new Task[claimers];
         for (var c = 0; c < claimers; c++)
         {
             var lease = new OutboxLease($"h{c}", TimeSpan.FromMinutes(1));
             tasks[c] = Task.Run(async () =>
             {
-                while (true)
+                while (Volatile.Read(ref claimCount) < messages)
                 {
-                    var batch = await _store.ClaimPendingAsync(10, lease, default).ConfigureAwait(false);
+                    var batch = await _store.ClaimPendingAsync(10, lease, timeout.Token).ConfigureAwait(false);
                     if (batch.Count == 0) return;
                     foreach (var entry in batch)
                     {
                         claimed.Add(entry.Id);
-                        await _store.MarkSucceededAsync(entry.Id, lease, default).ConfigureAwait(false);
+                        Interlocked.Increment(ref claimCount);
+                        if (!await _store.MarkSucceededAsync(entry.Id, lease, timeout.Token).ConfigureAwait(false))
+                            Interlocked.Increment(ref rejectedMarks);
                     }
                 }
             });
@@ -44,8 +51,9 @@ public sealed class InMemoryOutboxStoreClaimTests : IDisposable
 
         await Task.WhenAll(tasks);
 
-        claimed.Should().HaveCount(messages);
-        claimed.Distinct().Should().HaveCount(messages, "no message may be claimed twice");
+        claimed.Should().OnlyHaveUniqueItems("no message may be claimed twice");
+        claimed.Should().HaveCount(messages, "every message is claimed");
+        rejectedMarks.Should().Be(0, "each claimer holds the lease on what it claimed");
     }
 
     [Fact]
