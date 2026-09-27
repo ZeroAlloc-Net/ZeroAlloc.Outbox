@@ -1,3 +1,4 @@
+using DotNet.Testcontainers.Builders;
 using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
 using Xunit;
@@ -13,11 +14,21 @@ namespace ZeroAlloc.Outbox.TestServers;
 /// SQL Server 2022 creates databases at compatibility level 160. The EF Core claim needs at
 /// least 130, because EF Core translates a <c>Contains</c> over a parameter list to
 /// <c>OPENJSON</c>.
+/// <para>
+/// The container counts as started only once SQL Server logs <c>Recovery is complete</c>.
+/// The builder's own readiness check, a <c>SELECT 1</c> through sqlcmd, succeeds while startup
+/// is still upgrading msdb and building tempdb from model. A test that starts in that window
+/// fails its first <c>CREATE DATABASE</c> with "Could not obtain exclusive lock on database
+/// 'model'", or its first login with a connection timeout. On a busy CI runner, where several
+/// containers start at once, that window lasts long enough to hit.
+/// </para>
 /// </remarks>
 public sealed class SqlServerFixture : IAsyncLifetime
 {
     private readonly MsSqlContainer _container =
-        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+        new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Recovery is complete"))
+            .Build();
 
     public Task InitializeAsync() => _container.StartAsync();
 
