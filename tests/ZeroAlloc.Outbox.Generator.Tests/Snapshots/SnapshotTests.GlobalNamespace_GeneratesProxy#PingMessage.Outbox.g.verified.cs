@@ -61,12 +61,4 @@ public static partial class OutboxServiceCollectionExtensions
             global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::PingMessage>>();
         return builder;
     }
-
-    [global::System.Obsolete("Use AddOutbox().AddPingMessageOutbox() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX010")]
-    public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddPingMessageOutbox(
-        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
-    {
-        services.AddOutbox().AddPingMessageOutbox();
-        return services;
-    }
 }

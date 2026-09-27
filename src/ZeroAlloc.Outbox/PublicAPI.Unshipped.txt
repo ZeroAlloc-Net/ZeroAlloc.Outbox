@@ -251,7 +251,6 @@ override sealed ZeroAlloc.Outbox.MessageDispatchedEvent.Equals(ZeroAlloc.Outbox.
 override sealed ZeroAlloc.Outbox.MessageFailedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
 override sealed ZeroAlloc.Outbox.MessageQueuedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
 override sealed ZeroAlloc.Outbox.MessageRequeuedEvent.Equals(ZeroAlloc.Outbox.OutboxDashboardEvent? other) -> bool
-static ZeroAlloc.Outbox.AddOutboxDashboardEventsExtensions.AddOutboxDashboardEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static ZeroAlloc.Outbox.AddOutboxDashboardEventsExtensions.WithDashboardEvents(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.MessageCancelledEvent.operator !=(ZeroAlloc.Outbox.MessageCancelledEvent? left, ZeroAlloc.Outbox.MessageCancelledEvent? right) -> bool
 static ZeroAlloc.Outbox.MessageCancelledEvent.operator ==(ZeroAlloc.Outbox.MessageCancelledEvent? left, ZeroAlloc.Outbox.MessageCancelledEvent? right) -> bool

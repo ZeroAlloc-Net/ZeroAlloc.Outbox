@@ -24,7 +24,7 @@ public class MapOutboxDashboardTests
                         services.AddRouting();
                         services.AddSingleton<IOutboxStore>(store);
                         services.AddSingleton<IOutboxDashboardStore>(store);
-                        services.AddOutboxDashboardEvents();
+                        services.AddSingleton<IOutboxDashboardEventPublisher, ChannelOutboxDashboardEventPublisher>();
                     })
                     .Configure(app =>
                     {

@@ -17,12 +17,11 @@ public sealed class OutboxWorkerTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddOutboxInMemory();
                 services.AddOutbox(o =>
                 {
                     o.BatchSize = 10;
                     o.PollingInterval = TimeSpan.FromMilliseconds(50);
-                });
+                }).WithInMemoryStore();
                 services.AddSingleton<IOutboxTypeDispatcher>(
                     new TestDispatcher("MyApp.Ping", (_, _) =>
                     {
@@ -52,14 +51,13 @@ public sealed class OutboxWorkerTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddOutboxInMemory();
                 services.AddOutbox(o =>
                 {
                     o.MaxAttempts = 2;
                     o.BatchSize = 10;
                     o.PollingInterval = TimeSpan.FromMilliseconds(20);
                     o.RetryBaseDelay = TimeSpan.FromMilliseconds(10);
-                });
+                }).WithInMemoryStore();
                 services.AddSingleton<IOutboxTypeDispatcher>(
                     new TestDispatcher("MyApp.Fail", (_, _) =>
                     {
@@ -108,12 +106,11 @@ public sealed class OutboxWorkerTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddOutboxInMemory();
                 services.AddOutbox(o =>
                 {
                     o.BatchSize = 10;
                     o.PollingInterval = TimeSpan.FromMilliseconds(30);
-                });
+                }).WithInMemoryStore();
                 // No dispatcher registered for "MyApp.Unknown"
             })
             .Build();

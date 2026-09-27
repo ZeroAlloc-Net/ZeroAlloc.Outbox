@@ -49,32 +49,4 @@ public static class OutboxResilienceServiceCollectionExtensions
         builder.Services.AddTransient<IOutboxDispatcher<T>>(sp => sp.GetRequiredService<TResilienceProxy>());
         return builder;
     }
-
-    /// <summary>
-    /// Legacy shim that preserves the v1.x extension shape. Will be removed in the next major.
-    /// </summary>
-    [Obsolete("Use AddOutbox().WithResilience<T, TDispatcherInterface, TResilienceProxy>() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX005")]
-    public static IServiceCollection AddOutboxResilience<T, TDispatcherInterface, TResilienceProxy>(
-        this IServiceCollection services)
-        where T : notnull
-        where TDispatcherInterface : class, IOutboxDispatcher<T>
-        where TResilienceProxy : class, TDispatcherInterface
-    {
-        services.AddTransient<TResilienceProxy>();
-        services.AddTransient<IOutboxDispatcher<T>>(sp => sp.GetRequiredService<TResilienceProxy>());
-        return services;
-    }
-
-    /// <summary>
-    /// Legacy shim for the chained form
-    /// <c>services.AddOutbox().AddOutboxResilience&lt;T, TDispatcherInterface, TResilienceProxy&gt;()</c>.
-    /// Will be removed in the next major.
-    /// </summary>
-    [Obsolete("Use AddOutbox().WithResilience<T, TDispatcherInterface, TResilienceProxy>() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX005")]
-    public static IOutboxBuilder AddOutboxResilience<T, TDispatcherInterface, TResilienceProxy>(
-        this IOutboxBuilder builder)
-        where T : notnull
-        where TDispatcherInterface : class, IOutboxDispatcher<T>
-        where TResilienceProxy : class, TDispatcherInterface
-        => builder.WithResilience<T, TDispatcherInterface, TResilienceProxy>();
 }

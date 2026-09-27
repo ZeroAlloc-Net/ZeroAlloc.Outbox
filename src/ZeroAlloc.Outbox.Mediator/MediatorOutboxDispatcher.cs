@@ -8,7 +8,7 @@ namespace ZeroAlloc.Outbox.Mediator;
 /// </summary>
 /// <remarks>
 /// <typeparamref name="T"/> must implement <see cref="INotification"/>.
-/// Register via <see cref="OutboxMediatorServiceCollectionExtensions.AddOutboxMediator{T}"/>.
+/// Register via <see cref="OutboxMediatorServiceCollectionExtensions.WithMediator{T}"/>.
 /// </remarks>
 public sealed class MediatorOutboxDispatcher<T> : IOutboxDispatcher<T>
     where T : class, INotification

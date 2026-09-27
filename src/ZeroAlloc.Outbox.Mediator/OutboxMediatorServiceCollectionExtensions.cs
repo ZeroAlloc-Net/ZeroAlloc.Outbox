@@ -29,24 +29,4 @@ public static class OutboxMediatorServiceCollectionExtensions
         builder.Services.AddTransient<IOutboxDispatcher<T>, MediatorOutboxDispatcher<T>>();
         return builder;
     }
-
-    /// <summary>
-    /// Legacy shim that preserves the v1.x extension shape. Will be removed in the next major.
-    /// </summary>
-    [Obsolete("Use AddOutbox().WithMediator<T>() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX004")]
-    public static IServiceCollection AddOutboxMediator<T>(this IServiceCollection services)
-        where T : class, INotification
-    {
-        services.AddTransient<IOutboxDispatcher<T>, MediatorOutboxDispatcher<T>>();
-        return services;
-    }
-
-    /// <summary>
-    /// Legacy shim for the chained form <c>services.AddOutbox().AddOutboxMediator&lt;T&gt;()</c>.
-    /// Will be removed in the next major.
-    /// </summary>
-    [Obsolete("Use AddOutbox().WithMediator<T>() instead. Will be removed in the next major.", DiagnosticId = "ZAOBOX004")]
-    public static IOutboxBuilder AddOutboxMediator<T>(this IOutboxBuilder builder)
-        where T : class, INotification
-        => builder.WithMediator<T>();
 }

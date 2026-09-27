@@ -21,22 +21,6 @@ public class OutboxResilienceBuilderTests
         dispatcher.Should().BeOfType<OrderDispatcherProxy>();
     }
 
-    [Fact]
-    public void AddOutboxResilience_LegacyShim_StillRegisters()
-    {
-        var services = new ServiceCollection();
-        services.AddTransient<OrderDispatcherImpl>();
-
-#pragma warning disable CS0618 // exercise the legacy shim
-        services.AddOutboxResilience<OrderCreated, IOrderDispatcher, OrderDispatcherProxy>();
-#pragma warning restore CS0618
-
-        var sp = services.BuildServiceProvider();
-        var dispatcher = sp.GetRequiredService<IOutboxDispatcher<OrderCreated>>();
-
-        dispatcher.Should().BeOfType<OrderDispatcherProxy>();
-    }
-
     // ---- Supporting types (mirror OutboxResilienceExtensionsTests) ----
 
     public sealed record OrderCreated(string OrderId);

@@ -117,14 +117,6 @@ internal static class OutboxCodeWriter
         sb.AppendLine($"            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
         sb.AppendLine("        return builder;");
         sb.AppendLine("    }");
-        sb.AppendLine();
-        sb.AppendLine($"    [global::System.Obsolete(\"Use AddOutbox().{diMethodName}() instead. Will be removed in the next major.\", DiagnosticId = \"ZAOBOX010\")]");
-        sb.AppendLine($"    public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection {diMethodName}(");
-        sb.AppendLine("        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
-        sb.AppendLine("    {");
-        sb.AppendLine($"        services.AddOutbox().{diMethodName}();");
-        sb.AppendLine("        return services;");
-        sb.AppendLine("    }");
         sb.AppendLine("}");
     }
 }

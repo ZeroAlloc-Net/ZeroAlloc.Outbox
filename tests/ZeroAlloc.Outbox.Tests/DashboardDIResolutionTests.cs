@@ -12,13 +12,11 @@ namespace ZeroAlloc.Outbox.Tests;
 public sealed class DashboardDIResolutionTests
 {
     [Fact]
-    public void AddOutboxInMemory_ResolvesIOutboxDashboardStore()
+    public void WithInMemoryStore_ResolvesIOutboxDashboardStore()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddOutbox();
-        services.AddOutboxInMemory();
-        services.AddOutboxDashboardEvents();
+        services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
 
         using var provider = services.BuildServiceProvider();
 
@@ -35,14 +33,12 @@ public sealed class DashboardDIResolutionTests
     }
 
     [Fact]
-    public void AddOutboxEfCore_ResolvesIOutboxDashboardStore()
+    public void WithEfCore_ResolvesIOutboxDashboardStore()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<DashboardTestDbContext>(opts => opts.UseSqlite("DataSource=:memory:"));
-        services.AddOutbox();
-        services.AddOutboxEfCore<DashboardTestDbContext>();
-        services.AddOutboxDashboardEvents();
+        services.AddOutbox().WithEfCore<DashboardTestDbContext>().WithDashboardEvents();
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();

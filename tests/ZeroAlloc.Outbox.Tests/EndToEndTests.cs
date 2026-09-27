@@ -54,12 +54,11 @@ public sealed class EndToEndTests
             .ConfigureServices(services =>
             {
                 services.AddLogging();
-                services.AddOutboxInMemory();
                 services.AddOutbox(o =>
                 {
                     o.BatchSize = 10;
                     o.PollingInterval = TimeSpan.FromMilliseconds(30);
-                }).WithSystemTextJsonSerializer();
+                }).WithInMemoryStore().WithSystemTextJsonSerializer();
                 services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
                 services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
                     _ => new TestOrderPlacedDispatcher(delivered, tcs));
