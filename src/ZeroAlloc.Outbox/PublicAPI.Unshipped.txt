@@ -284,6 +284,7 @@ static ZeroAlloc.Outbox.OutboxMessageId.operator >=(ZeroAlloc.Outbox.OutboxMessa
 static ZeroAlloc.Outbox.OutboxMessageView.operator !=(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
 static ZeroAlloc.Outbox.OutboxMessageView.operator ==(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
 static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure = null) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.WithSystemTextJsonSerializer(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.OutboxSnapshot.operator !=(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
 static ZeroAlloc.Outbox.OutboxSnapshot.operator ==(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
 static ZeroAlloc.Outbox.ThroughputPoint.operator !=(ZeroAlloc.Outbox.ThroughputPoint? left, ZeroAlloc.Outbox.ThroughputPoint? right) -> bool
@@ -299,3 +300,4 @@ ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter
 ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.TypedIdJsonConverter() -> void
 override ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> ZeroAlloc.Outbox.OutboxMessageId
 override ZeroAlloc.Outbox.OutboxMessageId.TypedIdJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, ZeroAlloc.Outbox.OutboxMessageId value, System.Text.Json.JsonSerializerOptions! options) -> void
+override ZeroAlloc.Outbox.OutboxWorkerService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!

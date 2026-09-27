@@ -4,8 +4,9 @@ using System.Text.Json;
 namespace ZeroAlloc.Outbox;
 
 /// <summary>
-/// Default <see cref="IOutboxSerializer"/> backed by System.Text.Json.
-/// For AOT/trimming scenarios, supply a source-generated serializer instead.
+/// Reflection-based <see cref="IOutboxSerializer"/> backed by System.Text.Json. Opt in with
+/// <c>AddOutbox().WithSystemTextJsonSerializer()</c>. For trimming and NativeAOT, call
+/// <c>services.AddSerializerDispatcher()</c> instead, which selects <see cref="DispatchingOutboxSerializer"/>.
 /// </summary>
 [RequiresUnreferencedCode("Reflection-based JSON serialization. For AOT, use a source-generated serializer.")]
 [RequiresDynamicCode("Reflection-based JSON serialization. For AOT, use a source-generated serializer.")]

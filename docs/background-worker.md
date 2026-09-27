@@ -8,7 +8,7 @@ sidebar_position: 7
 
 ## Overview
 
-`OutboxWorkerService` is an `IHostedService` (specifically `BackgroundService`) registered by `AddOutbox()`. It runs a polling loop:
+`OutboxWorkerService` is an `IHostedService` (specifically `BackgroundService`) registered by `AddOutbox()`. When the host starts, it builds every registered `IOutboxTypeDispatcher` once, in a scope, so a dispatcher that cannot be constructed, such as a generated one with no `IOutboxSerializer` configured, fails the host start instead of every batch. Then it runs a polling loop:
 
 1. Create a fresh DI scope (isolates EF Core `DbContext` per batch).
 2. Build an `OutboxLease` from `OutboxOptions.HostId` and `OutboxOptions.LeaseDuration`, and claim up to `BatchSize` due entries with it via `ClaimPendingAsync`. Claiming atomically leases the rows to this host, so a second host polling the same store cannot claim them too.

@@ -6,62 +6,62 @@ sidebar_position: 6
 
 # AOT-Safe Serialisation
 
-By default, `ZeroAlloc.Outbox` serialises message payloads with `System.Text.Json` via `SystemTextJsonOutboxSerializer`. This works in most scenarios but is not compatible with Native AOT because it relies on reflection at runtime.
+`ZeroAlloc.Outbox` stores each message payload as bytes, through an `IOutboxSerializer`. `AddOutbox()` itself is trim- and AOT-safe, and since 4.0 it never picks a reflection-based serializer on its own. You choose one of two:
 
-The `ZeroAlloc.Outbox.Mediator` package solves this by plugging in a `DispatchingOutboxSerializer` that delegates all serialisation to a registered `ISerializerDispatcher` — the AOT-safe runtime dispatch surface from the `ZeroAlloc.Serialisation` package.
+| Choice | Registration | Trim / AOT |
+|--------|--------------|------------|
+| `DispatchingOutboxSerializer` | `services.AddSerializerDispatcher()` from `ZeroAlloc.Serialisation` | Safe |
+| `SystemTextJsonOutboxSerializer` | `services.AddOutbox().WithSystemTextJsonSerializer()` | Not safe: `[RequiresUnreferencedCode]`, `[RequiresDynamicCode]` |
+
+This page covers the AOT-safe one. `DispatchingOutboxSerializer` delegates to an `ISerializerDispatcher`, the AOT-safe runtime dispatch surface that the `ZeroAlloc.Serialisation` source generator emits.
 
 ## Installation
 
 ```bash
 dotnet add package ZeroAlloc.Outbox
-dotnet add package ZeroAlloc.Serialisation
 ```
 
-## How It Works
+`ZeroAlloc.Outbox` depends on `ZeroAlloc.Serialisation`, whose source generator emits the dispatcher.
 
-`AddOutbox()` checks the DI container for a registered `ISerializerDispatcher`. If one is present, it automatically registers `DispatchingOutboxSerializer` as `IOutboxSerializer` instead of the default STJ implementation:
+## Annotating Message Types
+
+Mark each outbox message type with `[ZeroAllocSerializable]` so the `ZeroAlloc.Serialisation` source generator emits a serializer for it and includes it in the dispatcher. For the System.Text.Json format, declare a `JsonSerializerContext` for the type in the same project; the generated serializer routes through it, so no reflection is involved:
 
 ```csharp
-// pseudo-code — what AddOutbox() does internally
-services.TryAddSingleton<IOutboxSerializer>(sp =>
-{
-    var dispatcher = sp.GetService<ISerializerDispatcher>();
-    if (dispatcher is not null)
-        return new DispatchingOutboxSerializer(dispatcher);
-    return new SystemTextJsonOutboxSerializer(); // reflection path, not AOT-safe
-});
-```
+using System.Text.Json.Serialization;
+using ZeroAlloc.Outbox;
+using ZeroAlloc.Serialisation;
 
-No extra configuration call is needed — just register an `ISerializerDispatcher` before calling `AddOutbox()`.
+[OutboxMessage]
+[ZeroAllocSerializable(SerializationFormat.SystemTextJson)]
+public sealed record OrderPlaced(int OrderId, decimal Amount);
+
+[JsonSerializable(typeof(OrderPlaced))]
+internal sealed partial class OrderPlacedJsonContext : JsonSerializerContext;
+```
 
 ## Registration
 
 ```csharp
-// Register your ZeroAlloc.Serialisation dispatcher first
-services.AddSerializerDispatcher(options =>
-{
-    options.Register<OrderPlaced>();
-    options.Register<InvoiceIssued>();
-});
+// Emitted by the ZeroAlloc.Serialisation generator; registers ISerializerDispatcher.
+services.AddSerializerDispatcher();
 
-// AddOutbox() picks it up automatically
 services.AddOutbox()
-        .WithEfCore<AppDbContext>();
+        .WithEfCore<AppDbContext>()
+        .AddOrderPlacedOutbox();
 ```
 
-## Annotating Message Types
+`AddOutbox()` looks the dispatcher up when the serializer is first resolved, so the order of the two calls does not matter. There are no warnings to suppress at the call site.
 
-Mark each outbox message type with `[ZeroAllocSerializable]` so the `ZeroAlloc.Serialisation` source generator includes it in the dispatcher:
+## When no serializer is configured
 
-```csharp
-using ZeroAlloc.Serialisation;
+If neither `AddSerializerDispatcher()` nor `WithSystemTextJsonSerializer()` was called, and the application did not register its own `IOutboxSerializer`, resolving the serializer throws an `InvalidOperationException` that names both options. `OutboxWorkerService` builds every `IOutboxTypeDispatcher` when it starts, and the generated ones need the serializer, so the error surfaces as a failed host start rather than on the first message.
 
-[OutboxMessage]
-[ZeroAllocSerializable]
-public sealed record OrderPlaced(int OrderId, decimal Amount);
-```
+An application whose dispatchers never deserialize an outbox payload, such as one that uses the worker only for ZeroAlloc.Saga commands, needs no serializer at all.
 
-The serialisation generator emits the `JsonTypeInfo<T>` and wires it into the dispatcher — no `JsonSerializerContext` configuration required by hand.
+## Precedence
+
+`WithSystemTextJsonSerializer()` replaces any serializer registered before it, including the dispatcher-backed default, so an explicit opt-in always wins. A serializer the application registers itself before `AddOutbox()` is kept. See [Dependency Injection](../dependency-injection.md#addoutbox) for the full order.
 
 ## Verifying AOT Compatibility
 
@@ -71,7 +71,7 @@ Build with `PublishAot=true`. A correctly configured project produces no `IL2026
 dotnet publish -r linux-x64 -p:PublishAot=true
 ```
 
-If you still see warnings, confirm that `ISerializerDispatcher` is registered **before** `AddOutbox()` in your composition root, and that every outbox message type carries `[ZeroAllocSerializable]`.
+If you see `IL2026`/`IL3050` pointing at `WithSystemTextJsonSerializer`, remove that call and use `AddSerializerDispatcher()`. The repository's `samples/ZeroAlloc.Outbox.AotSmoke` publishes this exact setup under NativeAOT in CI.
 
 ## Implementing a Custom Dispatcher
 
@@ -91,7 +91,7 @@ public sealed class MessagePackDispatcher : ISerializerDispatcher
 
 // Registration
 services.AddSingleton<ISerializerDispatcher, MessagePackDispatcher>();
-services.AddOutbox();
+services.AddOutbox();   // selects DispatchingOutboxSerializer over your dispatcher
 ```
 
 `DispatchingOutboxSerializer` is sealed and AOT-safe — it passes the `Type` token received from the caller through to your dispatcher without reflection.

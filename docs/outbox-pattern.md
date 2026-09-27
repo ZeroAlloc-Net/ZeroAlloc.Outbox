@@ -53,4 +53,4 @@ A custom `IOutboxStore` must implement `ClaimPendingAsync` and `RenewLeaseAsync`
 | Dead-letter | Entries exceeding `MaxAttempts` are moved to dead-letter state with the failure reason |
 | Dispatcher | `IOutboxDispatcher<T>` — you implement one method; the worker handles scheduling |
 
-See [Getting Started](getting-started.md) to set this up in five minutes, and [Migrating to v3](migrating-to-v3.md) if you're upgrading from an earlier version.
+See [Getting Started](getting-started.md) to set this up in five minutes, and [Migrating to v3](migrating-to-v3.md) and [Migrating to v4](migrating-to-v4.md) if you're upgrading from an earlier version.

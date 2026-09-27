@@ -58,9 +58,10 @@ jobs:
 
   aot-smoke:
     runs-on: ubuntu-latest
-    # Publishes samples/ZeroAlloc.Outbox.AotSmoke with PublishAot=true. Exercises
-    # the generator-emitted OrderPlacedOutboxWriter against a fake store; ILC also
-    # analyses the unused DI extension AddOrderPlacedOutbox as part of the publish.
+    # Publishes samples/ZeroAlloc.Outbox.AotSmoke with PublishAot=true and IL warnings
+    # as errors. It registers the outbox the documented AOT way, AddSerializerDispatcher()
+    # plus AddOutbox(), then writes a message through the generator-emitted writer and waits
+    # for the worker to dispatch it through the generator-emitted type dispatcher.
     steps:
       - uses: actions/checkout@v7
         with:

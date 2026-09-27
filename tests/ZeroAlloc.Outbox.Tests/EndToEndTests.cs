@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ZeroAlloc.Outbox;
@@ -14,13 +13,11 @@ public sealed class EndToEndTests
     private sealed class OrderPlacedOutboxWriter(IOutboxStore store, IOutboxSerializer serializer)
         : IOutboxWriter<OrderPlaced>
     {
-#pragma warning disable IL2026, IL3050
         public ValueTask WriteAsync(OrderPlaced message, DbTransaction? transaction = null, CancellationToken ct = default)
             => store.EnqueueAsync(
                 "ZeroAlloc.Outbox.Tests.EndToEndTests+OrderPlaced",
                 serializer.Serialize(message),
                 transaction, ct);
-#pragma warning restore IL2026, IL3050
     }
 
     private sealed class OrderPlacedOutboxTypeDispatcher(
@@ -29,13 +26,11 @@ public sealed class EndToEndTests
     {
         public string TypeName => "ZeroAlloc.Outbox.Tests.EndToEndTests+OrderPlaced";
 
-#pragma warning disable IL2026, IL3050
         public ValueTask DispatchAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
         {
             var msg = serializer.Deserialize<OrderPlaced>(payload);
             return dispatcher.DispatchAsync(msg, ct);
         }
-#pragma warning restore IL2026, IL3050
     }
 
     private sealed class TestOrderPlacedDispatcher(List<OrderPlaced> delivered, TaskCompletionSource tcs)
@@ -64,7 +59,7 @@ public sealed class EndToEndTests
                 {
                     o.BatchSize = 10;
                     o.PollingInterval = TimeSpan.FromMilliseconds(30);
-                });
+                }).WithSystemTextJsonSerializer();
                 services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
                 services.AddTransient<IOutboxDispatcher<OrderPlaced>>(
                     _ => new TestOrderPlacedDispatcher(delivered, tcs));

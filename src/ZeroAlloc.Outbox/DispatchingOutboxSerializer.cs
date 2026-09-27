@@ -8,10 +8,11 @@ namespace ZeroAlloc.Outbox;
 /// </summary>
 /// <remarks>
 /// Register by annotating your message types with <c>[ZeroAllocSerializable]</c> in the
-/// consuming assembly and calling <c>services.AddSerializerDispatcher()</c> before
+/// consuming assembly and calling <c>services.AddSerializerDispatcher()</c>, before or after
 /// <c>AddOutbox()</c>. When an <see cref="ISerializerDispatcher"/> is present in the DI
-/// container, <c>AddOutbox</c> automatically uses this class instead of the
-/// reflection-based <see cref="SystemTextJsonOutboxSerializer"/>.
+/// container, <c>AddOutbox</c> uses this class as the <see cref="IOutboxSerializer"/>, unless the
+/// application opted in to <see cref="SystemTextJsonOutboxSerializer"/> with
+/// <c>WithSystemTextJsonSerializer()</c> or registered its own serializer.
 /// </remarks>
 public sealed class DispatchingOutboxSerializer : IOutboxSerializer
 {
