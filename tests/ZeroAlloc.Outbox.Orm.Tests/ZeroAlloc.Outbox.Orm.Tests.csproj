@@ -29,5 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Orm\ZeroAlloc.Outbox.Orm.csproj" />
+    <!-- The registration tests put the EF Core store next to the ORM store. -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.EfCore\ZeroAlloc.Outbox.EfCore.csproj" />
   </ItemGroup>
 </Project>

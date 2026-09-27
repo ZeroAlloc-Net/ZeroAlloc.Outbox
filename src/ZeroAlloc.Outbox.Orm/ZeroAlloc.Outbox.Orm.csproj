@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The one-store-per-container check every store adapter applies; linked, not public API. -->
+    <Compile Include="..\Shared\OutboxStoreRegistration.cs" Link="OutboxStoreRegistration.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ZeroAlloc.ORM" Version="2.0.1" />
     <PackageReference Include="AdoNet.Async.Adapters" Version="1.4.1" />
     <PackageReference Include="ZeroAlloc.ORM.Generator" Version="2.0.1">

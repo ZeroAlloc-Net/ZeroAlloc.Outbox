@@ -10,4 +10,9 @@
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
     <PackageReference Include="ZeroAlloc.Collections" Version="1.1.8" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The one-store-per-container check every store adapter applies; linked, not public API. -->
+    <Compile Include="..\Shared\OutboxStoreRegistration.cs" Link="OutboxStoreRegistration.cs" />
+  </ItemGroup>
 </Project>

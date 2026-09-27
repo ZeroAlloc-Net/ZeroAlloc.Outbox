@@ -73,6 +73,53 @@ When more than one serializer source is present, the first match wins:
   generated writer and type dispatcher. `IOutboxSerializer` has not carried trim attributes since
   1.3.0, so they suppressed nothing, and they would have hidden a real warning.
 
+## One store per container
+
+Up to 3.x, `WithEfCore<T>()`, `WithOrm()` and `WithInMemoryStore()` registered `IOutboxStore` with a
+plain `Add`. A second store registration silently replaced the first for every worker, because the
+last registration wins. `services.AddOutbox().WithEfCore<AppDbContext>()` followed by
+`services.AddOutbox().WithOrm()` left one worker polling the ORM store, and the EF Core outbox table
+was never drained.
+
+In 4.0 a container hosts one outbox pipeline, and the store adapters enforce it:
+
+- **The same store again is a no-op.** Calling `WithEfCore<AppDbContext>()` twice, `WithOrm()` twice
+  with the same dialect, or `WithInMemoryStore()` twice keeps one registration. The adapters now
+  register with `TryAdd`.
+- **A different store throws.** `WithOrm()` after `WithEfCore<T>()`, `WithEfCore<B>()` after
+  `WithEfCore<A>()`, `WithOrm(OutboxOrmDialect.SqlServer)` after `WithOrm(OutboxOrmDialect.Postgres)`,
+  or any adapter after an `IOutboxStore` you registered yourself throws an
+  `InvalidOperationException` at registration. The message names both stores.
+- **An `IOutboxDashboardStore` you registered first is kept.** `WithEfCore<T>()` and
+  `WithInMemoryStore()` no longer replace it.
+- **`AddOutbox()` twice still starts one worker.** It registers the worker with `AddHostedService`,
+  which never added a duplicate, and each call's `configure` delegate still applies.
+
+Keyed `IOutboxStore` registrations are ignored by the check.
+
+### What you need to do
+
+A container that registers one store needs no change.
+
+If the exception fires, the container had two pipelines' worth of store registrations and only the
+last one ever ran. Remove the one you don't use. Running two pipelines side by side, each with its
+own store, options and worker, is tracked in
+[#206](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/206) as named pipelines.
+
+A test host that replaces the application's store, for example an in-memory store in a
+`WebApplicationFactory`, now has to remove the first store before it adds its own:
+
+```csharp
+builder.ConfigureTestServices(services =>
+{
+    services.RemoveAll<IOutboxStore>();
+    services.RemoveAll<IOutboxDashboardStore>();
+    services.AddOutbox().WithInMemoryStore();
+});
+```
+
+`RemoveAll` is in `Microsoft.Extensions.DependencyInjection.Extensions`.
+
 ## Removed v1.x aliases
 
 The v1.x DI extensions have been `[Obsolete]` since 2.0 and are removed in 4.0. Each has a direct
