@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
-    <PackageReference Include="ZeroAlloc.Collections" Version="1.1.8" />
+    <PackageReference Include="ZeroAlloc.Collections" Version="1.1.9" />
   </ItemGroup>
 
   <ItemGroup>
