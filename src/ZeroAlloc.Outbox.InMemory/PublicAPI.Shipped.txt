@@ -1,0 +1,47 @@
+#nullable enable
+static ZeroAlloc.Outbox.InMemory.InMemoryOutboxServiceCollectionExtensions.WithInMemoryStore(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxServiceCollectionExtensions
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.AllEntries() -> System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry!>!
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.CancelAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.ClaimPendingAsync(int batchSize, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.Dispose() -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.ForceDispatchAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.GetSnapshotAsync(int dispatchedLimit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<ZeroAlloc.Outbox.OutboxSnapshot!>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.GetThroughputAsync(System.TimeSpan window, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<ZeroAlloc.Outbox.ThroughputPoint!>!
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus.DeadLetter = 2 -> ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus.Pending = 0 -> ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus.Succeeded = 1 -> ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.CreatedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.CreatedAt.init -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.DeadLetterError.get -> string?
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.DeadLetterError.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Id.init -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.InMemoryOutboxEntry() -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.LockedBy.get -> string?
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.LockedBy.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.LockedUntil.get -> System.DateTimeOffset?
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.LockedUntil.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.NextRetryAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.NextRetryAt.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Payload.get -> byte[]!
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Payload.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.ProcessedAt.get -> System.DateTimeOffset?
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.ProcessedAt.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.RetryCount.get -> int
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.RetryCount.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Status.get -> ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryEntryStatus
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.Status.set -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.TypeName.get -> string!
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxEntry.TypeName.init -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxStore() -> void
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.ReleaseLeasesAsync(System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageId>! ids, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<int>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.RenewLeaseAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.InMemory.InMemoryOutboxStore.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask

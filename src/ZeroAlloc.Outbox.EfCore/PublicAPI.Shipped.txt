@@ -1,0 +1,48 @@
+#nullable enable
+static ZeroAlloc.Outbox.EfCore.EfCoreOutboxServiceCollectionExtensions.WithEfCore<TContext>(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.EfCore.OutboxDbContextExtensions.AddOutboxMessages(this Microsoft.EntityFrameworkCore.ModelBuilder! modelBuilder) -> void
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxServiceCollectionExtensions
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.CancelAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.ClaimPendingAsync(int batchSize, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.EfCoreOutboxStore(TContext! db) -> void
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.EnqueueDeferredAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.ForceDispatchAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.GetSnapshotAsync(int dispatchedLimit, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<ZeroAlloc.Outbox.OutboxSnapshot!>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.GetThroughputAsync(System.TimeSpan window, System.Threading.CancellationToken ct) -> System.Collections.Generic.IAsyncEnumerable<ZeroAlloc.Outbox.ThroughputPoint!>!
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.ReleaseLeasesAsync(System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageId>! ids, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<int>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.RenewLeaseAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.EfCore.EfCoreOutboxStore<TContext>.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.EfCore.OutboxDbContextExtensions
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.CreatedAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.CreatedAt.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.DeadLetterError.get -> string?
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.DeadLetterError.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Id.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.LockedBy.get -> string?
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.LockedBy.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.LockedUntil.get -> System.DateTimeOffset?
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.LockedUntil.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.NextRetryAt.get -> System.DateTimeOffset
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.NextRetryAt.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.OutboxMessageEntity() -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Payload.get -> byte[]!
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Payload.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.ProcessedAt.get -> System.DateTimeOffset?
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.ProcessedAt.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.RetryCount.get -> int
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.RetryCount.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Status.get -> ZeroAlloc.Outbox.EfCore.OutboxMessageStatus
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.Status.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.TypeName.get -> string!
+ZeroAlloc.Outbox.EfCore.OutboxMessageEntity.TypeName.set -> void
+ZeroAlloc.Outbox.EfCore.OutboxMessageStatus
+ZeroAlloc.Outbox.EfCore.OutboxMessageStatus.DeadLetter = 2 -> ZeroAlloc.Outbox.EfCore.OutboxMessageStatus
+ZeroAlloc.Outbox.EfCore.OutboxMessageStatus.Pending = 0 -> ZeroAlloc.Outbox.EfCore.OutboxMessageStatus
+ZeroAlloc.Outbox.EfCore.OutboxMessageStatus.Succeeded = 1 -> ZeroAlloc.Outbox.EfCore.OutboxMessageStatus

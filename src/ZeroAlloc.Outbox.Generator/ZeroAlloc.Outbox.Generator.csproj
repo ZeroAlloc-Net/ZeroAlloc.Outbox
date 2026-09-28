@@ -9,7 +9,6 @@
     <Description>Roslyn source generator for ZeroAlloc.Outbox.</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <NoWarn>$(NoWarn);RS2008</NoWarn>
 
     <!--
       Source-generator packaging: ship the generator DLL under analyzers/dotnet/cs so
@@ -20,6 +19,15 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Release tracking for the ZO rules, read by the RS2000-family analyzers. A shipped rule's
+      category or severity cannot change, and it cannot be removed, without being declared in
+      Unshipped. The ship-release-tracking job moves Unshipped into Shipped on each release PR.
+    -->
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" />

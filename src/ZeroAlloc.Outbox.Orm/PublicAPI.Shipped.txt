@@ -1,0 +1,22 @@
+#nullable enable
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.IOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.Postgres.get -> ZeroAlloc.ORM.Migrations.IMigrationSource!
+static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.Sqlite.get -> ZeroAlloc.ORM.Migrations.IMigrationSource!
+static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.SqlServer.get -> ZeroAlloc.ORM.Migrations.IMigrationSource!
+ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions
+ZeroAlloc.Outbox.Orm.OrmOutboxStore
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.ClaimPendingAsync(int batchSize, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection) -> void
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect) -> void
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.ReleaseLeasesAsync(System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxMessageId>! ids, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<int>
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.RenewLeaseAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
+ZeroAlloc.Outbox.Orm.OutboxOrmDialect
+ZeroAlloc.Outbox.Orm.OutboxOrmDialect.Postgres = 1 -> ZeroAlloc.Outbox.Orm.OutboxOrmDialect
+ZeroAlloc.Outbox.Orm.OutboxOrmDialect.Sqlite = 0 -> ZeroAlloc.Outbox.Orm.OutboxOrmDialect
+ZeroAlloc.Outbox.Orm.OutboxOrmDialect.SqlServer = 2 -> ZeroAlloc.Outbox.Orm.OutboxOrmDialect
+ZeroAlloc.Outbox.Orm.OutboxOrmMigrations

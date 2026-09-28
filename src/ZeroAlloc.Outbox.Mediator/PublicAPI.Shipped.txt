@@ -1,0 +1,6 @@
+#nullable enable
+static ZeroAlloc.Outbox.Mediator.OutboxMediatorServiceCollectionExtensions.WithMediator<T>(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+ZeroAlloc.Outbox.Mediator.MediatorOutboxDispatcher<T>
+ZeroAlloc.Outbox.Mediator.MediatorOutboxDispatcher<T>.DispatchAsync(T! message, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.Mediator.MediatorOutboxDispatcher<T>.MediatorOutboxDispatcher(System.Collections.Generic.IEnumerable<ZeroAlloc.Mediator.INotificationHandler<T!>!>! handlers) -> void
+ZeroAlloc.Outbox.Mediator.OutboxMediatorServiceCollectionExtensions
