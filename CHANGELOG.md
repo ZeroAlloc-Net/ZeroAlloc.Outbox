@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.0.0...v4.0.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* drop the unused ZeroAlloc.Mediator dependency from the core package ([#237](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/237)) ([0a332d5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/0a332d5fa0a9889b494d438ea65656247ba2eb2d)), closes [#233](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/233)
+* mark released analyzer rules and public api as shipped and automate the move ([#240](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/240)) ([69d89e5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/69d89e546175dad930acb894333b23f16764b1d3))
+
 ## [4.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v3.0.1...v4.0.0) (2026-09-27)
 
 
