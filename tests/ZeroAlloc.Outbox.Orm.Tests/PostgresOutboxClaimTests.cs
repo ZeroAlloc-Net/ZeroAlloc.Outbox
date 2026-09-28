@@ -23,5 +23,5 @@ public sealed class PostgresOutboxClaimTests(PostgresServerFixture server)
 
     protected override DbConnection CreateConnection(string connectionString) => new NpgsqlConnection(connectionString);
 
-    protected override void ClearPools() => NpgsqlConnection.ClearAllPools();
+    protected override void ClearPools() => server.ClearPools();
 }

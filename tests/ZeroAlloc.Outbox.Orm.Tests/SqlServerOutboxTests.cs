@@ -33,7 +33,7 @@ public sealed class SqlServerOutboxTests(SqlServerFixture server) : IAsyncLifeti
 
     public Task DisposeAsync()
     {
-        SqlConnection.ClearAllPools();
+        server.ClearPools();
         return Task.CompletedTask;
     }
 
@@ -174,6 +174,39 @@ public sealed class SqlServerOutboxTests(SqlServerFixture server) : IAsyncLifeti
         }
 
         await AssertLeaseColumnsAsync(connectionString);
+    }
+
+    [Fact]
+    public async Task Clearing_This_Tests_Pools_Leaves_Another_Tests_Pool_Alone()
+    {
+        // xUnit runs test classes in parallel, and each clears its pools when a test ends. A
+        // process-wide clear shuts down the pool another class is opening a connection on, and
+        // SqlClient then fails that open with "Timeout expired ... obtaining a connection from
+        // the pool". The other class's pool is simulated by a connection string the fixture
+        // did not hand out: its own application name gives it a pool of its own.
+        var other = new SqlConnectionStringBuilder(_connectionString) { ApplicationName = "another-test" }
+            .ConnectionString;
+        var before = await ServerProcessIdAsync(other);
+
+        server.ClearPools();
+
+        (await ServerProcessIdAsync(other)).Should().Be(before, "the other pool keeps its connection");
+    }
+
+    /// <summary>The server session a pooled connection runs on.</summary>
+    private static async Task<short> ServerProcessIdAsync(string connectionString)
+    {
+        var connection = new SqlConnection(connectionString);
+        await using (connection.ConfigureAwait(false))
+        {
+            await connection.OpenAsync().ConfigureAwait(false);
+            var cmd = connection.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = "SELECT @@SPID";
+                return (short)(await cmd.ExecuteScalarAsync().ConfigureAwait(false))!;
+            }
+        }
     }
 
     /// <summary>

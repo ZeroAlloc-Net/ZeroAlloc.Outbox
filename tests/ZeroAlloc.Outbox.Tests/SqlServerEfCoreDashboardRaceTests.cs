@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using ZeroAlloc.Outbox.TestServers;
 
@@ -17,5 +16,5 @@ public sealed class SqlServerEfCoreDashboardRaceTests(SqlServerFixture server)
     protected override void UseServer(DbContextOptionsBuilder<ServerClaimDbContext> builder, string connectionString)
         => builder.UseSqlServer(connectionString);
 
-    protected override void ClearPools() => SqlConnection.ClearAllPools();
+    protected override void ClearPools() => server.ClearPools();
 }

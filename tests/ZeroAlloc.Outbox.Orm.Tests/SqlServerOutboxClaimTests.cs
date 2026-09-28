@@ -23,5 +23,5 @@ public sealed class SqlServerOutboxClaimTests(SqlServerFixture server)
 
     protected override DbConnection CreateConnection(string connectionString) => new SqlConnection(connectionString);
 
-    protected override void ClearPools() => SqlConnection.ClearAllPools();
+    protected override void ClearPools() => server.ClearPools();
 }
