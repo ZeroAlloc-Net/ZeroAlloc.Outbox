@@ -1,0 +1,3 @@
+#nullable enable
+static ZeroAlloc.Outbox.Resilience.OutboxResilienceServiceCollectionExtensions.WithResilience<T, TDispatcherInterface, TResilienceProxy>(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+ZeroAlloc.Outbox.Resilience.OutboxResilienceServiceCollectionExtensions

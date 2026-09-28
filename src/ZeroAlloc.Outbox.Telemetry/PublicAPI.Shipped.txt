@@ -1,0 +1,5 @@
+#nullable enable
+static ZeroAlloc.Outbox.Telemetry.OutboxTelemetryBuilderExtensions.WithTelemetry(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
+ZeroAlloc.Outbox.Telemetry.IOutboxDispatcherTelemetry
+ZeroAlloc.Outbox.Telemetry.IOutboxDispatcherTelemetry.DispatchAsync(System.ReadOnlyMemory<byte> payload, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.Telemetry.OutboxTelemetryBuilderExtensions
