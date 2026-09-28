@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using ZeroAlloc.Outbox.EfCore;
 using ZeroAlloc.Outbox.TestServers;
 
@@ -41,7 +40,7 @@ public sealed class TwoWorkerEndToEndTests(PostgresServerFixture server) : IClas
         {
             // Stop both together, so one failing to stop cannot leave the other running.
             await Task.WhenAll(workerA.StopAsync(), workerB.StopAsync());
-            NpgsqlConnection.ClearAllPools();
+            server.ClearPools();
         }
 
         dispatches.Keys.Should().BeEquivalentTo(sent, "every message is dispatched");

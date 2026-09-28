@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using ZeroAlloc.Outbox.TestServers;
 
 namespace ZeroAlloc.Outbox.Tests;
@@ -13,5 +12,5 @@ public sealed class PostgresEfCoreServerClaimTests(PostgresServerFixture server)
     protected override void UseServer(DbContextOptionsBuilder<ServerClaimDbContext> builder, string connectionString)
         => builder.UseNpgsql(connectionString);
 
-    protected override void ClearPools() => NpgsqlConnection.ClearAllPools();
+    protected override void ClearPools() => server.ClearPools();
 }
