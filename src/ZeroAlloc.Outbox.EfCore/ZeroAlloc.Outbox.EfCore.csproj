@@ -22,7 +22,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
-    <PackageReference Include="ZeroAlloc.ValueObjects.EfCore" Version="2.0.10" />
+    <PackageReference Include="ZeroAlloc.ValueObjects.EfCore" Version="2.0.11" />
   </ItemGroup>
 
   <ItemGroup>
