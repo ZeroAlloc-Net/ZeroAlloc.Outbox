@@ -99,7 +99,7 @@ What every pipeline shares:
 - **The message dispatchers.** A type registered once, for example with `AddOrderPlacedOutbox()` or `WithMediator<T>()` on any builder, can be dispatched by every pipeline. `AddOrderPlacedOutbox()` on a named builder does not add a second dispatcher for a type already registered. `WithResilience` and `WithTelemetry` decorate those shared dispatchers, so call them after every `Add{Name}Outbox()`.
 - **The serializer.** `WithSystemTextJsonSerializer()` on any builder applies to all pipelines.
 
-The dashboard shows the default pipeline. A named store registers no `IOutboxDashboardStore`, and a named worker publishes dashboard events only to an `IOutboxDashboardEventPublisher` keyed by its name.
+The dashboard shows every pipeline through a pipeline selector. On a named builder, `WithEfCore<TContext>()` and `WithInMemoryStore()` also register an `IOutboxDashboardStore` keyed by the name, and `WithDashboardEvents()` registers an `IOutboxDashboardEventPublisher` keyed by the name, which the pipeline's worker publishes to. Each named pipeline is listed as a `NamedOutboxPipeline` singleton. See [Dashboard](dashboard.md#named-pipelines).
 
 The registration rules:
 

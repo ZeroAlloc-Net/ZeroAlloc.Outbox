@@ -9,6 +9,17 @@
     throughput: []
   };
 
+  // The pipeline shown: '' is the default pipeline, anything else a named one. Read from the
+  // page's ?pipeline= so a link or the Blazor component can open a given pipeline.
+  let pipeline = new URLSearchParams(window.location.search).get('pipeline') || '';
+  let pipelineHasEvents = true;
+
+  // Builds an API URL for the selected pipeline.
+  function api(path) {
+    if (!pipeline) return path;
+    return path + (path.indexOf('?') >= 0 ? '&' : '?') + 'pipeline=' + encodeURIComponent(pipeline);
+  }
+
   const EVENT_NAMES = [
     'MessageQueued',
     'MessageDispatched',
@@ -40,10 +51,13 @@
   }
 
   async function loadInitial() {
+    // A response for a pipeline no longer selected is dropped.
+    const requested = pipeline;
     try {
-      const snap = await fetch('api/snapshot').then(r => r.json());
+      const snap = await fetch(api('api/snapshot')).then(r => r.json());
+      const thru = await fetch(api('api/throughput?windowMinutes=60')).then(r => r.json());
+      if (requested !== pipeline) return;
       applySnapshot(snap);
-      const thru = await fetch('api/throughput?windowMinutes=60').then(r => r.json());
       state.throughput = Array.isArray(thru) ? thru : [];
       renderAll();
     } catch (err) {
@@ -173,7 +187,7 @@
     const id = btn.dataset.id;
     const action = btn.dataset.action;
     try {
-      const res = await fetch('api/messages/' + encodeURIComponent(id) + '/' + action, { method: 'POST' });
+      const res = await fetch(api('api/messages/' + encodeURIComponent(id) + '/' + action), { method: 'POST' });
       if (res.status === 422) {
         const body = await res.json().catch(() => ({}));
         alert('Action rejected: ' + (body.error || 'invalid state'));
@@ -208,9 +222,14 @@
   }
 
   function reloadSnapshotAndRender() {
-    fetch('api/snapshot')
+    const requested = pipeline;
+    fetch(api('api/snapshot'))
       .then(r => r.json())
-      .then(snap => { applySnapshot(snap); renderAll(); })
+      .then(snap => {
+        if (requested !== pipeline) return;
+        applySnapshot(snap);
+        renderAll();
+      })
       .catch(err => console.error('Snapshot reload failed', err));
   }
 
@@ -221,8 +240,16 @@
       clearTimeout(sseReconnectTimer);
       sseReconnectTimer = undefined;
     }
+    if (sse) {
+      sse.close();
+      sse = undefined;
+    }
+    if (!pipelineHasEvents) {
+      setIndicator('offline', 'no live events');
+      return;
+    }
     try {
-      sse = new EventSource('api/events');
+      sse = new EventSource(api('api/events'));
       sse.onopen = () => setIndicator('live', 'live');
       sse.onerror = () => {
         setIndicator('offline', 'offline');
@@ -236,9 +263,14 @@
           reloadSnapshotAndRender();
           if (name === 'MessageDispatched' || name === 'MessageDeadLettered' || name === 'MessageFailed') {
             // Refresh throughput buffer lazily — a future optimisation could patch locally.
-            fetch('api/throughput?windowMinutes=60')
+            const requested = pipeline;
+            fetch(api('api/throughput?windowMinutes=60'))
               .then(r => r.json())
-              .then(thru => { state.throughput = Array.isArray(thru) ? thru : []; renderChart(); })
+              .then(thru => {
+                if (requested !== pipeline) return;
+                state.throughput = Array.isArray(thru) ? thru : [];
+                renderChart();
+              })
               .catch(() => { /* ignore */ });
           }
         });
@@ -250,6 +282,52 @@
     }
   }
 
-  loadInitial();
-  connectSse();
+  // Pipeline selector: shown when the dashboard can show more than one pipeline.
+  function pipelineLabel(p) {
+    return p.name == null ? 'default' : p.name;
+  }
+
+  async function loadPipelines() {
+    let pipelines = [];
+    try {
+      const list = await fetch('api/pipelines').then(r => r.json());
+      pipelines = Array.isArray(list) ? list : [];
+    } catch (err) {
+      console.error('Pipeline list failed', err);
+    }
+
+    let current = pipelines.find(p => (p.name || '') === pipeline);
+    if (!current && pipelines.length > 0) {
+      current = pipelines[0];
+      pipeline = current.name || '';
+    }
+    pipelineHasEvents = current ? current.events !== false : true;
+
+    const picker = document.getElementById('pipeline-picker');
+    const select = document.getElementById('pipeline-select');
+    if (!picker || !select || pipelines.length < 2) return pipelines;
+
+    select.innerHTML = pipelines
+      .map(p => '<option value="' + esc(p.name || '') + '">' + esc(pipelineLabel(p)) + '</option>')
+      .join('');
+    select.value = pipeline;
+    picker.hidden = false;
+    select.addEventListener('change', () => {
+      pipeline = select.value;
+      const chosen = pipelines.find(p => (p.name || '') === pipeline);
+      pipelineHasEvents = chosen ? chosen.events !== false : true;
+      const query = pipeline ? '?pipeline=' + encodeURIComponent(pipeline) : '';
+      window.history.replaceState(null, '', window.location.pathname + query);
+      state.pending = []; state.retry = []; state.dead = []; state.dispatched = []; state.throughput = [];
+      renderAll();
+      loadInitial();
+      connectSse();
+    });
+    return pipelines;
+  }
+
+  loadPipelines().then(() => {
+    loadInitial();
+    connectSse();
+  });
 })();

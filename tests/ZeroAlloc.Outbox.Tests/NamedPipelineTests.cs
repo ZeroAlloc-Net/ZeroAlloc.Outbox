@@ -197,6 +197,42 @@ public sealed class NamedPipelineTests
     }
 
     [Fact]
+    public async Task A_Named_Pipeline_Worker_Publishes_Dashboard_Events_To_Its_Own_Publisher()
+    {
+        const string typeName = "NamedPipelines.Events";
+        using var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddLogging();
+                services.AddOutbox().WithInMemoryStore().WithDashboardEvents();
+                services.AddOutbox("workflow", o => o.PollingInterval = TimeSpan.FromMilliseconds(20))
+                    .WithInMemoryStore()
+                    .WithDashboardEvents();
+                services.AddSingleton<IOutboxTypeDispatcher>(new TestDispatcher(typeName, _ => { }));
+            })
+            .Build();
+
+        var workflowPublisher = host.Services.GetRequiredKeyedService<IOutboxDashboardEventPublisher>("workflow");
+        using var workflowEvents = workflowPublisher.Subscribe();
+        using var defaultEvents = host.Services.GetRequiredService<IOutboxDashboardEventPublisher>().Subscribe();
+        await host.Services.GetRequiredKeyedService<IOutboxStore>("workflow")
+            .EnqueueAsync(typeName, new byte[] { 1 }, null, CancellationToken.None);
+
+        await host.StartAsync();
+        try
+        {
+            var evt = await workflowEvents.Reader.ReadAsync().AsTask().WaitAsync(s_timeout);
+            evt.Should().BeOfType<MessageDispatchedEvent>();
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+
+        defaultEvents.Reader.TryRead(out _).Should().BeFalse("the default pipeline's publisher sees nothing of it");
+    }
+
+    [Fact]
     public async Task A_Named_Pipeline_Without_A_Store_Fails_The_Host_Start()
     {
         using var host = new HostBuilder()

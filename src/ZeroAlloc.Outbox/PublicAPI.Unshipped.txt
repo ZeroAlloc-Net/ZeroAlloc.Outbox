@@ -7,3 +7,5 @@ ZeroAlloc.Outbox.INamedOutboxBuilder
 ZeroAlloc.Outbox.INamedOutboxBuilder.Name.get -> string!
 ZeroAlloc.Outbox.OutboxMessageAttribute.OutboxMessageAttribute(System.Type! type) -> void
 ZeroAlloc.Outbox.OutboxMessageAttribute.Type.get -> System.Type?
+ZeroAlloc.Outbox.NamedOutboxPipeline
+ZeroAlloc.Outbox.NamedOutboxPipeline.Name.get -> string!
