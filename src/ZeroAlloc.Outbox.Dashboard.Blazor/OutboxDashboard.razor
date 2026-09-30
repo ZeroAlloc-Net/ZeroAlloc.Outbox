@@ -1,9 +1,22 @@
 @namespace ZeroAlloc.Outbox.Dashboard.Blazor
 
-<iframe class="outbox-dashboard-frame" src="@BaseUrl" title="Outbox Dashboard"></iframe>
+<iframe class="outbox-dashboard-frame" src="@Source" title="Outbox Dashboard"></iframe>
 
 @code {
     /// <summary>Base URL where the outbox dashboard is mapped (e.g. "/outbox").</summary>
     [Parameter, EditorRequired]
     public string BaseUrl { get; set; } = "/outbox";
+
+    /// <summary>
+    /// The named outbox pipeline to open, as registered with <c>AddOutbox(name, configure)</c>, or
+    /// null for the default pipeline. The dashboard's own selector can switch pipelines after that.
+    /// </summary>
+    [Parameter]
+    public string? Pipeline { get; set; }
+
+    private string Source
+        => string.IsNullOrEmpty(Pipeline)
+            ? BaseUrl
+            : BaseUrl + (BaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?")
+              + "pipeline=" + Uri.EscapeDataString(Pipeline);
 }

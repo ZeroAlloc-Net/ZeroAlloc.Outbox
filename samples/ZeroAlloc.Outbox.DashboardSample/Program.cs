@@ -11,16 +11,31 @@ builder.Services.AddOutbox()
     .WithInMemoryStore()
     .WithDashboardEvents();
 
-// Remove the background worker so seeded state stays static during regression screenshots.
-// (The worker would otherwise dead-letter the fixture messages because no IOutboxTypeDispatcher is registered.)
-var workerDescriptor = builder.Services.First(d =>
-    d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(OutboxWorkerService));
-builder.Services.Remove(workerDescriptor);
+// A named pipeline, so the dashboard shows its pipeline selector.
+builder.Services.AddOutbox("workflow", o => o.LeaseDuration = TimeSpan.FromMinutes(30))
+    .WithInMemoryStore()
+    .WithDashboardEvents();
+
+// Remove the background workers so seeded state stays static during regression screenshots.
+// (A worker would otherwise dead-letter the fixture messages because no IOutboxTypeDispatcher is
+// registered.) The default pipeline's worker is registered by type, a named pipeline's by factory.
+var outboxAssembly = typeof(OutboxWorkerService).Assembly;
+for (var i = builder.Services.Count - 1; i >= 0; i--)
+{
+    var d = builder.Services[i];
+    if (d.ServiceType == typeof(IHostedService) && !d.IsKeyedService
+        && (d.ImplementationType == typeof(OutboxWorkerService)
+            || d.ImplementationFactory?.Method.DeclaringType?.Assembly == outboxAssembly))
+    {
+        builder.Services.RemoveAt(i);
+    }
+}
 
 var app = builder.Build();
 
 // Seed fixture data so each dashboard tab renders with meaningful content.
 await SeedAsync(app.Services);
+await SeedWorkflowAsync(app.Services);
 
 app.MapGet("/", () => Results.Redirect("/outbox/"));
 app.MapOutboxDashboard("/outbox");
@@ -35,6 +50,16 @@ app.MapPost("/sample/publish", async (IOutboxDashboardEventPublisher pub, Cancel
 });
 
 app.Run();
+
+static async Task SeedWorkflowAsync(IServiceProvider services)
+{
+    var store = services.GetRequiredKeyedService<IOutboxStore>("workflow");
+    for (var i = 1; i <= 3; i++)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { workflowId = $"wf_{i:000}", step = "agent-turn" });
+        await store.EnqueueAsync("Workflow.RunStep", bytes, null, CancellationToken.None);
+    }
+}
 
 static async Task SeedAsync(IServiceProvider services)
 {

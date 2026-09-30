@@ -19,9 +19,8 @@ public static class EfCoreOutboxServiceCollectionExtensions
     /// </para>
     /// <para>
     /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers the
-    /// store as an <see cref="EfCoreOutboxStore{TContext}"/> and an <see cref="IOutboxStore"/>
-    /// keyed by the pipeline's name. No <see cref="IOutboxDashboardStore"/> is registered for it;
-    /// the dashboard shows the default pipeline.
+    /// store as an <see cref="EfCoreOutboxStore{TContext}"/>, an <see cref="IOutboxStore"/> and an
+    /// <see cref="IOutboxDashboardStore"/> keyed by the pipeline's name.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
@@ -54,6 +53,8 @@ public static class EfCoreOutboxServiceCollectionExtensions
             services.TryAddKeyedScoped(
                 pipeline, static (sp, _) => new EfCoreOutboxStore<TContext>(sp.GetRequiredService<TContext>()));
             services.TryAddKeyedScoped<IOutboxStore>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<EfCoreOutboxStore<TContext>>(key));
+            services.TryAddKeyedScoped<IOutboxDashboardStore>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<EfCoreOutboxStore<TContext>>(key));
         }
 

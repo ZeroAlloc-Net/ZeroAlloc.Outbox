@@ -54,13 +54,37 @@ internal sealed class StockReservedOutboxTypeDispatcher : global::ZeroAlloc.Outb
 
 public static partial class OutboxServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers the outbox writer and type dispatcher of this message type.
+    /// </summary>
+    /// <remarks>
+    /// On a named pipeline's builder the writer is registered keyed by the pipeline's name, and
+    /// writes to that pipeline's store: inject it with <c>[FromKeyedServices(name)]</c>. The type
+    /// dispatcher is shared by every pipeline.
+    /// </remarks>
     public static global::ZeroAlloc.Outbox.IOutboxBuilder AddStockReservedOutbox(
         this global::ZeroAlloc.Outbox.IOutboxBuilder builder)
     {
-        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>, StockReservedOutboxWriter>();
-        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
-        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
-            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
+        if (builder is global::ZeroAlloc.Outbox.INamedOutboxBuilder named)
+        {
+            builder.Services.TryAddKeyedTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>>(
+                named.Name,
+                static (sp, key) => new StockReservedOutboxWriter(
+                    sp.GetRequiredKeyedService<global::ZeroAlloc.Outbox.IOutboxStore>(key),
+                    sp.GetRequiredService<global::ZeroAlloc.Outbox.IOutboxSerializer>()));
+            builder.Services.TryAddEnumerable(
+                ServiceDescriptor.Transient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>());
+            builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
+                global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
+        }
+        else
+        {
+            builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<global::MyApp.StockReserved>, StockReservedOutboxWriter>();
+            builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, StockReservedOutboxTypeDispatcher>();
+            builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<global::MyApp.StockReserved>,
+                global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<global::MyApp.StockReserved>>();
+        }
+
         return builder;
     }
 }

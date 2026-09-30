@@ -14,9 +14,9 @@ public static class InMemoryOutboxServiceCollectionExtensions
     /// </para>
     /// <para>
     /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers a
-    /// store of the pipeline's own, as an <see cref="InMemoryOutboxStore"/> and an
-    /// <see cref="IOutboxStore"/> keyed by the pipeline's name. No <see cref="IOutboxDashboardStore"/>
-    /// is registered for it; the dashboard shows the default pipeline.
+    /// store of the pipeline's own, as an <see cref="InMemoryOutboxStore"/>, an
+    /// <see cref="IOutboxStore"/> and an <see cref="IOutboxDashboardStore"/> keyed by the
+    /// pipeline's name.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
@@ -41,6 +41,8 @@ public static class InMemoryOutboxServiceCollectionExtensions
         {
             services.TryAddKeyedSingleton<InMemoryOutboxStore>(pipeline);
             services.TryAddKeyedSingleton<IOutboxStore>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<InMemoryOutboxStore>(key));
+            services.TryAddKeyedSingleton<IOutboxDashboardStore>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<InMemoryOutboxStore>(key));
         }
 

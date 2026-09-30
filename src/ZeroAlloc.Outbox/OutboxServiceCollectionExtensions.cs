@@ -96,10 +96,10 @@ public static partial class OutboxServiceCollectionExtensions
     /// <remarks>
     /// <para>
     /// The pipeline's store is registered as a keyed <see cref="IOutboxStore"/> with
-    /// <paramref name="name"/> as its key; resolve it with
-    /// <c>[FromKeyedServices(name)] IOutboxStore</c> to enqueue messages into the pipeline. The
-    /// generated <see cref="IOutboxWriter{T}"/> writes to the default pipeline's store. The
-    /// pipeline's options are the named <see cref="OutboxOptions"/> read through
+    /// <paramref name="name"/> as its key. A generated <c>Add{Name}Outbox()</c> called on the returned
+    /// builder registers that message's <see cref="IOutboxWriter{T}"/> keyed by
+    /// <paramref name="name"/>; inject it with <c>[FromKeyedServices(name)]</c> to write into the
+    /// pipeline. The unkeyed writer keeps writing to the default pipeline. The pipeline's options are the named <see cref="OutboxOptions"/> read through
     /// <c>IOptionsMonitor&lt;OutboxOptions&gt;.Get(name)</c>. They start from the
     /// <see cref="OutboxOptions"/> defaults, not from the default pipeline's options, and are
     /// validated like them when the host starts.
@@ -107,9 +107,11 @@ public static partial class OutboxServiceCollectionExtensions
     /// <para>
     /// The pipeline's worker tags its metrics and <c>outbox.dispatch</c> activities with
     /// <c>outbox.pipeline</c> set to <paramref name="name"/>, and its log entries with an
-    /// <c>OutboxPipeline</c> scope. It publishes dashboard events only to an
-    /// <see cref="IOutboxDashboardEventPublisher"/> keyed by <paramref name="name"/>; the
-    /// dashboard shows the default pipeline.
+    /// <c>OutboxPipeline</c> scope. It publishes dashboard events to the
+    /// <see cref="IOutboxDashboardEventPublisher"/> keyed by <paramref name="name"/>, which
+    /// <c>WithDashboardEvents()</c> on the returned builder registers. The pipeline is listed as a
+    /// <see cref="NamedOutboxPipeline"/>, so the dashboard can offer it in its pipeline selector
+    /// when its store has an <see cref="IOutboxDashboardStore"/>.
     /// </para>
     /// <para>
     /// Every pipeline shares the serializer and the message dispatchers, so a message type
@@ -159,7 +161,10 @@ public static partial class OutboxServiceCollectionExtensions
         }
 
         if (!registered)
+        {
             services.AddSingleton<IHostedService>(new OutboxPipelineWorkerFactory(name).Create);
+            services.AddSingleton(new NamedOutboxPipeline(name));
+        }
 
         return new NamedOutboxBuilder(services, name);
     }

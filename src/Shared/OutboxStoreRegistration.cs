@@ -102,10 +102,20 @@ internal static class OutboxStoreRegistration
     /// <exception cref="InvalidOperationException">Another pipeline already uses the store.</exception>
     public static void ThrowIfSharedWithAnotherPipeline(
         IServiceCollection services, string? pipeline, Type storeType, string method, string remedy)
+        => ThrowIfSharedWithAnotherPipeline(services, pipeline, storeType, method, remedy, static _ => true);
+
+    /// <inheritdoc cref="ThrowIfSharedWithAnotherPipeline(IServiceCollection, string?, Type, string, string)"/>
+    /// <param name="sharesTable">
+    /// Whether another pipeline's registration of <paramref name="storeType"/> polls the same table
+    /// as this one, for a store type that can point at different databases.
+    /// </param>
+    public static void ThrowIfSharedWithAnotherPipeline(
+        IServiceCollection services, string? pipeline, Type storeType, string method, string remedy,
+        Func<ServiceDescriptor, bool> sharesTable)
     {
         foreach (var descriptor in services)
         {
-            if (descriptor.ServiceType != storeType || BelongsTo(descriptor, pipeline))
+            if (descriptor.ServiceType != storeType || BelongsTo(descriptor, pipeline) || !sharesTable(descriptor))
                 continue;
 
             var other = descriptor.IsKeyedService ? descriptor.ServiceKey as string : null;

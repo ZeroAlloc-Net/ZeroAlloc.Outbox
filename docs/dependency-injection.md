@@ -78,30 +78,34 @@ builder.Services.AddOutbox("workflow", o =>
 | Its worker | An `OutboxWorkerService` of its own that polls the keyed store with the named options. |
 | Its telemetry | The worker tags its metrics and `outbox.dispatch` activities with `outbox.pipeline` set to the name, and its logs with an `OutboxPipeline` scope. The default pipeline's telemetry has no such tag, as before. |
 
-Enqueue into a named pipeline through its keyed store:
+Write into a named pipeline through a generated writer registered on its builder. On a named builder, `AddOrderPlacedOutbox()` registers `IOutboxWriter<OrderPlaced>` keyed by the pipeline's name, writing to that pipeline's store:
 
 ```csharp
-public sealed class WorkflowScheduler([FromKeyedServices("workflow")] IOutboxStore outbox)
+builder.Services.AddOutbox("workflow", o => o.LeaseDuration = TimeSpan.FromMinutes(30))
+        .WithOrm(OutboxOrmDialect.Postgres)
+        .AddRunWorkflowOutbox();
+
+public sealed class WorkflowScheduler([FromKeyedServices("workflow")] IOutboxWriter<RunWorkflow> outbox)
 {
-    public ValueTask ScheduleAsync(string typeName, ReadOnlyMemory<byte> payload, CancellationToken ct)
-        => outbox.EnqueueAsync(typeName, payload, transaction: null, ct);
+    public ValueTask ScheduleAsync(RunWorkflow command, CancellationToken ct)
+        => outbox.WriteAsync(command, transaction: null, ct);
 }
 ```
 
-The generated `IOutboxWriter<T>` writes to the default pipeline's store.
+An unkeyed `IOutboxWriter<T>` still writes to the default pipeline, and only exists when `Add{Name}Outbox()` was called on the default builder. Call it on each builder whose pipeline should accept the message. The keyed `IOutboxStore` can be injected the same way to enqueue a payload you serialized yourself.
 
 What every pipeline shares:
 
-- **The message dispatchers.** A type registered once, for example with `AddOrderPlacedOutbox()` or `WithMediator<T>()` on any builder, can be dispatched by every pipeline. `WithResilience` and `WithTelemetry` decorate those shared dispatchers.
+- **The message dispatchers.** A type registered once, for example with `AddOrderPlacedOutbox()` or `WithMediator<T>()` on any builder, can be dispatched by every pipeline. `AddOrderPlacedOutbox()` on a named builder does not add a second dispatcher for a type already registered. `WithResilience` and `WithTelemetry` decorate those shared dispatchers, so call them after every `Add{Name}Outbox()`.
 - **The serializer.** `WithSystemTextJsonSerializer()` on any builder applies to all pipelines.
 
-The dashboard shows the default pipeline. A named store registers no `IOutboxDashboardStore`, and a named worker publishes dashboard events only to an `IOutboxDashboardEventPublisher` keyed by its name.
+The dashboard shows every pipeline through a pipeline selector. On a named builder, `WithEfCore<TContext>()` and `WithInMemoryStore()` also register an `IOutboxDashboardStore` keyed by the name, and `WithDashboardEvents()` registers an `IOutboxDashboardEventPublisher` keyed by the name, which the pipeline's worker publishes to. Each named pipeline is listed as a `NamedOutboxPipeline` singleton. See [Dashboard](dashboard.md#named-pipelines).
 
 The registration rules:
 
 - `AddOutbox(name, configure)` again with the same name adds its `configure` delegate but no second worker. The name must not be empty or whitespace.
 - A pipeline has one store. The same store again is a no-op; a different store for the same pipeline, including a keyed `IOutboxStore` you registered yourself under that name, throws an `InvalidOperationException` at registration.
-- Two pipelines never share one outbox table, because each worker would claim the other's messages and dispatch them with the wrong options. `WithEfCore<TContext>()` throws when another pipeline already uses the same `TContext`. `WithOrm()` throws when another pipeline already uses the ORM store, since it always uses the container's one `IAsyncDbConnection`.
+- Two pipelines never share one outbox table, because each worker would claim the other's messages and dispatch them with the wrong options. `WithEfCore<TContext>()` throws when another pipeline already uses the same `TContext`. `WithOrm()` throws when another pipeline already uses the ORM store on the same connection: the container's one `IAsyncDbConnection`, the same keyed connection, or the same connection factory. Give a named pipeline its own with `WithOrm(dialect, connectionKey)` or `WithOrm(dialect, connection)`; see [the ORM store](store-adapters.md).
 - A named pipeline without a store fails the host start with an `InvalidOperationException` that names the pipeline.
 - A container may register named pipelines without the default one.
 
@@ -150,13 +154,30 @@ The source generator emits one extension per `[OutboxMessage]` type, hung off `I
 ```csharp
 public static IOutboxBuilder AddOrderPlacedOutbox(this IOutboxBuilder builder)
 {
-    builder.Services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
-    builder.Services.AddTransient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
+    if (builder is INamedOutboxBuilder named)
+    {
+        // A named pipeline: a writer keyed by its name, on its keyed store.
+        builder.Services.TryAddKeyedTransient<IOutboxWriter<OrderPlaced>>(
+            named.Name,
+            static (sp, key) => new OrderPlacedOutboxWriter(
+                sp.GetRequiredKeyedService<IOutboxStore>(key),
+                sp.GetRequiredService<IOutboxSerializer>()));
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Transient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>());
+    }
+    else
+    {
+        builder.Services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
+        builder.Services.AddTransient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
+    }
+
     builder.Services.TryAddTransient<IOutboxDispatcher<OrderPlaced>,
         DefaultOutboxDispatcher<OrderPlaced>>();
     return builder;
 }
 ```
+
+This is a condensed view of the generated code. See [Named pipelines](#named-pipelines) for the keyed writer.
 
 Call it directly on the builder:
 

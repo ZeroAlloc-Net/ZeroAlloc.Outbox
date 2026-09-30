@@ -61,6 +61,28 @@ Recently-succeeded messages — the same series that drives the throughput chart
 
 ![Dispatched tab — desktop](screenshots/dispatched-desktop.png)
 
+## Named pipelines
+
+A host that runs [named pipelines](dependency-injection.md#named-pipelines) gets a pipeline selector in the dashboard's header. The selector lists the default pipeline and each named pipeline whose store has an `IOutboxDashboardStore`: `WithEfCore<TContext>()` and `WithInMemoryStore()` register one for a named pipeline, and the ORM store has none. With one pipeline the selector stays hidden.
+
+```csharp
+builder.Services.AddOutbox().WithEfCore<AppDbContext>().WithDashboardEvents();
+builder.Services.AddOutbox("workflow", configure)
+        .WithEfCore<WorkflowDbContext>()
+        .WithDashboardEvents();   // live events for this pipeline
+
+app.MapOutboxDashboard("/outbox");
+```
+
+Call `WithDashboardEvents()` on each pipeline's builder whose events should stream live. On a named builder it registers a publisher keyed by the pipeline's name, which that pipeline's worker publishes to. Without it, the dashboard still shows the pipeline but marks it "no live events".
+
+Every API endpoint takes an optional `pipeline` query parameter, and serves the default pipeline without it, as before:
+
+- `GET /outbox/api/pipelines` lists the pipelines the dashboard can show, as `[{ "name": null, "events": true }, { "name": "workflow", "events": true }]`. A `null` name is the default pipeline.
+- `GET /outbox/api/snapshot?pipeline=workflow`, `api/throughput`, `api/events` and the `POST` actions act on that pipeline's store and publisher. A pipeline without a dashboard store answers `404`, and so does `api/events` for a pipeline without a publisher.
+
+The page opens the pipeline named in its own `?pipeline=` query, so `/outbox?pipeline=workflow` links straight to it.
+
 ## Responsive layout
 
 The dashboard is a plain HTML/JS page with no framework — it reflows cleanly to tablet and mobile viewports. Tablet (768 × 1024) and mobile (375 × 812) captures live alongside the desktop ones in [`docs/screenshots/`](screenshots/).
@@ -92,6 +114,9 @@ dotnet add package ZeroAlloc.Outbox.Dashboard.Blazor
 ```razor
 @* In any Razor page / component *@
 <OutboxDashboard BaseUrl="/outbox" />
+
+@* Opens a named pipeline; the selector can still switch *@
+<OutboxDashboard BaseUrl="/outbox" Pipeline="workflow" />
 ```
 
 You still need `MapOutboxDashboard("/outbox")` on the host — the Blazor component is a thin wrapper around the mapped endpoints.

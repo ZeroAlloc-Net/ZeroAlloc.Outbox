@@ -61,7 +61,7 @@ public sealed class OrmNamedPipelineTests
             await worker.StopAsync(CancellationToken.None);
         }
 
-        dispatched.Should().BeEquivalentTo(new byte[] { 0, 1, 2, 3, 4 });
+        dispatched.Order().Should().Equal(new byte[] { 0, 1, 2, 3, 4 }, "each message is dispatched exactly once");
     }
 
     private sealed class RecordingDispatcher(Action<ReadOnlyMemory<byte>> action) : IOutboxTypeDispatcher

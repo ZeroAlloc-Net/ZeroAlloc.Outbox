@@ -3,8 +3,8 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 // ZeroAlloc.Results namespace enters the transitive closure when ZeroAlloc.Resilience is referenced
 // (Outbox#20). Because this file lives in namespace ZeroAlloc.Outbox.Dashboard, C# parent-chain
 // name lookup finds the namespace ZeroAlloc.Results before the type Microsoft.AspNetCore.Http.Results.
@@ -17,6 +17,13 @@ namespace ZeroAlloc.Outbox.Dashboard;
 public static class OutboxDashboardEndpointRouteBuilderExtensions
 {
     /// <summary>Maps the outbox dashboard (HTML + REST + SSE) under the given base path.</summary>
+    /// <remarks>
+    /// Every API endpoint takes an optional <c>pipeline</c> query parameter naming a pipeline
+    /// registered with <c>AddOutbox(name, configure)</c>; without it, the endpoint serves the
+    /// default pipeline, as before. <c>api/pipelines</c> lists the pipelines that have an
+    /// <see cref="IOutboxDashboardStore"/>, and the page shows a pipeline selector when there is
+    /// more than one. A pipeline without a dashboard store answers 404.
+    /// </remarks>
     /// <param name="endpoints">The route builder.</param>
     /// <param name="basePath">Base path for all dashboard endpoints (e.g. "/outbox").</param>
     /// <returns>A <see cref="IEndpointConventionBuilder"/> for further configuration (auth, rate limits).</returns>
@@ -81,16 +88,77 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static void MapReadEndpoints(RouteGroupBuilder group)
     {
+        group.MapGet("/api/pipelines", GetPipelines);
         group.MapGet("/api/snapshot", GetSnapshotAsync);
         group.MapGet("/api/throughput", GetThroughputAsync);
         group.MapGet("/api/events", StreamEventsAsync);
     }
 
+    /// <summary>
+    /// The pipelines the dashboard can show: the default one when it has an unkeyed
+    /// <see cref="IOutboxDashboardStore"/>, and each <see cref="NamedOutboxPipeline"/> with a keyed
+    /// one. <c>events</c> says whether the pipeline has a dashboard event publisher to stream.
+    /// </summary>
+    private static IResult GetPipelines(HttpContext ctx)
+    {
+        var sp = ctx.RequestServices;
+        var isService = sp.GetService<IServiceProviderIsService>();
+        var isKeyed = sp.GetService<IServiceProviderIsKeyedService>();
+        var pipelines = new List<PipelineInfo>();
+
+        if (isService?.IsService(typeof(IOutboxDashboardStore)) == true)
+            pipelines.Add(new PipelineInfo(null, isService.IsService(typeof(IOutboxDashboardEventPublisher))));
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var named in sp.GetServices<NamedOutboxPipeline>())
+        {
+            if (seen.Add(named.Name) && isKeyed?.IsKeyedService(typeof(IOutboxDashboardStore), named.Name) == true)
+            {
+                pipelines.Add(new PipelineInfo(
+                    named.Name, isKeyed.IsKeyedService(typeof(IOutboxDashboardEventPublisher), named.Name)));
+            }
+        }
+
+        return HttpResults.Ok(pipelines);
+    }
+
+    /// <summary>One entry of <c>api/pipelines</c>. A null name is the default pipeline.</summary>
+    private sealed record PipelineInfo(string? Name, bool Events);
+
+    /// <summary>True when <paramref name="pipeline"/> names the default pipeline.</summary>
+    private static bool IsDefault(string? pipeline) => string.IsNullOrEmpty(pipeline);
+
+    /// <summary>
+    /// The dashboard store of <paramref name="pipeline"/>, or null when that named pipeline has
+    /// none. The default pipeline's store is required, as it always was.
+    /// </summary>
+    private static IOutboxDashboardStore? ResolveStore(HttpContext ctx, string? pipeline)
+        => IsDefault(pipeline)
+            ? ctx.RequestServices.GetRequiredService<IOutboxDashboardStore>()
+            : ctx.RequestServices.GetKeyedService<IOutboxDashboardStore>(pipeline);
+
+    private static IOutboxDashboardEventPublisher? ResolvePublisher(HttpContext ctx, string? pipeline)
+        => IsDefault(pipeline)
+            ? ctx.RequestServices.GetService<IOutboxDashboardEventPublisher>()
+            : ctx.RequestServices.GetKeyedService<IOutboxDashboardEventPublisher>(pipeline);
+
+    private static IResult UnknownPipeline(string? pipeline)
+        => HttpResults.NotFound(new { error = $"The outbox pipeline '{pipeline}' has no dashboard store." });
+
     private static async Task StreamEventsAsync(
         HttpContext ctx,
-        [FromServices] IOutboxDashboardEventPublisher publisher,
+        string? pipeline,
         CancellationToken ct)
     {
+        var publisher = IsDefault(pipeline)
+            ? ctx.RequestServices.GetRequiredService<IOutboxDashboardEventPublisher>()
+            : ctx.RequestServices.GetKeyedService<IOutboxDashboardEventPublisher>(pipeline);
+        if (publisher is null)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
         ctx.Response.ContentType = "text/event-stream";
         ctx.Response.Headers.CacheControl = "no-cache";
         ctx.Response.Headers.Connection = "keep-alive";
@@ -131,22 +199,27 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
                     break;
                 }
 
-                var eventName = evt.GetType().Name;
-                const string suffix = "Event";
-                if (eventName.EndsWith(suffix, StringComparison.Ordinal))
-                    eventName = eventName[..^suffix.Length];
-
-                var json = JsonSerializer.Serialize(evt, evt.GetType());
-                var frame = $"event: {eventName}\ndata: {json}\n\n";
-                var bytes = Encoding.UTF8.GetBytes(frame);
-                await ctx.Response.Body.WriteAsync(bytes, ct).ConfigureAwait(false);
-                await ctx.Response.Body.FlushAsync(ct).ConfigureAwait(false);
+                await WriteEventFrameAsync(ctx, evt, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
             // Client disconnected — nothing to log.
         }
+    }
+
+    private static async Task WriteEventFrameAsync(HttpContext ctx, OutboxDashboardEvent evt, CancellationToken ct)
+    {
+        var eventName = evt.GetType().Name;
+        const string suffix = "Event";
+        if (eventName.EndsWith(suffix, StringComparison.Ordinal))
+            eventName = eventName[..^suffix.Length];
+
+        var json = JsonSerializer.Serialize(evt, evt.GetType());
+        var frame = $"event: {eventName}\ndata: {json}\n\n";
+        var bytes = Encoding.UTF8.GetBytes(frame);
+        await ctx.Response.Body.WriteAsync(bytes, ct).ConfigureAwait(false);
+        await ctx.Response.Body.FlushAsync(ct).ConfigureAwait(false);
     }
 
     private static void MapWriteEndpoints(RouteGroupBuilder group)
@@ -157,19 +230,27 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
     }
 
     private static async Task<IResult> GetSnapshotAsync(
-        [FromServices] IOutboxDashboardStore store,
+        HttpContext ctx,
+        string? pipeline,
         int? dispatchedLimit,
         CancellationToken ct)
     {
+        if (ResolveStore(ctx, pipeline) is not { } store)
+            return UnknownPipeline(pipeline);
+
         var snapshot = await store.GetSnapshotAsync(dispatchedLimit ?? 100, ct).ConfigureAwait(false);
         return HttpResults.Ok(snapshot);
     }
 
     private static async Task<IResult> GetThroughputAsync(
-        [FromServices] IOutboxDashboardStore store,
+        HttpContext ctx,
+        string? pipeline,
         int? windowMinutes,
         CancellationToken ct)
     {
+        if (ResolveStore(ctx, pipeline) is not { } store)
+            return UnknownPipeline(pipeline);
+
         var window = TimeSpan.FromMinutes(windowMinutes ?? 60);
         var points = new List<ThroughputPoint>();
         await foreach (var p in store.GetThroughputAsync(window, ct).ConfigureAwait(false))
@@ -181,10 +262,14 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static async Task<IResult> RequeueAsync(
         OutboxMessageId id,
-        [FromServices] IOutboxDashboardStore store,
-        [FromServices] IOutboxDashboardEventPublisher? publisher,
+        HttpContext ctx,
+        string? pipeline,
         CancellationToken ct)
     {
+        if (ResolveStore(ctx, pipeline) is not { } store)
+            return UnknownPipeline(pipeline);
+
+        var publisher = ResolvePublisher(ctx, pipeline);
         try
         {
             await store.RequeueAsync(id, ct).ConfigureAwait(false);
@@ -200,10 +285,14 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static async Task<IResult> CancelAsync(
         OutboxMessageId id,
-        [FromServices] IOutboxDashboardStore store,
-        [FromServices] IOutboxDashboardEventPublisher? publisher,
+        HttpContext ctx,
+        string? pipeline,
         CancellationToken ct)
     {
+        if (ResolveStore(ctx, pipeline) is not { } store)
+            return UnknownPipeline(pipeline);
+
+        var publisher = ResolvePublisher(ctx, pipeline);
         try
         {
             await store.CancelAsync(id, ct).ConfigureAwait(false);
@@ -219,9 +308,13 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
 
     private static async Task<IResult> ForceDispatchAsync(
         OutboxMessageId id,
-        [FromServices] IOutboxDashboardStore store,
+        HttpContext ctx,
+        string? pipeline,
         CancellationToken ct)
     {
+        if (ResolveStore(ctx, pipeline) is not { } store)
+            return UnknownPipeline(pipeline);
+
         try
         {
             await store.ForceDispatchAsync(id, ct).ConfigureAwait(false);
