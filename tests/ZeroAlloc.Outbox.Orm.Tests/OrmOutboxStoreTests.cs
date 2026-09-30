@@ -182,6 +182,95 @@ public sealed class OrmOutboxStoreTests
     }
 
     [Fact]
+    public async Task EnqueueInTransaction_Commits_With_The_Callers_Orm_Transaction()
+    {
+        // The transaction an ORM caller holds, straight from BeginTransactionAsync, with no
+        // unwrapping to a DbTransaction first.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+
+        var caller = await fx.ConnectAsync();
+        await using (caller.ConfigureAwait(false))
+        {
+            var tx = await caller.BeginTransactionAsync();
+            await using (tx.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("Test.Cmd", s_payload, tx, CancellationToken.None);
+                await tx.CommitAsync();
+            }
+        }
+
+        var pending = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        pending.Should().ContainSingle();
+        pending[0].TypeName.Should().Be("Test.Cmd");
+        pending[0].RawPayload.Should().Equal(s_payload);
+    }
+
+    [Fact]
+    public async Task EnqueueInTransaction_Rolls_Back_With_The_Callers_Orm_Transaction()
+    {
+        // The insert has to run on the transaction's own connection. On the store's injected
+        // connection it would survive the rollback.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+
+        var caller = await fx.ConnectAsync();
+        await using (caller.ConfigureAwait(false))
+        {
+            var tx = await caller.BeginTransactionAsync();
+            await using (tx.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("Test.Cmd", s_payload, tx, CancellationToken.None);
+                await tx.RollbackAsync();
+            }
+        }
+
+        (await fx.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task EnqueueInTransaction_Enlists_Several_Rows_In_One_Transaction()
+    {
+        // A saga step can enlist more than one command. Each insert reuses the caller's open
+        // transaction instead of committing or starting one of its own.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+
+        var caller = await fx.ConnectAsync();
+        await using (caller.ConfigureAwait(false))
+        {
+            var tx = await caller.BeginTransactionAsync();
+            await using (tx.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("First", s_payload, tx, CancellationToken.None);
+                await store.EnqueueInTransactionAsync("Second", s_payload, tx, CancellationToken.None);
+                await tx.CommitAsync();
+            }
+        }
+
+        (await fx.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task EnqueueInTransaction_Rejects_A_Null_Transaction()
+    {
+        // No transaction means an immediate write, which EnqueueAsync already spells out with
+        // null. This method exists only to enlist, so a null here is a caller bug.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+
+        var act = async () => await store.EnqueueInTransactionAsync(
+            "Test.Cmd", s_payload, null!, CancellationToken.None).ConfigureAwait(false);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("transaction");
+        (await fx.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task EnqueueDeferred_Falls_Back_To_Writing_Immediately()
     {
         // This adapter deliberately does not override EnqueueDeferredAsync,

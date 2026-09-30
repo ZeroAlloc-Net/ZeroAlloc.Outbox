@@ -79,6 +79,24 @@ This registers `OrmOutboxStore` as `IOutboxStore` (scoped) against the `IAsyncDb
 
 > No `IOutboxDashboardStore` is registered for this store. The dashboard's aggregate-view surface is much larger and isn't implemented here, so pointing the dashboard at the ORM store fails at registration instead of silently reporting nothing.
 
+### Transactional enqueue
+
+To commit the outbox row in the same transaction as your own ORM writes, pass the `IAsyncDbTransaction` from `BeginTransactionAsync` to `OrmOutboxStore.EnqueueInTransactionAsync`:
+
+```csharp
+var tx = await connection.BeginTransactionAsync(ct);
+await using (tx)
+{
+    await orders.InsertAsync(order, tx, ct);        // your own [Command] taking the transaction
+    await store.EnqueueInTransactionAsync("OrderPlaced", payload, tx, ct);
+    await tx.CommitAsync(ct);
+}
+```
+
+The insert runs on `tx.Connection`, not on the connection the store was created with, so the row commits or rolls back with the transaction. This works with any `IAsyncDbConnection`, not only one made by `AsAsync()`. `IOutboxStore.EnqueueAsync` with a `DbTransaction` still works too and takes the same path.
+
+`EnqueueDeferredAsync` is not overridden: the ORM has no ambient unit of work to defer into, so it writes immediately. A caller that needs deferral buffers the rows and calls `EnqueueInTransactionAsync` at its own commit point.
+
 ### Schema
 
 The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.

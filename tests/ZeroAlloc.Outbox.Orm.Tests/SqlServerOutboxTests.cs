@@ -150,6 +150,34 @@ public sealed class SqlServerOutboxTests(SqlServerFixture server) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task EnqueueInTransaction_Commits_And_Rolls_Back_With_The_Orm_Transaction_On_SqlServer()
+    {
+        // SqlClient rejects a command whose transaction belongs to another connection, so this
+        // proves the insert runs on the ORM transaction's own connection.
+        var store = await StoreAsync();
+        var caller = await ConnectAsync();
+        await using (caller.ConfigureAwait(false))
+        {
+            var rolledBack = await caller.BeginTransactionAsync();
+            await using (rolledBack.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("Rolled.Back", s_payload, rolledBack, CancellationToken.None);
+                await rolledBack.RollbackAsync();
+            }
+
+            var committed = await caller.BeginTransactionAsync();
+            await using (committed.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("Committed", s_payload, committed, CancellationToken.None);
+                await committed.CommitAsync();
+            }
+        }
+
+        var pending = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        pending.Should().ContainSingle().Which.TypeName.Should().Be("Committed");
+    }
+
+    [Fact]
     public async Task Migration_2_Adds_Lease_Columns_On_SqlServer_Without_Losing_Existing_Rows()
     {
         // A database of its own, separate from the one InitializeAsync already
