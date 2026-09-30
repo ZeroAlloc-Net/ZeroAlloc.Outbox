@@ -96,10 +96,10 @@ public static partial class OutboxServiceCollectionExtensions
     /// <remarks>
     /// <para>
     /// The pipeline's store is registered as a keyed <see cref="IOutboxStore"/> with
-    /// <paramref name="name"/> as its key; resolve it with
-    /// <c>[FromKeyedServices(name)] IOutboxStore</c> to enqueue messages into the pipeline. The
-    /// generated <see cref="IOutboxWriter{T}"/> writes to the default pipeline's store. The
-    /// pipeline's options are the named <see cref="OutboxOptions"/> read through
+    /// <paramref name="name"/> as its key. A generated <c>Add{Name}Outbox()</c> called on the returned
+    /// builder registers that message's <see cref="IOutboxWriter{T}"/> keyed by
+    /// <paramref name="name"/>; inject it with <c>[FromKeyedServices(name)]</c> to write into the
+    /// pipeline. The unkeyed writer keeps writing to the default pipeline. The pipeline's options are the named <see cref="OutboxOptions"/> read through
     /// <c>IOptionsMonitor&lt;OutboxOptions&gt;.Get(name)</c>. They start from the
     /// <see cref="OutboxOptions"/> defaults, not from the default pipeline's options, and are
     /// validated like them when the host starts.

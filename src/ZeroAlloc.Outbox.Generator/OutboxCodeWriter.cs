@@ -52,13 +52,16 @@ internal static class OutboxCodeWriter
         sb.AppendLine($"    /// Registers the outbox writer and type dispatcher of every closed construction of {EscapeXml(definition.DisplayName)}");
         sb.AppendLine("    /// the generator found in this assembly.");
         sb.AppendLine("    /// </summary>");
+        AppendNamedPipelineRemarks(sb);
         sb.AppendLine($"    public static global::ZeroAlloc.Outbox.IOutboxBuilder {DiExtensionMethodName(definition.TypeName)}(");
         sb.AppendLine("        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)");
         sb.AppendLine("    {");
+        var registrations = new System.Collections.Generic.List<(string, string, string)>(messages.Count);
         foreach (var message in messages)
         {
-            AppendRegistration(sb, message.Reference, WriterClassName(message.Identifier), DispatcherClassName(message.Identifier));
+            registrations.Add((message.Reference, WriterClassName(message.Identifier), DispatcherClassName(message.Identifier)));
         }
+        AppendRegistrations(sb, registrations);
         sb.AppendLine("        return builder;");
         sb.AppendLine("    }");
         sb.AppendLine("}");
@@ -147,20 +150,67 @@ internal static class OutboxCodeWriter
     {
         sb.AppendLine("public static partial class OutboxServiceCollectionExtensions");
         sb.AppendLine("{");
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Registers the outbox writer and type dispatcher of this message type.");
+        sb.AppendLine("    /// </summary>");
+        AppendNamedPipelineRemarks(sb);
         sb.AppendLine($"    public static global::ZeroAlloc.Outbox.IOutboxBuilder {diMethodName}(");
         sb.AppendLine("        this global::ZeroAlloc.Outbox.IOutboxBuilder builder)");
         sb.AppendLine("    {");
-        AppendRegistration(sb, typeFqn, writerName, dispatcherName);
+        AppendRegistrations(sb, [(typeFqn, writerName, dispatcherName)]);
         sb.AppendLine("        return builder;");
         sb.AppendLine("    }");
         sb.AppendLine("}");
     }
 
-    private static void AppendRegistration(StringBuilder sb, string typeFqn, string writerName, string dispatcherName)
+    private static void AppendNamedPipelineRemarks(StringBuilder sb)
     {
-        sb.AppendLine($"        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>, {writerName}>();");
-        sb.AppendLine($"        builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
-        sb.AppendLine($"        builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<{typeFqn}>,");
-        sb.AppendLine($"            global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
+        sb.AppendLine("    /// <remarks>");
+        sb.AppendLine("    /// On a named pipeline's builder the writer is registered keyed by the pipeline's name, and");
+        sb.AppendLine("    /// writes to that pipeline's store: inject it with <c>[FromKeyedServices(name)]</c>. The type");
+        sb.AppendLine("    /// dispatcher is shared by every pipeline.");
+        sb.AppendLine("    /// </remarks>");
+    }
+
+    /// <summary>
+    /// Writes the body of an <c>Add{Name}Outbox</c> method. On the default pipeline's builder it
+    /// registers exactly what it always did. On a named pipeline's builder it registers each writer
+    /// keyed by the pipeline's name, built on that pipeline's keyed store, and each type dispatcher
+    /// only when that dispatcher is not registered yet, since dispatchers are shared.
+    /// </summary>
+    private static void AppendRegistrations(
+        StringBuilder sb,
+        System.Collections.Generic.IReadOnlyList<(string TypeFqn, string WriterName, string DispatcherName)> registrations)
+    {
+        sb.AppendLine("        if (builder is global::ZeroAlloc.Outbox.INamedOutboxBuilder named)");
+        sb.AppendLine("        {");
+        foreach (var (typeFqn, writerName, dispatcherName) in registrations)
+        {
+            sb.AppendLine($"            builder.Services.TryAddKeyedTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>>(");
+            sb.AppendLine("                named.Name,");
+            sb.AppendLine($"                static (sp, key) => new {writerName}(");
+            sb.AppendLine("                    sp.GetRequiredKeyedService<global::ZeroAlloc.Outbox.IOutboxStore>(key),");
+            sb.AppendLine("                    sp.GetRequiredService<global::ZeroAlloc.Outbox.IOutboxSerializer>()));");
+            sb.AppendLine("            builder.Services.TryAddEnumerable(");
+            sb.AppendLine($"                ServiceDescriptor.Transient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>());");
+            AppendDefaultDispatcher(sb, typeFqn, "            ");
+        }
+        sb.AppendLine("        }");
+        sb.AppendLine("        else");
+        sb.AppendLine("        {");
+        foreach (var (typeFqn, writerName, dispatcherName) in registrations)
+        {
+            sb.AppendLine($"            builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxWriter<{typeFqn}>, {writerName}>();");
+            sb.AppendLine($"            builder.Services.AddTransient<global::ZeroAlloc.Outbox.IOutboxTypeDispatcher, {dispatcherName}>();");
+            AppendDefaultDispatcher(sb, typeFqn, "            ");
+        }
+        sb.AppendLine("        }");
+        sb.AppendLine();
+    }
+
+    private static void AppendDefaultDispatcher(StringBuilder sb, string typeFqn, string indent)
+    {
+        sb.AppendLine($"{indent}builder.Services.TryAddTransient<global::ZeroAlloc.Outbox.IOutboxDispatcher<{typeFqn}>,");
+        sb.AppendLine($"{indent}    global::ZeroAlloc.Outbox.DefaultOutboxDispatcher<{typeFqn}>>();");
     }
 }

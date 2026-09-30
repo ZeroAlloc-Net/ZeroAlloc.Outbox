@@ -13,8 +13,9 @@ using ZeroAlloc.Outbox.InMemory;
 // AddOutbox(), with no trim or AOT suppression anywhere. A message goes through the
 // generator-emitted writer into the in-memory store, and the outbox worker claims it and hands
 // it to the generator-emitted type dispatcher, which deserializes it through the
-// ZeroAlloc.Serialisation dispatcher. A second message goes into the keyed store of a named
-// pipeline, whose own worker dispatches it through the same shared dispatcher. A third is a closed
+// ZeroAlloc.Serialisation dispatcher. A second message goes through the generated writer keyed
+// by a named pipeline into that pipeline's store, whose own worker dispatches it through the same
+// shared dispatcher. A third is a closed
 // generic message, Envelope<OrderPlaced>, which round-trips under the stored name
 // "ZeroAlloc.Outbox.AotSmoke.Envelope<ZeroAlloc.Outbox.AotSmoke.OrderPlaced>" with no reflection.
 
@@ -32,7 +33,8 @@ builder.Services
     .AddEnvelopeOutbox();
 builder.Services
     .AddOutbox("named", o => o.PollingInterval = TimeSpan.FromMilliseconds(50))
-    .WithInMemoryStore();
+    .WithInMemoryStore()
+    .AddOrderPlacedOutbox();
 builder.Services.AddSingleton<IOutboxDispatcher<OrderPlaced>>(new RecordingDispatcher(received.Writer));
 builder.Services.AddSingleton<IOutboxDispatcher<Envelope<OrderPlaced>>>(
     new EnvelopeRecordingDispatcher(receivedEnvelopes.Writer));
@@ -55,16 +57,18 @@ await using (scope.ConfigureAwait(false))
     var envelopeWriter = scope.ServiceProvider.GetRequiredService<IOutboxWriter<Envelope<OrderPlaced>>>();
     await envelopeWriter.WriteAsync(sentEnvelope, transaction: null, ct: CancellationToken.None).ConfigureAwait(false);
 
-    // The generated writer writes to the default pipeline, so a named pipeline is written through
-    // its keyed store, under the type name the generated dispatcher is registered with.
     var dispatchers = scope.ServiceProvider.GetServices<IOutboxTypeDispatcher>().Select(d => d.TypeName).ToArray();
     if (!dispatchers.Contains(EnvelopeTypeName))
         return Fail($"expected a type dispatcher for {EnvelopeTypeName}, got {string.Join(", ", dispatchers)}");
-    if (Array.Find(dispatchers, n => !string.Equals(n, EnvelopeTypeName, StringComparison.Ordinal)) is not { } typeName)
-        return Fail("expected a type dispatcher for OrderPlaced");
-    var namedStore = scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>("named");
-    await namedStore.EnqueueAsync(typeName, serializer.Serialize(sentNamed), transaction: null, CancellationToken.None)
-        .ConfigureAwait(false);
+    if (dispatchers.Length != 2)
+        return Fail($"expected the shared OrderPlaced and Envelope dispatchers once each, got {string.Join(", ", dispatchers)}");
+
+    // The generated writer registered on the named pipeline's builder is keyed by its name and
+    // writes to that pipeline's store.
+    var namedWriter = scope.ServiceProvider.GetRequiredKeyedService<IOutboxWriter<OrderPlaced>>("named");
+    await namedWriter.WriteAsync(sentNamed, transaction: null, ct: CancellationToken.None).ConfigureAwait(false);
+    if (scope.ServiceProvider.GetRequiredKeyedService<InMemoryOutboxStore>("named").AllEntries().Count != 1)
+        return Fail("the keyed writer did not write to the named pipeline's store");
 }
 
 await host.StartAsync().ConfigureAwait(false);

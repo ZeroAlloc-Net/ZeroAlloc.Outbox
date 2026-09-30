@@ -78,21 +78,25 @@ builder.Services.AddOutbox("workflow", o =>
 | Its worker | An `OutboxWorkerService` of its own that polls the keyed store with the named options. |
 | Its telemetry | The worker tags its metrics and `outbox.dispatch` activities with `outbox.pipeline` set to the name, and its logs with an `OutboxPipeline` scope. The default pipeline's telemetry has no such tag, as before. |
 
-Enqueue into a named pipeline through its keyed store:
+Write into a named pipeline through a generated writer registered on its builder. On a named builder, `AddOrderPlacedOutbox()` registers `IOutboxWriter<OrderPlaced>` keyed by the pipeline's name, writing to that pipeline's store:
 
 ```csharp
-public sealed class WorkflowScheduler([FromKeyedServices("workflow")] IOutboxStore outbox)
+builder.Services.AddOutbox("workflow", o => o.LeaseDuration = TimeSpan.FromMinutes(30))
+        .WithOrm(OutboxOrmDialect.Postgres)
+        .AddRunWorkflowOutbox();
+
+public sealed class WorkflowScheduler([FromKeyedServices("workflow")] IOutboxWriter<RunWorkflow> outbox)
 {
-    public ValueTask ScheduleAsync(string typeName, ReadOnlyMemory<byte> payload, CancellationToken ct)
-        => outbox.EnqueueAsync(typeName, payload, transaction: null, ct);
+    public ValueTask ScheduleAsync(RunWorkflow command, CancellationToken ct)
+        => outbox.WriteAsync(command, transaction: null, ct);
 }
 ```
 
-The generated `IOutboxWriter<T>` writes to the default pipeline's store.
+An unkeyed `IOutboxWriter<T>` still writes to the default pipeline, and only exists when `Add{Name}Outbox()` was called on the default builder. Call it on each builder whose pipeline should accept the message. The keyed `IOutboxStore` can be injected the same way to enqueue a payload you serialized yourself.
 
 What every pipeline shares:
 
-- **The message dispatchers.** A type registered once, for example with `AddOrderPlacedOutbox()` or `WithMediator<T>()` on any builder, can be dispatched by every pipeline. `WithResilience` and `WithTelemetry` decorate those shared dispatchers.
+- **The message dispatchers.** A type registered once, for example with `AddOrderPlacedOutbox()` or `WithMediator<T>()` on any builder, can be dispatched by every pipeline. `AddOrderPlacedOutbox()` on a named builder does not add a second dispatcher for a type already registered. `WithResilience` and `WithTelemetry` decorate those shared dispatchers, so call them after every `Add{Name}Outbox()`.
 - **The serializer.** `WithSystemTextJsonSerializer()` on any builder applies to all pipelines.
 
 The dashboard shows the default pipeline. A named store registers no `IOutboxDashboardStore`, and a named worker publishes dashboard events only to an `IOutboxDashboardEventPublisher` keyed by its name.
@@ -150,13 +154,30 @@ The source generator emits one extension per `[OutboxMessage]` type, hung off `I
 ```csharp
 public static IOutboxBuilder AddOrderPlacedOutbox(this IOutboxBuilder builder)
 {
-    builder.Services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
-    builder.Services.AddTransient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
+    if (builder is INamedOutboxBuilder named)
+    {
+        // A named pipeline: a writer keyed by its name, on its keyed store.
+        builder.Services.TryAddKeyedTransient<IOutboxWriter<OrderPlaced>>(
+            named.Name,
+            static (sp, key) => new OrderPlacedOutboxWriter(
+                sp.GetRequiredKeyedService<IOutboxStore>(key),
+                sp.GetRequiredService<IOutboxSerializer>()));
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Transient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>());
+    }
+    else
+    {
+        builder.Services.AddTransient<IOutboxWriter<OrderPlaced>, OrderPlacedOutboxWriter>();
+        builder.Services.AddTransient<IOutboxTypeDispatcher, OrderPlacedOutboxTypeDispatcher>();
+    }
+
     builder.Services.TryAddTransient<IOutboxDispatcher<OrderPlaced>,
         DefaultOutboxDispatcher<OrderPlaced>>();
     return builder;
 }
 ```
+
+This is a condensed view of the generated code. See [Named pipelines](#named-pipelines) for the keyed writer.
 
 Call it directly on the builder:
 
