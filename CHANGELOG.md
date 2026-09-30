@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.1.0...v4.2.0) (2026-09-30)
+
+
+### Features
+
+* **dashboard:** add a pipeline selector for named outbox pipelines ([2840d01](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2840d015d46d0a9d420943e694346d6c53d6f152))
+* **orm:** give a named outbox pipeline an ORM connection of its own ([2840d01](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2840d015d46d0a9d420943e694346d6c53d6f152))
+* register generated outbox writers keyed by a named pipeline ([2840d01](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2840d015d46d0a9d420943e694346d6c53d6f152))
+* run named outbox pipelines side by side in one container ([#257](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/257)) ([afc6e63](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/afc6e6350cf472a5747bf41ef4cf58f8e58e2122)), closes [#206](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/206)
+* support closed generic outbox messages such as Envelope&lt;Order&gt; ([b8b1c21](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/b8b1c2117ff8f0d8bab18d0211e8715e5dbd184e))
+
+
+### Bug Fixes
+
+* a partial message type with attributes on several declarations no longer stops the generator ([b8b1c21](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/b8b1c2117ff8f0d8bab18d0211e8715e5dbd184e))
+* **orm:** record the outbox migrations under a fixed source name ([#262](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/262)) ([e2a7f97](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/e2a7f97bde94579d60a5185bfbd6753de79fb22a)), closes [#261](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/261)
+
 ## [4.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.0.1...v4.1.0) (2026-09-30)
 
 
