@@ -105,7 +105,7 @@ The registration rules:
 
 - `AddOutbox(name, configure)` again with the same name adds its `configure` delegate but no second worker. The name must not be empty or whitespace.
 - A pipeline has one store. The same store again is a no-op; a different store for the same pipeline, including a keyed `IOutboxStore` you registered yourself under that name, throws an `InvalidOperationException` at registration.
-- Two pipelines never share one outbox table, because each worker would claim the other's messages and dispatch them with the wrong options. `WithEfCore<TContext>()` throws when another pipeline already uses the same `TContext`. `WithOrm()` throws when another pipeline already uses the ORM store, since it always uses the container's one `IAsyncDbConnection`.
+- Two pipelines never share one outbox table, because each worker would claim the other's messages and dispatch them with the wrong options. `WithEfCore<TContext>()` throws when another pipeline already uses the same `TContext`. `WithOrm()` throws when another pipeline already uses the ORM store on the same connection: the container's one `IAsyncDbConnection`, the same keyed connection, or the same connection factory. Give a named pipeline its own with `WithOrm(dialect, connectionKey)` or `WithOrm(dialect, connection)`; see [the ORM store](store-adapters.md).
 - A named pipeline without a store fails the host start with an `InvalidOperationException` that names the pipeline.
 - A container may register named pipelines without the default one.
 

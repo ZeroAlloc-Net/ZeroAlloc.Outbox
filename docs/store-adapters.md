@@ -77,7 +77,20 @@ builder.Services.AddOutbox()
 
 This registers `OrmOutboxStore` as `IOutboxStore` (scoped) against the `IAsyncDbConnection` already registered in the container — register that connection yourself; its lifetime, provider and connection string belong to the application, not to the outbox. `WithOrm()` with no dialect argument defaults to SQLite. The dialect only selects the batch-claim statement; every other statement the store issues is plain ANSI SQL shared across all three.
 
-On a [named pipeline](dependency-injection.md#named-pipelines), `services.AddOutbox("workflow", configure).WithOrm(dialect)` registers the store keyed by the pipeline's name instead. It still uses the container's one `IAsyncDbConnection`, so only one pipeline in a container can use the ORM store; `WithOrm()` on a second pipeline throws.
+On a [named pipeline](dependency-injection.md#named-pipelines), `services.AddOutbox("workflow", configure).WithOrm(dialect)` registers the store keyed by the pipeline's name instead. It still uses the container's one `IAsyncDbConnection`, so only one pipeline can use the ORM store that way. To point a named pipeline at a database of its own, give it a connection of its own:
+
+```csharp
+// A keyed connection, owned and disposed by the container.
+services.AddKeyedScoped<IAsyncDbConnection>("workflow-db", (sp, _) => OpenWorkflowDb());
+services.AddOutbox("workflow", configure)
+        .WithOrm(OutboxOrmDialect.Postgres, connectionKey: "workflow-db");
+
+// Or a factory, called whenever the pipeline's scoped store is created.
+services.AddOutbox("audit", configure)
+        .WithOrm(OutboxOrmDialect.SqlServer, sp => sp.GetRequiredService<AuditDb>().Connection);
+```
+
+The outbox never disposes a connection a factory returns, so return one the application owns. Prefer the keyed form when the container should own it. Two pipelines on the same connection, whether the container's, the same key or the same factory delegate, throw at registration, since they would poll the same table. Each database needs the outbox schema from `OutboxOrmMigrations`. The default pipeline's `WithOrm(dialect)` is unchanged.
 
 > No `IOutboxDashboardStore` is registered for this store. The dashboard's aggregate-view surface is much larger and isn't implemented here, so pointing the dashboard at the ORM store fails at registration instead of silently reporting nothing.
 
