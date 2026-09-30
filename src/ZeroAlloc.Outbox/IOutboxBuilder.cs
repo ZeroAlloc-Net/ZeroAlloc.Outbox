@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ZeroAlloc.Outbox;
 
 /// <summary>
-/// Fluent builder returned by <see cref="OutboxServiceCollectionExtensions.AddOutbox"/>.
+/// Fluent builder returned by <see cref="OutboxServiceCollectionExtensions.AddOutbox(IServiceCollection)"/>.
 /// Exposes the underlying <see cref="IServiceCollection"/> via <see cref="Services"/>;
 /// downstream packages add <c>With*</c> extensions on this interface.
 /// </summary>

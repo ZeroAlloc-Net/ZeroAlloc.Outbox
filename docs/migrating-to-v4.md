@@ -95,16 +95,16 @@ In 4.0 a container hosts one outbox pipeline, and the store adapters enforce it:
 - **`AddOutbox()` twice still starts one worker.** It registers the worker with `AddHostedService`,
   which never added a duplicate, and each call's `configure` delegate still applies.
 
-Keyed `IOutboxStore` registrations are ignored by the check.
+Keyed `IOutboxStore` registrations belong to named pipelines, so the default pipeline's check ignores them.
 
 ### What you need to do
 
 A container that registers one store needs no change.
 
 If the exception fires, the container had two pipelines' worth of store registrations and only the
-last one ever ran. Remove the one you don't use. Running two pipelines side by side, each with its
-own store, options and worker, is tracked in
-[#206](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/206) as named pipelines.
+last one ever ran. Remove the one you don't use, or run it side by side as a
+[named pipeline](dependency-injection.md#named-pipelines) with its own store, options and worker:
+`services.AddOutbox("name", configure).WithOrm(dialect)`.
 
 A test host that replaces the application's store, for example an in-memory store in a
 `WebApplicationFactory`, now has to remove the first store before it adds its own:

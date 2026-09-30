@@ -18,6 +18,8 @@ sidebar_position: 7
    - If a mark returns `false`, the message is no longer pending under this host's lease: another host took it over after the lease expired mid-dispatch, and may have already completed it, or an operator cancelled it from the dashboard. This is not a dispatch failure: the worker counts it on `outbox.lease.lost` with `reason=completed-elsewhere` and continues the batch.
 5. Sleep for `PollingInterval` and repeat.
 
+Each [named pipeline](dependency-injection.md#named-pipelines) registered with `AddOutbox(name, configure)` has a worker of its own. It runs the same loop against the `IOutboxStore` keyed by its name, with the `OutboxOptions` of that name, and tags its metrics and `outbox.dispatch` activities with `outbox.pipeline`.
+
 Once a dispatch has returned or failed, the worker records its outcome — the mark, the retry or the dead-letter — even if the host is stopping. That write runs on its own 5-second timeout rather than the stopping token: cancelling it would leave a delivered message pending for another host to deliver again, or a failed attempt uncounted.
 
 If a batch ends early — the worker is stopped, or a store call such as a renewal or a mark fails — the worker releases the leases on the entries it has not finished, on the same 5-second timeout, so another host can pick them up immediately instead of waiting out `LeaseDuration`. An entry whose dispatch was cancelled by the stop, or never started, is released; an entry whose dispatch already ran is not. This is best effort: a failure to release is logged, not thrown, and the affected leases simply expire. Delivery stays at-least-once either way.

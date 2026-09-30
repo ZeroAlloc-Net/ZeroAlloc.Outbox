@@ -10,9 +10,9 @@ using ZeroAlloc.Outbox.InMemory;
 namespace ZeroAlloc.Outbox.Tests;
 
 /// <summary>
-/// One container hosts one outbox pipeline. Registering the same store twice is a no-op, and
-/// registering a different second store throws instead of silently replacing the first.
-/// See ZeroAlloc.Outbox#206.
+/// A pipeline has one store. Registering the same store twice is a no-op, and registering a
+/// different second store for the same pipeline throws instead of silently replacing the first.
+/// Named pipelines, ZeroAlloc.Outbox#206, each get a keyed store and a worker of their own.
 /// </summary>
 public class OutboxRegistrationTests
 {
@@ -76,7 +76,7 @@ public class OutboxRegistrationTests
         var act = () => builder.WithEfCore<ServerClaimDbContext>();
 
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*WithEfCore<ServerClaimDbContext>()*EfCoreOutboxStore<DashboardTestDbContext>*issues/206*");
+            .WithMessage("*WithEfCore<ServerClaimDbContext>()*EfCoreOutboxStore<DashboardTestDbContext>*AddOutbox(name, configure)*");
     }
 
     [Fact]
@@ -144,6 +144,164 @@ public class OutboxRegistrationTests
         var act = () => services.AddOutbox().WithInMemoryStore();
 
         act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void AddOutbox_WithName_CalledTwice_RegistersOneWorkerPerName()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddOutbox().WithInMemoryStore();
+        services.AddOutbox("a", _ => { }).WithInMemoryStore();
+        services.AddOutbox("a", _ => { });
+        services.AddOutbox("b", _ => { }).WithInMemoryStore();
+        services.AddOutbox();
+
+        using var sp = services.BuildServiceProvider();
+        sp.GetServices<IHostedService>().OfType<OutboxWorkerService>().Should().HaveCount(3,
+            "the default pipeline and the pipelines 'a' and 'b' each have one worker");
+    }
+
+    [Fact]
+    public void AddOutbox_WithName_BeforeTheDefault_StillRegistersTheDefaultWorker()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddOutbox("a", _ => { }).WithInMemoryStore();
+        services.AddOutbox().WithInMemoryStore();
+
+        using var sp = services.BuildServiceProvider();
+        sp.GetServices<IHostedService>().OfType<OutboxWorkerService>().Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void AddOutbox_WithAnEmptyName_Throws(string name)
+    {
+        var act = () => new ServiceCollection().AddOutbox(name, _ => { });
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void AddOutbox_WithName_ReturnsANamedBuilder()
+    {
+        var services = new ServiceCollection();
+
+        var builder = services.AddOutbox("workflow", _ => { });
+
+        builder.Name.Should().Be("workflow");
+        builder.Services.Should().BeSameAs(services);
+    }
+
+    [Fact]
+    public void WithInMemoryStore_OnANamedPipeline_RegistersAKeyedStoreOnly()
+    {
+        var services = new ServiceCollection();
+
+        services.AddOutbox("a", _ => { }).WithInMemoryStore();
+
+        using var sp = services.BuildServiceProvider();
+        sp.GetService<IOutboxStore>().Should().BeNull();
+        sp.GetService<IOutboxDashboardStore>().Should().BeNull();
+        sp.GetRequiredKeyedService<IOutboxStore>("a")
+            .Should().BeSameAs(sp.GetRequiredKeyedService<InMemoryOutboxStore>("a"));
+    }
+
+    [Fact]
+    public void WithEfCore_OnANamedPipeline_RegistersAKeyedStoreOnly()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<DashboardTestDbContext>(opts => opts.UseSqlite("DataSource=:memory:"));
+
+        services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        using var sp = services.BuildServiceProvider();
+        using var scope = sp.CreateScope();
+        scope.ServiceProvider.GetService<IOutboxStore>().Should().BeNull();
+        scope.ServiceProvider.GetService<IOutboxDashboardStore>().Should().BeNull();
+        scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>("a")
+            .Should().BeOfType<EfCoreOutboxStore<DashboardTestDbContext>>();
+    }
+
+    [Fact]
+    public void TheSameStore_TwiceOnANamedPipeline_KeepsOneRegistration()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<DashboardTestDbContext>(opts => opts.UseSqlite("DataSource=:memory:"));
+
+        services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+        services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        services.Count(d => d.ServiceType == typeof(IOutboxStore)).Should().Be(1);
+    }
+
+    [Fact]
+    public void ADifferentStore_ForTheSameNamedPipeline_Throws()
+    {
+        // A duplicate registration for one pipeline does not silently win: it throws, as it does
+        // for the default pipeline.
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithInMemoryStore();
+
+        var act = () => services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*WithEfCore<DashboardTestDbContext>()*outbox pipeline 'a'*InMemoryOutboxStore*");
+    }
+
+    [Fact]
+    public void ACustomKeyedStore_ForTheSameNamedPipeline_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedScoped<IOutboxStore, CustomStore>("a");
+
+        var act = () => services.AddOutbox("a", _ => { }).WithInMemoryStore();
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*WithInMemoryStore()*'a'*CustomStore*");
+    }
+
+    [Fact]
+    public void DifferentStores_OnDifferentPipelines_DoNotConflict()
+    {
+        var services = new ServiceCollection();
+
+        var act = () =>
+        {
+            services.AddOutbox().WithEfCore<DashboardTestDbContext>();
+            services.AddOutbox("a", _ => { }).WithEfCore<ServerClaimDbContext>();
+            services.AddOutbox("b", _ => { }).WithInMemoryStore();
+            services.AddOutbox("c", _ => { }).WithInMemoryStore();
+        };
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void TheSameDbContext_OnTwoPipelines_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox().WithEfCore<DashboardTestDbContext>();
+
+        var act = () => services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*EfCoreOutboxStore<DashboardTestDbContext>*'a'*default outbox pipeline already uses it*");
+    }
+
+    [Fact]
+    public void TheSameDbContext_OnTwoNamedPipelines_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        var act = () => services.AddOutbox("b", _ => { }).WithEfCore<DashboardTestDbContext>();
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*pipeline 'b'*pipeline 'a' already uses it*");
     }
 
     private sealed class CustomStore : IOutboxStore

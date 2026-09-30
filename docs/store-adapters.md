@@ -77,6 +77,8 @@ builder.Services.AddOutbox()
 
 This registers `OrmOutboxStore` as `IOutboxStore` (scoped) against the `IAsyncDbConnection` already registered in the container — register that connection yourself; its lifetime, provider and connection string belong to the application, not to the outbox. `WithOrm()` with no dialect argument defaults to SQLite. The dialect only selects the batch-claim statement; every other statement the store issues is plain ANSI SQL shared across all three.
 
+On a [named pipeline](dependency-injection.md#named-pipelines), `services.AddOutbox("workflow", configure).WithOrm(dialect)` registers the store keyed by the pipeline's name instead. It still uses the container's one `IAsyncDbConnection`, so only one pipeline in a container can use the ORM store; `WithOrm()` on a second pipeline throws.
+
 > No `IOutboxDashboardStore` is registered for this store. The dashboard's aggregate-view surface is much larger and isn't implemented here, so pointing the dashboard at the ORM store fails at registration instead of silently reporting nothing.
 
 ### Transactional enqueue
