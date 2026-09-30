@@ -73,7 +73,8 @@ static ZeroAlloc.Outbox.OutboxMessageId.operator <=(ZeroAlloc.Outbox.OutboxMessa
 static ZeroAlloc.Outbox.OutboxMessageId.operator ==(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
 static ZeroAlloc.Outbox.OutboxMessageId.operator >(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
 static ZeroAlloc.Outbox.OutboxMessageId.operator >=(ZeroAlloc.Outbox.OutboxMessageId left, ZeroAlloc.Outbox.OutboxMessageId right) -> bool
-static ZeroAlloc.Outbox.OutboxMessageId.Parse(string! s, System.IFormatProvider? provider = null) -> ZeroAlloc.Outbox.OutboxMessageId
+static ZeroAlloc.Outbox.OutboxMessageId.Parse(string! s) -> ZeroAlloc.Outbox.OutboxMessageId
+static ZeroAlloc.Outbox.OutboxMessageId.Parse(string! s, System.IFormatProvider? provider) -> ZeroAlloc.Outbox.OutboxMessageId
 static ZeroAlloc.Outbox.OutboxMessageId.Parse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider) -> ZeroAlloc.Outbox.OutboxMessageId
 static ZeroAlloc.Outbox.OutboxMessageId.TryParse(string? s, System.IFormatProvider? provider, out ZeroAlloc.Outbox.OutboxMessageId result) -> bool
 static ZeroAlloc.Outbox.OutboxMessageId.TryParse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider, out ZeroAlloc.Outbox.OutboxMessageId result) -> bool
