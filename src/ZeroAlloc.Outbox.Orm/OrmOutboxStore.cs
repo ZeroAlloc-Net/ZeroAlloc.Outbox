@@ -71,6 +71,11 @@ public sealed class OrmOutboxStore : IOutboxStore
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A non-null <paramref name="transaction"/> enlists the insert in it, through
+    /// <see cref="EnqueueInTransactionAsync"/>. ORM callers already hold an
+    /// <see cref="IAsyncDbTransaction"/> and should call that method directly.
+    /// </remarks>
     public async ValueTask EnqueueAsync(
         string typeName,
         ReadOnlyMemory<byte> payload,
@@ -79,16 +84,59 @@ public sealed class OrmOutboxStore : IOutboxStore
     {
         ArgumentNullException.ThrowIfNull(typeName);
 
-        var id = OutboxMessageId.New();
-        var now = DateTimeOffset.UtcNow;
-
         if (transaction is null)
         {
+            var now = DateTimeOffset.UtcNow;
             await _repo.InsertAsync(
-                id.Value, typeName, payload.ToArray(),
+                OutboxMessageId.New().Value, typeName, payload.ToArray(),
                 (int)OrmOutboxMessageStatus.Pending, now, now, ct).ConfigureAwait(false);
             return;
         }
+
+        var callerConnection = transaction.Connection
+            ?? throw new InvalidOperationException(
+                "The supplied DbTransaction has no connection, which means it has already been "
+                + "committed or rolled back. Enqueue inside an open transaction, or pass null to "
+                + "write immediately.");
+
+        // Wrap the caller's ADO.NET pair in the ORM's adapter so the insert takes one path.
+        var asyncConnection = callerConnection.AsAsync();
+        var asyncTransaction = new AdapterDbTransaction(
+            transaction, (AdapterDbConnection)asyncConnection);
+        await EnqueueInTransactionAsync(typeName, payload, asyncTransaction, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Persists a serialized message payload inside a transaction the caller owns, so the row
+    /// commits or rolls back together with the caller's other writes.
+    /// </summary>
+    /// <param name="typeName">The message type name the dispatcher routes on.</param>
+    /// <param name="payload">The serialized message.</param>
+    /// <param name="transaction">
+    /// An open transaction, as returned by <see cref="IAsyncDbConnection.BeginTransactionAsync"/>.
+    /// The insert runs on its <see cref="IAsyncDbTransaction.Connection"/>, not on the
+    /// connection this store was created with.
+    /// </param>
+    /// <param name="ct">A token to cancel the operation.</param>
+    /// <remarks>
+    /// Works with any <see cref="IAsyncDbConnection"/>, not only one made by
+    /// <c>AsAsync()</c>, so a caller never has to unwrap the ORM's transaction to a
+    /// <see cref="DbTransaction"/>. To write immediately instead, call
+    /// <see cref="EnqueueAsync"/> with a null transaction.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="typeName"/> or <paramref name="transaction"/> is null.
+    /// </exception>
+    public async ValueTask EnqueueInTransactionAsync(
+        string typeName,
+        ReadOnlyMemory<byte> payload,
+        IAsyncDbTransaction transaction,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(typeName);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        var now = DateTimeOffset.UtcNow;
 
         // A transaction belongs to the connection that began it, and ADO.NET
         // rejects a command whose connection and transaction disagree. So the
@@ -96,20 +144,11 @@ public sealed class OrmOutboxStore : IOutboxStore
         // enlisting means joining their unit of work, not borrowing their
         // transaction object. This is what makes the enqueue commit or roll back
         // together with whatever else the caller is writing.
-        var callerConnection = transaction.Connection
-            ?? throw new InvalidOperationException(
-                "The supplied DbTransaction has no connection, which means it has already been "
-                + "committed or rolled back. Enqueue inside an open transaction, or pass null to "
-                + "write immediately.");
-
-        var asyncConnection = callerConnection.AsAsync();
-        var asyncTransaction = new AdapterDbTransaction(
-            transaction, (AdapterDbConnection)asyncConnection);
-        var scoped = new OutboxMessageRepository(asyncConnection);
+        var scoped = new OutboxMessageRepository(transaction.Connection);
 
         await scoped.InsertInTransactionAsync(
-            id.Value, typeName, payload.ToArray(),
-            (int)OrmOutboxMessageStatus.Pending, now, now, asyncTransaction, ct)
+            OutboxMessageId.New().Value, typeName, payload.ToArray(),
+            (int)OrmOutboxMessageStatus.Pending, now, now, transaction, ct)
             .ConfigureAwait(false);
     }
 
@@ -119,8 +158,9 @@ public sealed class OrmOutboxStore : IOutboxStore
     // and inventing one would mean holding writes in memory with no defined
     // flush point. The interface's default sends it to EnqueueAsync with no
     // transaction, which writes immediately -- a documented fallback the
-    // contract explicitly supports. Callers wanting transactional enqueue pass
-    // their DbTransaction to EnqueueAsync above.
+    // contract explicitly supports. Callers wanting transactional enqueue call
+    // EnqueueInTransactionAsync, or pass their DbTransaction to EnqueueAsync, and
+    // own the flush point themselves.
 
     /// <inheritdoc />
     public async ValueTask<IReadOnlyList<OutboxEntry>> ClaimPendingAsync(
