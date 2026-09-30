@@ -132,16 +132,65 @@ await runner.RunAsync(ct);
 
 Migration 1 is guarded on every dialect (`IF NOT EXISTS` on SQLite and Postgres, an `OBJECT_ID` check on SQL Server). Migration 2 is guarded on Postgres (`ADD COLUMN IF NOT EXISTS`) and SQL Server (a `COL_LENGTH` check), but **not on SQLite**: it is a plain `ALTER TABLE … ADD COLUMN`, and SQLite has no way to make that conditional in SQL.
 
-> **Switching a SQLite database from the EF Core store to the ORM store:** the EF Core model already created `LockedBy` and `LockedUntil`, so migration 2 fails with a duplicate column error. Record it as applied before the first `MigrationRunner` run, in ZeroAlloc.ORM's history table:
+> **Switching a SQLite database from the EF Core store to the ORM store:** the EF Core model already created `LockedBy` and `LockedUntil`, so migration 2 fails with a duplicate column error. Record it as applied before the first `MigrationRunner` run, in ZeroAlloc.ORM's history table, under the outbox's source name:
 >
 > ```sql
 > CREATE TABLE IF NOT EXISTS __zaorm_migrations (
->     version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);
-> INSERT INTO __zaorm_migrations (version, name, applied_at)
-> VALUES (2, 'add_outbox_lease', datetime('now'));
+>     source TEXT NOT NULL, version INTEGER NOT NULL, name TEXT NOT NULL, applied_at TEXT NOT NULL,
+>     PRIMARY KEY (source, version));
+> INSERT INTO __zaorm_migrations (source, version, name, applied_at)
+> VALUES ('ZeroAlloc.Outbox.Orm', 2, 'add_outbox_lease', datetime('now'));
 > ```
 >
-> Migration 1 then runs as a no-op against the existing table and index. On Postgres and SQL Server no step is needed.
+> Migration 1 then runs as a no-op against the existing table and index. On Postgres and SQL Server no step is needed. If `__zaorm_migrations` already exists without a `source` column, because another source ran on ZeroAlloc.ORM before 2.2, run that source once first so the runner upgrades the table, then insert the row.
+
+### Several sources in one database
+
+ZeroAlloc.ORM 2.2 and later scope migration versions by source: the history table records each migration with its source's `Name`, and its primary key is `(source, version)`. The outbox's sources all have the fixed name **`ZeroAlloc.Outbox.Orm`**, so its migrations number on their own, from 1, next to your application's migrations and any other library's, such as ZeroAlloc.Saga's `ZeroAlloc.Saga.Orm`. Run each source through its own runner, on the same connection and dialect:
+
+```csharp
+var dialect = new PostgresMigrationDialect();
+await new MigrationRunner(connection, appMigrations, dialect).RunAsync(ct);
+await new MigrationRunner(connection, SagaOrmMigrations.Postgres, dialect).RunAsync(ct);
+await new MigrationRunner(connection, OutboxOrmMigrations.Postgres, dialect).RunAsync(ct);
+```
+
+The name is fixed rather than ZeroAlloc.ORM's default, the source type's name, so an internal rename can never make the runner treat the outbox as a new source and apply its migrations again. `ZeroAlloc.Outbox.Orm` requires ZeroAlloc.ORM 2.2 or later.
+
+**Upgrading an existing database.** The first run on ZeroAlloc.ORM 2.2 upgrades an older history table in place and assigns its rows to the source being run; the ORM's [migrations cookbook](https://github.com/ZeroAlloc-Net/ZeroAlloc.ORM/blob/main/docs/cookbook/migrations.md#upgrading-a-history-table-from-before-source-scoping) describes it. What to run first depends on what wrote your history table:
+
+- **The outbox alone.** Nothing to do: `OutboxOrmMigrations` upgrades the table on its next run and finds both its migrations applied.
+- **The outbox and another source combined into one `IMigrationSource` with an offset,** as the ZeroAlloc.Saga docs recommended before ZeroAlloc.ORM 2.2 for running the saga and outbox schemas together. That combined source wrote the rows, so either:
+  - keep running the combined source, under the same name. It keeps working, and it is the only choice that needs no SQL; or
+  - move to separate runners by assigning the rows to each source once, by hand, mapping the offset versions back. Do it in one transaction before the first run on the new version. For PostgreSQL, with the outbox offset by 1000:
+
+    ```sql
+    BEGIN;
+    ALTER TABLE __zaorm_migrations RENAME TO __zaorm_migrations_old;
+    ALTER INDEX __zaorm_migrations_pkey RENAME TO __zaorm_migrations_old_pkey;
+    -- PostgresMigrationDialect.CreateHistoryTableSql:
+    CREATE TABLE __zaorm_migrations (source TEXT NOT NULL, version INTEGER NOT NULL,
+      name TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (source, version));
+    INSERT INTO __zaorm_migrations (source, version, name, applied_at)
+      SELECT CASE WHEN version >= 1000 THEN 'ZeroAlloc.Outbox.Orm' ELSE 'ZeroAlloc.Saga.Orm' END,
+             CASE WHEN version >= 1000 THEN version - 1000 ELSE version END,
+             name, applied_at
+      FROM __zaorm_migrations_old;
+    DROP TABLE __zaorm_migrations_old;
+    COMMIT;
+    ```
+
+    Use your own offset and each source's name exactly as above. On SQLite and SQL Server, create the table with that dialect's `CreateHistoryTableSql` and copy the rows the same way. Switching to separate runners without this step makes both sources apply their migrations again: the DDL is guarded, except the outbox's migration 2 on SQLite, which then fails with a duplicate column error, and the history gains duplicate rows under the new names.
+- **ZeroAlloc.Outbox 4.1 or earlier, run against ZeroAlloc.ORM 2.2.** Those versions did not fix the name, so the history recorded the outbox under ZeroAlloc.ORM's default, `ZeroAlloc.Outbox.Orm.OutboxOrmMigrations+Source`. Move the rows to the fixed name once, before the first run on the new version:
+
+    ```sql
+    UPDATE __zaorm_migrations
+    SET source = 'ZeroAlloc.Outbox.Orm'
+    WHERE source = 'ZeroAlloc.Outbox.Orm.OutboxOrmMigrations+Source';
+    ```
+
+    Without it the runner finds none of the outbox's versions applied under the fixed name and applies them again, with the same effect as above.
 
 ### Claim
 

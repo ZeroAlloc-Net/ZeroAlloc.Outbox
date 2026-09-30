@@ -16,6 +16,13 @@ namespace ZeroAlloc.Outbox.Orm;
 /// that; selecting the statement by dialect can.
 /// </para>
 /// <para>
+/// Every dialect's source has the same fixed <see cref="IMigrationSource.Name"/>,
+/// <c>ZeroAlloc.Outbox.Orm</c>, so the outbox numbers its migrations on its own in
+/// ZeroAlloc.ORM's history table, next to your application's migrations and any
+/// other library's, each starting at version 1. Run each source through its own
+/// <c>MigrationRunner</c> on the same connection.
+/// </para>
+/// <para>
 /// The index on <c>(Status, NextRetryAt)</c> matches the poller's query exactly.
 /// Without it every poll scans the whole table, which grows without bound in a
 /// system that keeps dispatched rows.
@@ -29,6 +36,12 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </example>
 public static class OutboxOrmMigrations
 {
+    // The name the history table records the outbox's migrations under. A fixed string rather
+    // than the source type's name, ZeroAlloc.ORM's default, so renaming or moving the type can
+    // never make the runner apply the outbox migrations again. It must never change: a changed
+    // name reads as a new source, and databases already migrated would apply everything again.
+    private const string SourceName = "ZeroAlloc.Outbox.Orm";
+
     /// <summary>Schema for SQLite.</summary>
     public static IMigrationSource Sqlite { get; } = new Source(
         """
@@ -112,6 +125,8 @@ public static class OutboxOrmMigrations
             new Migration(1, "create_outbox_messages", createSql),
             new Migration(2, "add_outbox_lease", leaseSql),
         ];
+
+        public string Name => SourceName;
 
         public IReadOnlyList<Migration> GetMigrations() => _migrations;
     }

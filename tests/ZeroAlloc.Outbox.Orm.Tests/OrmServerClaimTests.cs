@@ -72,6 +72,52 @@ public abstract class OrmServerClaimTests : OutboxServerClaimTests
         claimed.Should().ContainSingle().Which.TypeName.Should().Be("Pre.Existing");
     }
 
+    [Fact]
+    public async Task The_Outbox_And_An_Application_Source_Both_Numbered_From_1_Share_One_Database()
+    {
+        // Each source numbers its versions on its own in the scoped history table, so the
+        // application's version 1 and the outbox's version 1 are both applied, once.
+        var connectionString = await CreateDatabaseAsync();
+        for (var run = 0; run < 2; run++)
+        {
+            await new MigrationRunner(await ConnectAsync(connectionString), new AppMigrationSource(), MigrationDialect)
+                .RunAsync();
+            await new MigrationRunner(await ConnectAsync(connectionString), Migrations, MigrationDialect)
+                .RunAsync();
+        }
+
+        var history = new List<(string Source, long Version, string Name)>();
+        var raw = CreateConnection(connectionString);
+        await using (raw.ConfigureAwait(false))
+        {
+            await raw.OpenAsync();
+            var cmd = raw.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = "SELECT source, version, name FROM __zaorm_migrations";
+                var reader = await cmd.ExecuteReaderAsync();
+                await using (reader.ConfigureAwait(false))
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        history.Add((
+                            reader.GetString(0),
+                            Convert.ToInt64(reader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture),
+                            reader.GetString(2)));
+                    }
+                }
+            }
+        }
+
+        history.Should().BeEquivalentTo(
+        [
+            (AppMigrationSource.SourceName, 1L, "create_orders"),
+            (AppMigrationSource.SourceName, 2L, "create_customers"),
+            ("ZeroAlloc.Outbox.Orm", 1L, "create_outbox_messages"),
+            ("ZeroAlloc.Outbox.Orm", 2L, "add_outbox_lease"),
+        ]);
+    }
+
     protected override async Task<IOutboxStore> StoreAsync()
         => new OrmOutboxStore(await ConnectAsync().ConfigureAwait(false), Dialect);
 
