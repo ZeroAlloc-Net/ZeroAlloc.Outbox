@@ -13,8 +13,12 @@ The `ZeroAlloc.Outbox.Generator` analyzer emits the following diagnostics at com
 | [ZO0001](diagnostics/ZO0001.md) | Warning | `[OutboxMessage]` applied to an interface — no code is generated |
 | [ZO0002](diagnostics/ZO0002.md) | Warning | `[OutboxMessage]` applied to a static class — no code is generated |
 | [ZO0003](diagnostics/ZO0003.md) | Warning | `[OutboxMessage]` applied to a nested type — use a top-level type for a stable type discriminator |
+| [ZO0004](diagnostics/ZO0004.md) | Warning | A generic `[OutboxMessage]` type has no closed construction the generator can see — no code is generated |
+| [ZO0005](diagnostics/ZO0005.md) | Error | The stored type name of a closed generic message is longer than 256 characters |
+| [ZO0006](diagnostics/ZO0006.md) | Error | An `[OutboxMessage]` declaration of a closed generic type is invalid |
+| [ZO0007](diagnostics/ZO0007.md) | Error | A message would get the same generated names as another message in its namespace |
 
-All diagnostics are enabled by default. They are warnings, not errors, so the build succeeds but you will not get the generated writer.
+All diagnostics are enabled by default. ZO0001 to ZO0004 are warnings: the build succeeds, but you do not get the generated writer. ZO0005 to ZO0007 are errors, because the code they stop could not be stored or would not compile.
 
 ## Retired IDs
 

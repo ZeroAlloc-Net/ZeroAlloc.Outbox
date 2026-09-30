@@ -60,6 +60,69 @@ The string `"MyApp.OrderPlaced"` (the fully-qualified type name) is used as the 
 
 This is why `[OutboxMessage]` must be applied to **top-level** types: nested types change their fully-qualified name when the outer class is renamed, silently breaking the discriminator for already-stored entries.
 
+## Generic message types
+
+A generic type can be an outbox message too. Mark the generic declaration:
+
+```csharp
+namespace MyApp;
+
+[OutboxMessage]
+public sealed record Envelope<T>(string CorrelationId, T Payload);
+```
+
+Outbox code is generated for concrete types only, so the generator emits a writer and a type dispatcher for every **closed construction** of `Envelope<T>` it can see in the same assembly:
+
+- every `IOutboxWriter<Envelope<Order>>` or `IOutboxDispatcher<Envelope<Order>>` in the source, such as a constructor parameter, a field or an `IOutboxDispatcher` you implement;
+- every assembly-level declaration: `[assembly: OutboxMessage(typeof(Envelope<Order>))]`.
+
+Declare a closed construction on the assembly when no code in the assembly names its writer or dispatcher, for example because a separate worker process dispatches what a web app writes. A usage that is still open, such as `IOutboxWriter<Envelope<T>>` inside a generic method, is not a closed construction. The generic declaration and its closed constructions must be in the same assembly.
+
+One `Add{Name}Outbox()` per generic type registers every closed construction found:
+
+```csharp
+builder.Services.AddOutbox()
+        .WithEfCore<AppDbContext>()
+        .AddEnvelopeOutbox();
+```
+
+For `Envelope<Order>` the generator emits, abbreviated:
+
+```csharp
+internal sealed class EnvelopeOfOrderOutboxWriter : IOutboxWriter<global::MyApp.Envelope<global::MyApp.Order>>
+{
+    public ValueTask WriteAsync(Envelope<Order> message, DbTransaction? transaction, CancellationToken ct)
+        => _store.EnqueueAsync("MyApp.Envelope<MyApp.Order>", _serializer.Serialize(message), transaction, ct);
+}
+
+internal sealed class EnvelopeOfOrderOutboxTypeDispatcher : IOutboxTypeDispatcher
+{
+    public string TypeName => "MyApp.Envelope<MyApp.Order>";
+    // DispatchAsync deserializes an Envelope<Order> and hands it to IOutboxDispatcher<Envelope<Order>>.
+}
+```
+
+The closed type and its stored name are written into the generated code, so nothing is resolved by reflection at run time, and it stays NativeAOT-safe. The payload still needs an AOT-safe serializer for the closed type; see [AOT-Safe Serialisation](cookbook/06-aot-serialisation.md#closed-generic-messages).
+
+The generated type names are built from the simple names, as `ZeroAlloc.Serialisation` builds them: `Envelope<Order>` gives `EnvelopeOfOrder`, and `Pair<int, Order>` gives `PairOfInt32AndOrder`.
+
+### Stored type name of a closed construction
+
+A closed construction is stored under its fully qualified C# name, without `global::`:
+
+| Closed type | Stored `TypeName` |
+|-------------|-------------------|
+| `Envelope<Order>` | `MyApp.Envelope<MyApp.Order>` |
+| `Pair<int, Order>` | `MyApp.Pair<System.Int32, MyApp.Order>` |
+| `Envelope<int?>` | `MyApp.Envelope<System.Nullable<System.Int32>>` |
+| `Envelope<(int A, string B)>` | `MyApp.Envelope<System.ValueTuple<System.Int32, System.String>>` |
+| `Envelope<int[]>` | `MyApp.Envelope<System.Int32[]>` |
+| `Envelope<Outer.Inner>` | `MyApp.Envelope<MyApp.Outer.Inner>` |
+
+Types that are one runtime type get one name: keywords are written as their `System` type, `dynamic` as `System.Object`, a tuple as its `System.ValueTuple`, and nullable reference annotations are dropped, so `Envelope<Order?>` is `Envelope<Order>`. A non-generic type argument is written the way its own stored name is. The name is part of every stored row, so renaming the generic type, a type argument or a namespace changes it, as it does for a non-generic message.
+
+The `TypeName` column holds at most 256 characters. A longer stored name is a compile-time error, [ZO0005](diagnostics/ZO0005.md).
+
 ## Diagnostics
 
 | ID | Trigger | Effect |
@@ -67,3 +130,7 @@ This is why `[OutboxMessage]` must be applied to **top-level** types: nested typ
 | [ZO0001](diagnostics/ZO0001.md) | Interface | Warning; no code generated |
 | [ZO0002](diagnostics/ZO0002.md) | Static class | Warning; no code generated |
 | [ZO0003](diagnostics/ZO0003.md) | Nested type | Warning; no code generated |
+| [ZO0004](diagnostics/ZO0004.md) | Generic type with no closed construction | Warning; no code generated |
+| [ZO0005](diagnostics/ZO0005.md) | Stored name over 256 characters | Error; no code generated for that closed type |
+| [ZO0006](diagnostics/ZO0006.md) | Invalid `[OutboxMessage]` declaration of a closed generic type | Error; no code generated for it |
+| [ZO0007](diagnostics/ZO0007.md) | Generated names shared with another message | Error; no code generated for the colliding generic message |

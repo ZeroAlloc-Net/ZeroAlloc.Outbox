@@ -14,9 +14,13 @@ using ZeroAlloc.Outbox.InMemory;
 // generator-emitted writer into the in-memory store, and the outbox worker claims it and hands
 // it to the generator-emitted type dispatcher, which deserializes it through the
 // ZeroAlloc.Serialisation dispatcher. A second message goes into the keyed store of a named
-// pipeline, whose own worker dispatches it through the same shared dispatcher.
+// pipeline, whose own worker dispatches it through the same shared dispatcher. A third is a closed
+// generic message, Envelope<OrderPlaced>, which round-trips under the stored name
+// "ZeroAlloc.Outbox.AotSmoke.Envelope<ZeroAlloc.Outbox.AotSmoke.OrderPlaced>" with no reflection.
 
 var received = Channel.CreateUnbounded<OrderPlaced>();
+var receivedEnvelopes = Channel.CreateUnbounded<Envelope<OrderPlaced>>();
+const string EnvelopeTypeName = "ZeroAlloc.Outbox.AotSmoke.Envelope<ZeroAlloc.Outbox.AotSmoke.OrderPlaced>";
 
 var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
 builder.Services.AddLogging();
@@ -24,11 +28,14 @@ builder.Services.AddSerializerDispatcher();
 builder.Services
     .AddOutbox(o => o.PollingInterval = TimeSpan.FromMilliseconds(50))
     .WithInMemoryStore()
-    .AddOrderPlacedOutbox();
+    .AddOrderPlacedOutbox()
+    .AddEnvelopeOutbox();
 builder.Services
     .AddOutbox("named", o => o.PollingInterval = TimeSpan.FromMilliseconds(50))
     .WithInMemoryStore();
 builder.Services.AddSingleton<IOutboxDispatcher<OrderPlaced>>(new RecordingDispatcher(received.Writer));
+builder.Services.AddSingleton<IOutboxDispatcher<Envelope<OrderPlaced>>>(
+    new EnvelopeRecordingDispatcher(receivedEnvelopes.Writer));
 
 using var host = builder.Build();
 
@@ -38,15 +45,23 @@ if (serializer is not DispatchingOutboxSerializer)
 
 var sent = new OrderPlaced("ord-42", 99.95m);
 var sentNamed = new OrderPlaced("ord-43", 12.50m);
+var sentEnvelope = new Envelope<OrderPlaced>("corr-44", new OrderPlaced("ord-44", 7.25m));
 var scope = host.Services.CreateAsyncScope();
 await using (scope.ConfigureAwait(false))
 {
     var writer = scope.ServiceProvider.GetRequiredService<IOutboxWriter<OrderPlaced>>();
     await writer.WriteAsync(sent, transaction: null, ct: CancellationToken.None).ConfigureAwait(false);
 
+    var envelopeWriter = scope.ServiceProvider.GetRequiredService<IOutboxWriter<Envelope<OrderPlaced>>>();
+    await envelopeWriter.WriteAsync(sentEnvelope, transaction: null, ct: CancellationToken.None).ConfigureAwait(false);
+
     // The generated writer writes to the default pipeline, so a named pipeline is written through
     // its keyed store, under the type name the generated dispatcher is registered with.
-    var typeName = scope.ServiceProvider.GetServices<IOutboxTypeDispatcher>().First().TypeName;
+    var dispatchers = scope.ServiceProvider.GetServices<IOutboxTypeDispatcher>().Select(d => d.TypeName).ToArray();
+    if (!dispatchers.Contains(EnvelopeTypeName))
+        return Fail($"expected a type dispatcher for {EnvelopeTypeName}, got {string.Join(", ", dispatchers)}");
+    if (Array.Find(dispatchers, n => !string.Equals(n, EnvelopeTypeName, StringComparison.Ordinal)) is not { } typeName)
+        return Fail("expected a type dispatcher for OrderPlaced");
     var namedStore = scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>("named");
     await namedStore.EnqueueAsync(typeName, serializer.Serialize(sentNamed), transaction: null, CancellationToken.None)
         .ConfigureAwait(false);
@@ -54,13 +69,16 @@ await using (scope.ConfigureAwait(false))
 
 await host.StartAsync().ConfigureAwait(false);
 OrderPlaced[] delivered;
+Envelope<OrderPlaced> deliveredEnvelope;
 try
 {
     delivered = [await ReadAsync().ConfigureAwait(false), await ReadAsync().ConfigureAwait(false)];
+    deliveredEnvelope = await receivedEnvelopes.Reader.ReadAsync().AsTask()
+        .WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 }
 catch (TimeoutException)
 {
-    return Fail("the workers did not dispatch both messages within 10 seconds");
+    return Fail("the workers did not dispatch all three messages within 10 seconds");
 }
 finally
 {
@@ -69,6 +87,9 @@ finally
 
 if (!delivered.Contains(sent) || !delivered.Contains(sentNamed))
     return Fail($"expected {sent} and {sentNamed}, got {delivered[0]} and {delivered[1]}");
+
+if (deliveredEnvelope != sentEnvelope)
+    return Fail($"expected {sentEnvelope}, got {deliveredEnvelope}");
 
 Console.WriteLine("AOT smoke: PASS");
 return 0;

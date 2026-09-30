@@ -168,6 +168,8 @@ builder.Services.AddOutbox()
 
 The `IOutboxTypeDispatcher` is registered as `Transient` so it is resolved fresh inside each scope the worker creates per batch cycle.
 
+A generic message type gets one extension that registers every closed construction the generator found, with the same three registrations for each: `AddEnvelopeOutbox()` for `Envelope<T>`. See [Generic message types](message-types.md#generic-message-types).
+
 ## Lifetime rules
 
 - `IOutboxStore` implementations must be **Scoped** (EF Core) or **Singleton** (InMemory). Do not register a Singleton EF Core store — it captures the `DbContext` and causes data corruption.

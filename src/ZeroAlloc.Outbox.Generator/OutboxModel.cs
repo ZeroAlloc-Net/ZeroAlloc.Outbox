@@ -8,16 +8,22 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
         string typeName,
         string typeFqn,
         string hintName,
+        string displayName,
+        bool isGeneric,
         bool isInterface,
         bool isStatic,
-        System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> diagnostics)
+        LocationInfo location,
+        EquatableArray<DiagnosticInfo> diagnostics)
     {
         Namespace = ns;
         TypeName = typeName;
         TypeFqn = typeFqn;
         HintName = hintName;
+        DisplayName = displayName;
+        IsGeneric = isGeneric;
         IsInterface = isInterface;
         IsStatic = isStatic;
+        Location = location;
         Diagnostics = diagnostics;
     }
 
@@ -27,9 +33,35 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
 
     /// <summary>The hint name of the generated file, from <see cref="HintNames.ForHost"/>.</summary>
     public string HintName { get; }
+
+    /// <summary>The type as a diagnostic shows it, such as <c>App.Envelope&lt;T&gt;</c>.</summary>
+    public string DisplayName { get; }
+
+    /// <summary>
+    /// Whether the type is a generic definition, which gets code per closed construction instead of
+    /// code of its own.
+    /// </summary>
+    public bool IsGeneric { get; }
     public bool IsInterface { get; }
     public bool IsStatic { get; }
-    public System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> Diagnostics { get; }
+
+    /// <summary>The type's declaration, for diagnostics about it.</summary>
+    public LocationInfo Location { get; }
+    public EquatableArray<DiagnosticInfo> Diagnostics { get; }
+
+    /// <summary>Whether the generator emits code for this type: no error, and a kind it supports.</summary>
+    public bool IsEmitted
+    {
+        get
+        {
+            if (IsInterface || IsStatic) return false;
+            foreach (var d in Diagnostics)
+            {
+                if (d.Descriptor.DefaultSeverity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error) return false;
+            }
+            return true;
+        }
+    }
 
     public bool Equals(OutboxModel? other)
     {
@@ -39,9 +71,12 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
             && string.Equals(TypeName, other.TypeName, System.StringComparison.Ordinal)
             && string.Equals(TypeFqn, other.TypeFqn, System.StringComparison.Ordinal)
             && string.Equals(HintName, other.HintName, System.StringComparison.Ordinal)
+            && string.Equals(DisplayName, other.DisplayName, System.StringComparison.Ordinal)
+            && IsGeneric == other.IsGeneric
             && IsInterface == other.IsInterface
             && IsStatic == other.IsStatic
-            && DiagnosticsEqual(Diagnostics, other.Diagnostics);
+            && Location.Equals(other.Location)
+            && Diagnostics.Equals(other.Diagnostics);
     }
 
     public override bool Equals(object? obj) => obj is OutboxModel other && Equals(other);
@@ -54,18 +89,10 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
             hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(TypeName);
             hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(TypeFqn);
             hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(HintName);
+            hash = hash * 31 + IsGeneric.GetHashCode();
             hash = hash * 31 + IsInterface.GetHashCode();
             hash = hash * 31 + IsStatic.GetHashCode();
             return hash;
         }
-    }
-
-    private static bool DiagnosticsEqual(
-        System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> a,
-        System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> b)
-    {
-        // Diagnostic does not implement structural equality; comparing counts is sufficient
-        // to prevent spurious incremental cache misses from re-parsed but logically identical diagnostics.
-        return a.Length == b.Length;
     }
 }

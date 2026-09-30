@@ -1,37 +1,12 @@
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace ZeroAlloc.Outbox.Generator.Tests;
 
 public sealed class HintNameTests
 {
-    // The generated code is compiled, so the references must match the runtime ZeroAlloc.Outbox
-    // was built against: the trusted platform assemblies plus the Outbox and DI assemblies.
-    private static readonly MetadataReference[] s_references =
-        ((string)System.AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
-            .Split(System.IO.Path.PathSeparator)
-            .Where(p => System.IO.Path.GetFileName(p).StartsWith("System.", System.StringComparison.Ordinal)
-                || string.Equals(System.IO.Path.GetFileName(p), "netstandard.dll", System.StringComparison.Ordinal))
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
-            .Append(MetadataReference.CreateFromFile(
-                typeof(ZeroAlloc.Outbox.OutboxMessageAttribute).Assembly.Location))
-            .Append(MetadataReference.CreateFromFile(
-                typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location))
-            .ToArray();
-
     private static GeneratorRunResult RunGenerator(string source, out Compilation output)
-    {
-        var compilation = CSharpCompilation.Create(
-            "TestAssembly",
-            new[] { CSharpSyntaxTree.ParseText(source) },
-            s_references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var driver = CSharpGeneratorDriver.Create(new OutboxGenerator())
-            .RunGeneratorsAndUpdateCompilation(compilation, out output, out _);
-        return driver.GetRunResult().Results[0];
-    }
+        => GeneratorTestHelper.RunCompiled(source, out output);
 
     private static string[] HintNames(GeneratorRunResult result)
         => result.GeneratedSources.Select(s => s.HintName).OrderBy(h => h, System.StringComparer.Ordinal).ToArray();
@@ -62,23 +37,26 @@ public sealed class HintNameTests
     }
 
     [Fact]
-    public void Generic_and_non_generic_types_of_the_same_name_get_distinct_hint_names()
+    public void Generic_type_hint_name_carries_its_arity()
     {
         var result = RunGenerator("""
             using ZeroAlloc.Outbox;
 
+            [assembly: OutboxMessage(typeof(App.Foo<int>))]
+            [assembly: OutboxMessage(typeof(App.Bar<int, string>))]
+
             namespace App
             {
                 [OutboxMessage]
-                public sealed record Foo(int Id);
+                public sealed record Foo<T>(T Value);
 
                 [OutboxMessage]
-                public sealed record Foo<T>(T Value);
+                public sealed record Bar<T1, T2>(T1 First, T2 Second);
             }
             """, out _);
 
         result.Exception.Should().BeNull();
-        HintNames(result).Should().Equal("App.Foo.Outbox.g.cs", "App.Foo`1.Outbox.g.cs");
+        HintNames(result).Should().Equal("App.Bar`2.Outbox.g.cs", "App.Foo`1.Outbox.g.cs");
     }
 
     [Fact]
@@ -107,6 +85,19 @@ public sealed class HintNameTests
             """, out _);
 
         HintNames(result).Should().Equal("App.Orders.Placed.Outbox.g.cs");
+    }
+
+    [Theory]
+    [InlineData("[OutboxMessage] public sealed partial record Order(int Id);\n[System.Serializable] public sealed partial record Order;")]
+    [InlineData("[OutboxMessage] public sealed partial record Order(int Id);\n[OutboxMessage] public sealed partial record Order;")]
+    [InlineData("[OutboxMessage, OutboxMessage] public sealed partial record Order(int Id);")]
+    public void Partial_message_declared_with_attributes_in_several_places_is_generated_once(string declarations)
+    {
+        var result = RunGenerator("using ZeroAlloc.Outbox;\nnamespace App;\n" + declarations, out var output);
+
+        result.Exception.Should().BeNull();
+        HintNames(result).Should().Equal("App.Order.Outbox.g.cs");
+        output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Should().BeEmpty();
     }
 
     [Theory]
