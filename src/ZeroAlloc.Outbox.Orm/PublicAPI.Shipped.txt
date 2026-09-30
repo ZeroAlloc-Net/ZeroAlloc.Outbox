@@ -9,6 +9,7 @@ ZeroAlloc.Outbox.Orm.OrmOutboxStore
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.ClaimPendingAsync(int batchSize, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<ZeroAlloc.Outbox.OutboxEntry!>!>
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.DeadLetterAsync(ZeroAlloc.Outbox.OutboxMessageId id, string! error, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.EnqueueAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Common.DbTransaction? transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.EnqueueInTransactionAsync(string! typeName, System.ReadOnlyMemory<byte> payload, System.Data.Async.IAsyncDbTransaction! transaction, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.MarkFailedAsync(ZeroAlloc.Outbox.OutboxMessageId id, int retryCount, System.DateTimeOffset nextRetryAt, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.MarkSucceededAsync(ZeroAlloc.Outbox.OutboxMessageId id, ZeroAlloc.Outbox.OutboxLease lease, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask<bool>
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection) -> void
