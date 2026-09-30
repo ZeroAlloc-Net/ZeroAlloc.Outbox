@@ -40,6 +40,21 @@ public sealed record OrderPlaced(int OrderId, decimal Amount);
 internal sealed partial class OrderPlacedJsonContext : JsonSerializerContext;
 ```
 
+## Closed generic messages
+
+A [generic message type](../message-types.md#generic-message-types) such as `Envelope<T>` is serialized per closed construction. Declare each one on the assembly, which needs `ZeroAlloc.Serialisation` 2.5 or later, and for System.Text.Json add it to a `JsonSerializerContext`:
+
+```csharp
+[assembly: ZeroAllocSerializable(typeof(Envelope<Order>), SerializationFormat.SystemTextJson)]
+
+[JsonSerializable(typeof(Envelope<Order>))]
+internal sealed partial class OutboxJsonContext : JsonSerializerContext;
+```
+
+`AddSerializerDispatcher()` then covers `Envelope<Order>` too, and the generated outbox dispatcher deserializes it with no reflection.
+
+A closed generic outbox message is NativeAOT-safe only with the **System.Text.Json** or **MemoryPack** format. The MessagePack format cannot yet serialize a closed generic type without runtime code generation; that is tracked in [ZeroAlloc.Serialisation#184](https://github.com/ZeroAlloc-Net/ZeroAlloc.Serialisation/issues/184).
+
 ## Registration
 
 ```csharp
