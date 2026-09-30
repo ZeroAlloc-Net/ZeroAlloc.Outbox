@@ -80,7 +80,9 @@ static ZeroAlloc.Outbox.OutboxMessageId.TryParse(string? s, System.IFormatProvid
 static ZeroAlloc.Outbox.OutboxMessageId.TryParse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider, out ZeroAlloc.Outbox.OutboxMessageId result) -> bool
 static ZeroAlloc.Outbox.OutboxMessageView.operator !=(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
 static ZeroAlloc.Outbox.OutboxMessageView.operator ==(ZeroAlloc.Outbox.OutboxMessageView? left, ZeroAlloc.Outbox.OutboxMessageView? right) -> bool
-static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure = null) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<ZeroAlloc.Outbox.OutboxOptions!>! configure) -> ZeroAlloc.Outbox.INamedOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.WithSystemTextJsonSerializer(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.OutboxSnapshot.operator !=(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
 static ZeroAlloc.Outbox.OutboxSnapshot.operator ==(ZeroAlloc.Outbox.OutboxSnapshot? left, ZeroAlloc.Outbox.OutboxSnapshot? right) -> bool
@@ -101,6 +103,8 @@ ZeroAlloc.Outbox.DispatchingOutboxSerializer
 ZeroAlloc.Outbox.DispatchingOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
 ZeroAlloc.Outbox.DispatchingOutboxSerializer.DispatchingOutboxSerializer(ZeroAlloc.Serialisation.ISerializerDispatcher! dispatcher) -> void
 ZeroAlloc.Outbox.DispatchingOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
+ZeroAlloc.Outbox.INamedOutboxBuilder
+ZeroAlloc.Outbox.INamedOutboxBuilder.Name.get -> string!
 ZeroAlloc.Outbox.IOutboxBuilder
 ZeroAlloc.Outbox.IOutboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 ZeroAlloc.Outbox.IOutboxDashboardEventPublisher
@@ -175,6 +179,8 @@ ZeroAlloc.Outbox.MessageRequeuedEvent.Equals(ZeroAlloc.Outbox.MessageRequeuedEve
 ZeroAlloc.Outbox.MessageRequeuedEvent.MessageRequeuedEvent(ZeroAlloc.Outbox.OutboxMessageId Id, System.DateTimeOffset RequeuedAt) -> void
 ZeroAlloc.Outbox.MessageRequeuedEvent.RequeuedAt.get -> System.DateTimeOffset
 ZeroAlloc.Outbox.MessageRequeuedEvent.RequeuedAt.init -> void
+ZeroAlloc.Outbox.NamedOutboxPipeline
+ZeroAlloc.Outbox.NamedOutboxPipeline.Name.get -> string!
 ZeroAlloc.Outbox.OutboxDashboardEvent
 ZeroAlloc.Outbox.OutboxDashboardEvent.Deconstruct(out ZeroAlloc.Outbox.OutboxMessageId Id) -> void
 ZeroAlloc.Outbox.OutboxDashboardEvent.Id.get -> ZeroAlloc.Outbox.OutboxMessageId
@@ -208,6 +214,8 @@ ZeroAlloc.Outbox.OutboxLease.OutboxLease() -> void
 ZeroAlloc.Outbox.OutboxLease.OutboxLease(string! HostId, System.TimeSpan Duration) -> void
 ZeroAlloc.Outbox.OutboxMessageAttribute
 ZeroAlloc.Outbox.OutboxMessageAttribute.OutboxMessageAttribute() -> void
+ZeroAlloc.Outbox.OutboxMessageAttribute.OutboxMessageAttribute(System.Type! type) -> void
+ZeroAlloc.Outbox.OutboxMessageAttribute.Type.get -> System.Type?
 ZeroAlloc.Outbox.OutboxMessageFsm
 ZeroAlloc.Outbox.OutboxMessageFsm.Current.get -> ZeroAlloc.Outbox.OutboxMessageState
 ZeroAlloc.Outbox.OutboxMessageFsm.OutboxMessageFsm(ZeroAlloc.Outbox.OutboxMessageState current) -> void

@@ -1,4 +1,6 @@
 #nullable enable
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, object! connectionKey) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, System.Func<System.IServiceProvider!, System.Data.Async.IAsyncDbConnection!>! connection) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.IOutboxBuilder! builder) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.IOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect) -> ZeroAlloc.Outbox.IOutboxBuilder!
 static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.Postgres.get -> ZeroAlloc.ORM.Migrations.IMigrationSource!
