@@ -34,10 +34,17 @@ public static class OrmOutboxServiceCollectionExtensions
     /// <para>
     /// Calling this again with the same dialect is a no-op.
     /// </para>
+    /// <para>
+    /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers the
+    /// store as an <see cref="OrmOutboxStore"/> and an <see cref="IOutboxStore"/> keyed by the
+    /// pipeline's name. The store still uses the container's unkeyed
+    /// <see cref="IAsyncDbConnection"/>, so only one pipeline in a container can use the ORM store.
+    /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// A different <see cref="IOutboxStore"/> is already registered, such as another store adapter
-    /// or the ORM store with another dialect. One container hosts one outbox pipeline.
+    /// A different <see cref="IOutboxStore"/> is already registered for the same pipeline, such as
+    /// another store adapter or the ORM store with another dialect. Or another pipeline already
+    /// uses the ORM store, and would poll the same table.
     /// </exception>
     /// <example>
     /// <code>
@@ -60,19 +67,37 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         var services = builder.Services;
-        OutboxStoreRegistration.ThrowIfConflicting(services, typeof(OrmOutboxStore), "WithOrm()");
+        var pipeline = OutboxStoreRegistration.PipelineOf(builder);
+        OutboxStoreRegistration.ThrowIfConflicting(services, pipeline, typeof(OrmOutboxStore), "WithOrm()");
 
         // The same store with another dialect conflicts too; TryAdd would silently keep the first.
-        var existing = services.LastOrDefault(d => !d.IsKeyedService && d.ServiceType == typeof(OrmOutboxStore));
-        if (existing?.ImplementationFactory?.Target is OrmOutboxStoreFactory registered
+        var existing = OutboxStoreRegistration.Find(services, pipeline, typeof(OrmOutboxStore));
+        if (existing is not null
+            && OutboxStoreRegistration.FactoryTarget(existing) is OrmOutboxStoreFactory registered
             && registered.Dialect != dialect)
         {
             throw OutboxStoreRegistration.Conflict(
-                "WithOrm()", $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
+                "WithOrm()", pipeline, $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
         }
 
-        services.TryAddScoped(new OrmOutboxStoreFactory(dialect).Create);
-        services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
+        OutboxStoreRegistration.ThrowIfSharedWithAnotherPipeline(
+            services, pipeline, typeof(OrmOutboxStore), "WithOrm()",
+            "The ORM store uses the container's IAsyncDbConnection, so only one pipeline can use it. " +
+            "Use another store adapter for the other pipeline, such as WithEfCore<TContext>().");
+
+        var factory = new OrmOutboxStoreFactory(dialect);
+        if (pipeline is null)
+        {
+            services.TryAddScoped(factory.Create);
+            services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
+        }
+        else
+        {
+            services.TryAddKeyedScoped(pipeline, factory.CreateKeyed);
+            services.TryAddKeyedScoped<IOutboxStore>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<OrmOutboxStore>(key));
+        }
+
         return builder;
     }
 
@@ -86,5 +111,8 @@ public static class OrmOutboxServiceCollectionExtensions
 
         public OrmOutboxStore Create(IServiceProvider sp)
             => new(sp.GetRequiredService<IAsyncDbConnection>(), Dialect);
+
+        public OrmOutboxStore CreateKeyed(IServiceProvider sp, object? key)
+            => Create(sp);
     }
 }

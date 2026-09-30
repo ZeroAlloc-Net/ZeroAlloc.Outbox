@@ -25,6 +25,13 @@ namespace ZeroAlloc.Outbox;
 /// stopping token stops the worker: a dispatcher that throws
 /// <see cref="OperationCanceledException"/> on its own, such as on an HTTP timeout, has failed
 /// that dispatch attempt, which is retried or dead-lettered like any other failure.
+/// <para>
+/// The default pipeline's worker, registered by <c>AddOutbox()</c>, polls the unkeyed
+/// <see cref="IOutboxStore"/> with <see cref="IOptions{TOptions}.Value"/>. A named pipeline's
+/// worker, registered by <c>AddOutbox(name, configure)</c>, polls the <see cref="IOutboxStore"/>
+/// keyed by its name with the options of that name, and tags its telemetry with
+/// <c>outbox.pipeline</c>.
+/// </para>
 /// </remarks>
 public sealed class OutboxWorkerService : BackgroundService
 {
@@ -42,9 +49,15 @@ public sealed class OutboxWorkerService : BackgroundService
     /// </summary>
     private static readonly TimeSpan s_bookkeepingTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>The tag that carries a named pipeline's name on its metrics and activities.</summary>
+    internal const string PipelineTag = "outbox.pipeline";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxWorkerService> _logger;
+
+    /// <summary>The named pipeline this worker polls, or null for the default pipeline.</summary>
+    private readonly string? _pipeline;
 
     public OutboxWorkerService(
         IServiceScopeFactory scopeFactory,
@@ -56,6 +69,19 @@ public sealed class OutboxWorkerService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>Creates the worker of the named pipeline <paramref name="pipeline"/>.</summary>
+    internal OutboxWorkerService(
+        IServiceScopeFactory scopeFactory,
+        string pipeline,
+        OutboxOptions options,
+        ILogger<OutboxWorkerService> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _pipeline = pipeline;
+        _options = options;
+        _logger = logger;
+    }
+
     /// <summary>
     /// Builds every <see cref="IOutboxTypeDispatcher"/> once, then starts the poll loop.
     /// </summary>
@@ -63,7 +89,8 @@ public sealed class OutboxWorkerService : BackgroundService
     /// Every batch resolves all the dispatchers before it claims anything, so one that cannot be
     /// built would fail every batch forever. Building them here fails the host start instead,
     /// with the dispatcher's own exception, such as the one for a missing
-    /// <see cref="IOutboxSerializer"/>.
+    /// <see cref="IOutboxSerializer"/>. For the same reason a named pipeline without a store
+    /// fails the host start.
     /// </remarks>
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -71,6 +98,16 @@ public sealed class OutboxWorkerService : BackgroundService
         await using (scope.ConfigureAwait(false))
         {
             _ = scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>();
+
+            if (_pipeline is not null
+                && scope.ServiceProvider.GetService<IServiceProviderIsKeyedService>()
+                    ?.IsKeyedService(typeof(IOutboxStore), _pipeline) != true)
+            {
+                throw new InvalidOperationException(
+                    $"ZeroAlloc.Outbox: the outbox pipeline '{_pipeline}' has no store. Register one on " +
+                    $"the pipeline's builder, for example services.AddOutbox(\"{_pipeline}\", configure)" +
+                    ".WithOrm(dialect), or register a keyed IOutboxStore with the pipeline's name as its key.");
+            }
         }
 
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -78,6 +115,10 @@ public sealed class OutboxWorkerService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var logScope = _pipeline is null
+            ? null
+            : _logger.BeginScope(new KeyValuePair<string, object>[] { new("OutboxPipeline", _pipeline) });
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -107,8 +148,18 @@ public sealed class OutboxWorkerService : BackgroundService
 #pragma warning disable MA0004 // ConfigureAwait cannot be applied to 'await using' — scope disposal runs on thread pool
         await using var scope = _scopeFactory.CreateAsyncScope();
 #pragma warning restore MA0004
-        var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
-        var publisher = scope.ServiceProvider.GetService<IOutboxDashboardEventPublisher>();
+        IOutboxStore store;
+        IOutboxDashboardEventPublisher? publisher;
+        if (_pipeline is null)
+        {
+            store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+            publisher = scope.ServiceProvider.GetService<IOutboxDashboardEventPublisher>();
+        }
+        else
+        {
+            store = scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(_pipeline);
+            publisher = scope.ServiceProvider.GetKeyedService<IOutboxDashboardEventPublisher>(_pipeline);
+        }
 
         var dispatchers = new Dictionary<string, IOutboxTypeDispatcher>(StringComparer.Ordinal);
         foreach (var d in scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>())
@@ -182,7 +233,7 @@ public sealed class OutboxWorkerService : BackgroundService
         CancellationToken ct)
     {
         var entry = entries[progress.Next];
-        var tag = new TagList { { "message.type", entry.TypeName } };
+        var tag = MessageTags(entry.TypeName);
 
         // Renew before acting on the message at all, including dead-lettering it for a
         // missing dispatcher. If the lease expired while earlier entries in the batch were
@@ -190,7 +241,7 @@ public sealed class OutboxWorkerService : BackgroundService
         if (!await store.RenewLeaseAsync(entry.Id, lease, ct).ConfigureAwait(false))
         {
             progress.Next++;
-            _leaseLost.Add(1, new TagList { { "message.type", entry.TypeName }, { "reason", "renew-failed" } });
+            _leaseLost.Add(1, MessageTags(entry.TypeName, "renew-failed"));
             _logger.LogWarning(
                 "Lease on outbox message {Id} ({TypeName}) was lost before dispatch; skipping it. "
                 + "Consider raising OutboxOptions.LeaseDuration.",
@@ -207,6 +258,8 @@ public sealed class OutboxWorkerService : BackgroundService
 
         using var activity = _activitySource.StartActivity("outbox.dispatch");
         activity?.SetTag("message.type", entry.TypeName);
+        if (_pipeline is not null)
+            activity?.SetTag(PipelineTag, _pipeline);
         var startTimestamp = Stopwatch.GetTimestamp();
 
         try
@@ -290,12 +343,26 @@ public sealed class OutboxWorkerService : BackgroundService
     /// </summary>
     private void RecordCompletedElsewhere(OutboxEntry entry, string outcome)
     {
-        _leaseLost.Add(1, new TagList { { "message.type", entry.TypeName }, { "reason", "completed-elsewhere" } });
+        _leaseLost.Add(1, MessageTags(entry.TypeName, "completed-elsewhere"));
         _logger.LogWarning(
             "Outbox message {Id} ({TypeName}) is no longer pending under this host's lease, so marking it "
             + "{Outcome} changed nothing. Another host claimed it after the lease expired, or it was "
             + "cancelled or completed elsewhere.",
             entry.Id, entry.TypeName, outcome);
+    }
+
+    /// <summary>
+    /// The tags of a metric about one message: its type, the lease-loss reason when there is one,
+    /// and for a named pipeline the pipeline's name.
+    /// </summary>
+    private TagList MessageTags(string typeName, string? reason = null)
+    {
+        var tags = new TagList { { "message.type", typeName } };
+        if (reason is not null)
+            tags.Add("reason", reason);
+        if (_pipeline is not null)
+            tags.Add(PipelineTag, _pipeline);
+        return tags;
     }
 
     /// <summary>
@@ -350,7 +417,7 @@ public sealed class OutboxWorkerService : BackgroundService
             return;
         }
 
-        _deadLetters.Add(1, new TagList { { "message.type", entry.TypeName } });
+        _deadLetters.Add(1, MessageTags(entry.TypeName));
 
         // No dispatch attempt was made; report the stored retry count as total attempts.
         await SafePublishAsync(
@@ -381,7 +448,7 @@ public sealed class OutboxWorkerService : BackgroundService
                 return;
             }
 
-            _deadLetters.Add(1, new TagList { { "message.type", entry.TypeName } });
+            _deadLetters.Add(1, MessageTags(entry.TypeName));
 
             await SafePublishAsync(
                 publisher,
@@ -405,7 +472,7 @@ public sealed class OutboxWorkerService : BackgroundService
             return;
         }
 
-        _retries.Add(1, new TagList { { "message.type", entry.TypeName } });
+        _retries.Add(1, MessageTags(entry.TypeName));
 
         await SafePublishAsync(
             publisher,

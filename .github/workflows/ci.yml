@@ -78,7 +78,8 @@ jobs:
     # Publishes samples/ZeroAlloc.Outbox.AotSmoke with PublishAot=true and IL warnings
     # as errors. It registers the outbox the documented AOT way, AddSerializerDispatcher()
     # plus AddOutbox(), then writes a message through the generator-emitted writer and waits
-    # for the worker to dispatch it through the generator-emitted type dispatcher.
+    # for the worker to dispatch it through the generator-emitted type dispatcher. A second
+    # message goes through the keyed store of a named pipeline and its own worker.
     steps:
       - uses: actions/checkout@v7
         with:

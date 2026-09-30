@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ZeroAlloc.Serialisation;
 
@@ -43,22 +45,131 @@ public static partial class OutboxServiceCollectionExtensions
     /// only for ZeroAlloc.Saga commands, needs no serializer at all.
     /// </para>
     /// <para>
-    /// A container hosts one outbox pipeline. Calling this method again adds its
+    /// This registers the default pipeline. Calling this method again adds its
     /// <paramref name="configure"/> delegate but no second worker, and the store adapters throw
-    /// when a second, different store is registered.
+    /// when a second, different default store is registered. To run another pipeline next to it,
+    /// with its own store, options and worker, register it under a name with
+    /// <see cref="AddOutbox(IServiceCollection, string, Action{OutboxOptions})"/>.
     /// </para>
     /// <para>
     /// Logging is not registered by this method. When using a bare <c>HostBuilder</c> in tests,
     /// add <c>services.AddLogging()</c> explicitly.
     /// </para>
     /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configures the default pipeline's options, or null to keep them.</param>
+    /// <returns>A builder for the default pipeline.</returns>
     public static IOutboxBuilder AddOutbox(
         this IServiceCollection services,
-        Action<OutboxOptions>? configure = null)
+        Action<OutboxOptions>? configure)
     {
-        services.AddOptions<OutboxOptions>();
+        AddSharedServices(services);
         if (configure is not null)
             services.Configure(configure);
+
+        // AddHostedService registers through TryAddEnumerable, so calling AddOutbox() twice still
+        // starts one worker. OutboxRegistrationTests pins that.
+        services.AddHostedService<OutboxWorkerService>();
+        return new OutboxBuilder(services);
+    }
+
+    // This overload and the one above replace a single AddOutbox with an optional configure
+    // parameter, so the named-pipeline overload below does not add parameters after an optional
+    // one, which RS0027 rejects. Existing binaries still bind to the two-parameter method.
+
+    /// <inheritdoc cref="AddOutbox(IServiceCollection, Action{OutboxOptions})"/>
+    public static IOutboxBuilder AddOutbox(this IServiceCollection services)
+        => services.AddOutbox(configure: null);
+
+    /// <summary>
+    /// Registers a named outbox pipeline: a worker of its own that polls the pipeline's own store
+    /// with the pipeline's own options. Register its store on the returned builder, for example
+    /// with <c>.WithOrm(dialect)</c> or <c>.WithEfCore&lt;TContext&gt;()</c>.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">
+    /// The pipeline's name. It keys the pipeline's <see cref="IOutboxStore"/> and names its
+    /// <see cref="OutboxOptions"/>. Must not be empty or whitespace.
+    /// </param>
+    /// <param name="configure">Configures the pipeline's options.</param>
+    /// <returns>A builder for the pipeline, on which the store adapters register a keyed store.</returns>
+    /// <remarks>
+    /// <para>
+    /// The pipeline's store is registered as a keyed <see cref="IOutboxStore"/> with
+    /// <paramref name="name"/> as its key; resolve it with
+    /// <c>[FromKeyedServices(name)] IOutboxStore</c> to enqueue messages into the pipeline. The
+    /// generated <see cref="IOutboxWriter{T}"/> writes to the default pipeline's store. The
+    /// pipeline's options are the named <see cref="OutboxOptions"/> read through
+    /// <c>IOptionsMonitor&lt;OutboxOptions&gt;.Get(name)</c>. They start from the
+    /// <see cref="OutboxOptions"/> defaults, not from the default pipeline's options, and are
+    /// validated like them when the host starts.
+    /// </para>
+    /// <para>
+    /// The pipeline's worker tags its metrics and <c>outbox.dispatch</c> activities with
+    /// <c>outbox.pipeline</c> set to <paramref name="name"/>, and its log entries with an
+    /// <c>OutboxPipeline</c> scope. It publishes dashboard events only to an
+    /// <see cref="IOutboxDashboardEventPublisher"/> keyed by <paramref name="name"/>; the
+    /// dashboard shows the default pipeline.
+    /// </para>
+    /// <para>
+    /// Every pipeline shares the serializer and the message dispatchers, so a message type
+    /// registered once can be dispatched by any pipeline. A container may register named
+    /// pipelines without the default one.
+    /// </para>
+    /// <para>
+    /// Calling this again with the same name adds its <paramref name="configure"/> delegate but no
+    /// second worker, and the store adapters throw when a second, different store is registered
+    /// for the same name, or when two pipelines would poll the same outbox table.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty or whitespace.</exception>
+    /// <example>
+    /// <code>
+    /// services.AddOutbox().WithEfCore&lt;AppDbContext&gt;();
+    /// services.AddOutbox("workflow", o => o.LeaseDuration = TimeSpan.FromMinutes(30))
+    ///         .WithOrm(OutboxOrmDialect.Postgres);
+    /// </code>
+    /// </example>
+    public static INamedOutboxBuilder AddOutbox(
+        this IServiceCollection services,
+        string name,
+        Action<OutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        AddSharedServices(services);
+        services.Configure(name, configure);
+
+        // One worker per name. AddHostedService cannot tell two factory registrations apart, so
+        // the worker is added only when no registration carries a factory for this name yet.
+        var registered = false;
+        foreach (var descriptor in services)
+        {
+            // Read IsKeyedService first: ImplementationFactory throws on a keyed descriptor.
+            if (!descriptor.IsKeyedService
+                && descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationFactory?.Target is OutboxPipelineWorkerFactory factory
+                && string.Equals(factory.Name, name, StringComparison.Ordinal))
+            {
+                registered = true;
+                break;
+            }
+        }
+
+        if (!registered)
+            services.AddSingleton<IHostedService>(new OutboxPipelineWorkerFactory(name).Create);
+
+        return new NamedOutboxBuilder(services, name);
+    }
+
+    /// <summary>
+    /// The services every pipeline shares: options, options validation and the serializer.
+    /// </summary>
+    private static void AddSharedServices(IServiceCollection services)
+    {
+        services.AddOptions<OutboxOptions>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<OutboxOptions>, OutboxOptionsValidator>());
 
@@ -71,11 +182,22 @@ public static partial class OutboxServiceCollectionExtensions
                 ? new DispatchingOutboxSerializer(dispatcher)
                 : throw new InvalidOperationException(MissingSerializerMessage);
         });
+    }
 
-        // AddHostedService registers through TryAddEnumerable, so calling AddOutbox() twice still
-        // starts one worker. OutboxRegistrationTests pins that.
-        services.AddHostedService<OutboxWorkerService>();
-        return new OutboxBuilder(services);
+    /// <summary>
+    /// Creates a named pipeline's worker. A named class rather than a lambda, so a later
+    /// <c>AddOutbox(name, configure)</c> call can read the name back from the registration.
+    /// </summary>
+    private sealed class OutboxPipelineWorkerFactory(string name)
+    {
+        public string Name { get; } = name;
+
+        public IHostedService Create(IServiceProvider sp)
+            => new OutboxWorkerService(
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                Name,
+                sp.GetRequiredService<IOptionsMonitor<OutboxOptions>>().Get(Name),
+                sp.GetRequiredService<ILogger<OutboxWorkerService>>());
     }
 
     /// <summary>

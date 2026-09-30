@@ -1,1 +1,7 @@
 #nullable enable
+*REMOVED*static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure = null) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<ZeroAlloc.Outbox.OutboxOptions!>? configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.OutboxServiceCollectionExtensions.AddOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<ZeroAlloc.Outbox.OutboxOptions!>! configure) -> ZeroAlloc.Outbox.INamedOutboxBuilder!
+ZeroAlloc.Outbox.INamedOutboxBuilder
+ZeroAlloc.Outbox.INamedOutboxBuilder.Name.get -> string!
