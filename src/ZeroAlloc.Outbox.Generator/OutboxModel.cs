@@ -7,6 +7,7 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
         string? ns,
         string typeName,
         string typeFqn,
+        string hintName,
         bool isInterface,
         bool isStatic,
         System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> diagnostics)
@@ -14,6 +15,7 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
         Namespace = ns;
         TypeName = typeName;
         TypeFqn = typeFqn;
+        HintName = hintName;
         IsInterface = isInterface;
         IsStatic = isStatic;
         Diagnostics = diagnostics;
@@ -22,6 +24,9 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
     public string? Namespace { get; }
     public string TypeName { get; }
     public string TypeFqn { get; }
+
+    /// <summary>The hint name of the generated file, from <see cref="HintNames.ForHost"/>.</summary>
+    public string HintName { get; }
     public bool IsInterface { get; }
     public bool IsStatic { get; }
     public System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Diagnostic> Diagnostics { get; }
@@ -33,6 +38,7 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
         return string.Equals(Namespace, other.Namespace, System.StringComparison.Ordinal)
             && string.Equals(TypeName, other.TypeName, System.StringComparison.Ordinal)
             && string.Equals(TypeFqn, other.TypeFqn, System.StringComparison.Ordinal)
+            && string.Equals(HintName, other.HintName, System.StringComparison.Ordinal)
             && IsInterface == other.IsInterface
             && IsStatic == other.IsStatic
             && DiagnosticsEqual(Diagnostics, other.Diagnostics);
@@ -47,6 +53,7 @@ internal sealed class OutboxModel : System.IEquatable<OutboxModel>
             int hash = Namespace != null ? System.StringComparer.Ordinal.GetHashCode(Namespace) : 0;
             hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(TypeName);
             hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(TypeFqn);
+            hash = hash * 31 + System.StringComparer.Ordinal.GetHashCode(HintName);
             hash = hash * 31 + IsInterface.GetHashCode();
             hash = hash * 31 + IsStatic.GetHashCode();
             return hash;

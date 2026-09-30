@@ -23,11 +23,7 @@ internal static class OutboxCodeWriter
         AppendDispatcher(sb, typeFqn, dispatcherName, model.TypeFqn);
         AppendDiExtension(sb, typeFqn, writerName, dispatcherName, diMethodName);
 
-        var hint = model.Namespace != null
-            ? $"{model.Namespace}_{model.TypeName}.Outbox.g.cs"
-            : $"{model.TypeName}.Outbox.g.cs";
-
-        ctx.AddSource(hint, SourceText.From(sb.ToString(), Encoding.UTF8));
+        ctx.AddSource(model.HintName, SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
     private static void AppendFileHeader(StringBuilder sb, string? ns)

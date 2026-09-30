@@ -69,6 +69,7 @@ public sealed class OutboxGenerator : IIncrementalGenerator
             ns,
             symbol.Name,
             fqn,
+            HintNames.ForHost(symbol),
             symbol.TypeKind == TypeKind.Interface,
             symbol.IsStatic || symbol.ContainingType is not null,
             System.Collections.Immutable.ImmutableArray.CreateRange(diagnostics));
