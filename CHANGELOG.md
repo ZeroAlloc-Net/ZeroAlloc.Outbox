@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.0.1...v4.1.0) (2026-09-30)
+
+
+### Features
+
+* **orm:** enqueue in the caller's IAsyncDbTransaction ([#255](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/255)) ([f442f14](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/f442f148d679ce112710eb863bcdcb0ec8828b98)), closes [#241](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/241)
+
+
+### Bug Fixes
+
+* name generated files after the message type's namespace and arity ([#253](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/253)) ([e695805](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/e69580559103c618382d13fb0050a9c8ba122f03)), closes [#251](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/251)
+
 ## [4.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.0.0...v4.0.1) (2026-09-28)
 
 
