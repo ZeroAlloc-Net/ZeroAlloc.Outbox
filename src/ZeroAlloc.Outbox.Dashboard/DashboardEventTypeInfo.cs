@@ -40,12 +40,10 @@ internal sealed class DashboardEventTypeInfo
         if (_options.TryGetTypeInfo(eventType, out var typeInfo))
             return typeInfo;
 
-        if (_warned.TryAdd(eventType, true))
-        {
-            var logger = ctx.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("ZeroAlloc.Outbox.Dashboard");
-            if (logger is not null)
-                LogUnregistered(logger, eventType.FullName ?? eventType.Name, null);
-        }
+        // Mark the type only once the warning is written, so a missing logger does not lose it for good.
+        var logger = ctx.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("ZeroAlloc.Outbox.Dashboard");
+        if (logger is not null && _warned.TryAdd(eventType, true))
+            LogUnregistered(logger, eventType.FullName ?? eventType.Name, null);
         return null;
     }
 }
