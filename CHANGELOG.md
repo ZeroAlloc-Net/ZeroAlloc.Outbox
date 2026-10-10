@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.3.0...v4.4.0) (2026-10-10)
+
+
+### Features
+
+* let custom dashboard events register their type info for AOT ([818ed59](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/818ed59871754919b488dc25e541ce88a1c28ee5))
+* make the Outbox dashboard, EfCore and Resilience packages AOT-compatible ([818ed59](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/818ed59871754919b488dc25e541ce88a1c28ee5))
+
 ## [4.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.2.0...v4.3.0) (2026-10-10)
 
 
