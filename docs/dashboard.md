@@ -103,6 +103,19 @@ app.MapOutboxDashboard("/outbox").RequireAuthorization("AdminPolicy");
 
 CSRF protection is the host's responsibility — the dashboard neither emits nor validates anti-forgery tokens. For cookie-based auth schemes, enable `[ValidateAntiForgeryToken]` or the antiforgery middleware.
 
+## Custom events and NativeAOT
+
+The SSE stream writes events with source-generated JSON, so the dashboard works under NativeAOT. The six built-in events are covered. If you derive your own type from `OutboxDashboardEvent` and publish it to the dashboard, register its JSON type info:
+
+```csharp
+[JsonSerializable(typeof(OrderShippedEvent))]
+internal sealed partial class MyEventsJsonContext : JsonSerializerContext { }
+
+app.MapOutboxDashboard(o => o.EventTypeInfoResolver = MyEventsJsonContext.Default);
+```
+
+Create the context with default `JsonSerializerOptions`, so the frames match the built-in ones, which are PascalCase. `OutboxDashboardOptions.BasePath` replaces the `basePath` argument (`/outbox` by default). A custom event whose type is not registered is skipped, the dashboard logs one warning per type, and the stream continues.
+
 ## Blazor component
 
 For apps already using Blazor, `ZeroAlloc.Outbox.Dashboard.Blazor` ships an `<OutboxDashboard />` component that embeds the dashboard via `iframe`:

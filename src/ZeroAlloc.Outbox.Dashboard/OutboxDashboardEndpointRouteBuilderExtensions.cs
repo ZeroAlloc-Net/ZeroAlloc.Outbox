@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -29,7 +30,37 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
     /// <returns>A <see cref="IEndpointConventionBuilder"/> for further configuration (auth, rate limits).</returns>
     public static IEndpointConventionBuilder MapOutboxDashboard(
         this IEndpointRouteBuilder endpoints,
-        string basePath = "/outbox")
+        string basePath)
+        => MapDashboard(endpoints, basePath, hostResolver: null);
+
+    /// <summary>Maps the outbox dashboard under <c>/outbox</c>. See <see cref="MapOutboxDashboard(IEndpointRouteBuilder, string)"/>.</summary>
+    /// <param name="endpoints">The route builder.</param>
+    /// <returns>A <see cref="IEndpointConventionBuilder"/> for further configuration (auth, rate limits).</returns>
+    public static IEndpointConventionBuilder MapOutboxDashboard(this IEndpointRouteBuilder endpoints)
+        => MapOutboxDashboard(endpoints, "/outbox");
+
+    /// <summary>
+    /// Maps the outbox dashboard like <see cref="MapOutboxDashboard(IEndpointRouteBuilder, string)"/>,
+    /// with the settings in <see cref="OutboxDashboardOptions"/>, such as the JSON type info of the
+    /// host's own <see cref="OutboxDashboardEvent"/> subclasses.
+    /// </summary>
+    /// <param name="endpoints">The route builder.</param>
+    /// <param name="configure">Sets the dashboard options.</param>
+    /// <returns>A <see cref="IEndpointConventionBuilder"/> for further configuration (auth, rate limits).</returns>
+    public static IEndpointConventionBuilder MapOutboxDashboard(
+        this IEndpointRouteBuilder endpoints,
+        Action<OutboxDashboardOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new OutboxDashboardOptions();
+        configure(options);
+        return MapDashboard(endpoints, options.BasePath, options.EventTypeInfoResolver);
+    }
+
+    private static RouteGroupBuilder MapDashboard(
+        IEndpointRouteBuilder endpoints,
+        string basePath,
+        IJsonTypeInfoResolver? hostResolver)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentException.ThrowIfNullOrEmpty(basePath);
@@ -43,7 +74,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         group.MapGet("/outbox.css", (HttpContext ctx) => ServeResourceAsync(ctx, "outbox.css", "text/css; charset=utf-8"));
         group.MapGet("/outbox.js", (HttpContext ctx) => ServeResourceAsync(ctx, "outbox.js", "application/javascript; charset=utf-8"));
 
-        MapReadEndpoints(group);
+        MapReadEndpoints(group, new DashboardEventTypeInfo(hostResolver));
         MapWriteEndpoints(group);
 
         return group;
@@ -86,12 +117,15 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted).ConfigureAwait(false);
     }
 
-    private static void MapReadEndpoints(RouteGroupBuilder group)
+    private static void MapReadEndpoints(RouteGroupBuilder group, DashboardEventTypeInfo eventTypeInfo)
     {
         group.MapGet("/api/pipelines", GetPipelines);
         group.MapGet("/api/snapshot", GetSnapshotAsync);
         group.MapGet("/api/throughput", GetThroughputAsync);
-        group.MapGet("/api/events", StreamEventsAsync);
+        group.MapGet(
+            "/api/events",
+            (HttpContext ctx, string? pipeline, CancellationToken ct) =>
+                StreamEventsAsync(ctx, pipeline, eventTypeInfo, ct));
     }
 
     /// <summary>
@@ -148,6 +182,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
     private static async Task StreamEventsAsync(
         HttpContext ctx,
         string? pipeline,
+        DashboardEventTypeInfo eventTypeInfo,
         CancellationToken ct)
     {
         var publisher = IsDefault(pipeline)
@@ -199,7 +234,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
                     break;
                 }
 
-                await WriteEventFrameAsync(ctx, evt, ct).ConfigureAwait(false);
+                await WriteEventFrameAsync(ctx, evt, eventTypeInfo, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -208,18 +243,20 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
     }
 
-    private static async Task WriteEventFrameAsync(HttpContext ctx, OutboxDashboardEvent evt, CancellationToken ct)
+    private static async Task WriteEventFrameAsync(
+        HttpContext ctx,
+        OutboxDashboardEvent evt,
+        DashboardEventTypeInfo eventTypeInfo,
+        CancellationToken ct)
     {
         var eventName = evt.GetType().Name;
         const string suffix = "Event";
         if (eventName.EndsWith(suffix, StringComparison.Ordinal))
             eventName = eventName[..^suffix.Length];
 
-        var typeInfo = DashboardEventJsonContext.Default.GetTypeInfo(evt.GetType())
-            ?? throw new InvalidOperationException(
-                "The dashboard event stream cannot serialize '" + evt.GetType().FullName + "'. "
-                + "Only the event types ZeroAlloc.Outbox publishes are supported, because the "
-                + "dashboard uses source-generated JSON for NativeAOT.");
+        var typeInfo = eventTypeInfo.Resolve(ctx, evt.GetType());
+        if (typeInfo is null)
+            return;
         var json = JsonSerializer.Serialize(evt, typeInfo);
         var frame = $"event: {eventName}\ndata: {json}\n\n";
         var bytes = Encoding.UTF8.GetBytes(frame);
