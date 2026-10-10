@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.InMemory</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>In-memory store adapter for ZeroAlloc.Outbox (testing).</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>

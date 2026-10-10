@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.Mediator</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>ZeroAlloc.Mediator bridge for ZeroAlloc.Outbox — dispatches outbox messages via IMediator.Publish.</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>

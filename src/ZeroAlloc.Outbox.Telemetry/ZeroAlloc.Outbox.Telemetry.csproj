@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.Telemetry</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
     <Description>ZeroAlloc.Telemetry bridge for ZeroAlloc.Outbox — wraps IOutboxTypeDispatcher with a source-generated OpenTelemetry proxy.</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
