@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ZeroAlloc.Outbox.Resilience;
@@ -39,7 +40,10 @@ public static class OutboxResilienceServiceCollectionExtensions
     /// The proxy wraps the inner <typeparamref name="TDispatcherInterface"/> implementation and
     /// is resolved as <see cref="IOutboxDispatcher{T}"/> by the outbox worker.
     /// </remarks>
-    public static IOutboxBuilder WithResilience<T, TDispatcherInterface, TResilienceProxy>(
+    public static IOutboxBuilder WithResilience<
+        T,
+        TDispatcherInterface,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TResilienceProxy>(
         this IOutboxBuilder builder)
         where T : notnull
         where TDispatcherInterface : class, IOutboxDispatcher<T>
