@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.2.0...v4.3.0) (2026-10-10)
+
+
+### Features
+
+* mark the clean Outbox packages as AOT-compatible ([#283](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/283)) ([6afe546](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/6afe546c831a9ad7fdf461ead9c781754b782b67))
+
 ## [4.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.1.0...v4.2.0) (2026-09-30)
 
 
