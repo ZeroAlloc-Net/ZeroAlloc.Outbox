@@ -1,3 +1,11 @@
 #nullable enable
-static ZeroAlloc.Outbox.Dashboard.OutboxDashboardEndpointRouteBuilderExtensions.MapOutboxDashboard(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! basePath = "/outbox") -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+static ZeroAlloc.Outbox.Dashboard.OutboxDashboardEndpointRouteBuilderExtensions.MapOutboxDashboard(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+static ZeroAlloc.Outbox.Dashboard.OutboxDashboardEndpointRouteBuilderExtensions.MapOutboxDashboard(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! basePath) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
+static ZeroAlloc.Outbox.Dashboard.OutboxDashboardEndpointRouteBuilderExtensions.MapOutboxDashboard(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, System.Action<ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions!>! configure) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 ZeroAlloc.Outbox.Dashboard.OutboxDashboardEndpointRouteBuilderExtensions
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions.BasePath.get -> string!
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions.BasePath.set -> void
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions.EventTypeInfoResolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions.EventTypeInfoResolver.set -> void
+ZeroAlloc.Outbox.Dashboard.OutboxDashboardOptions.OutboxDashboardOptions() -> void
