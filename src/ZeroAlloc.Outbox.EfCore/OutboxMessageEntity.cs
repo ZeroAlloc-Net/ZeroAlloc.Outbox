@@ -11,7 +11,7 @@ public sealed class OutboxMessageEntity
     [Key]
     public OutboxMessageId Id { get; set; } = OutboxMessageId.New();
 
-    [Required, MaxLength(256)]
+    [Required]
     public string TypeName { get; set; } = string.Empty;
 
     public byte[] Payload { get; set; } = Array.Empty<byte>();

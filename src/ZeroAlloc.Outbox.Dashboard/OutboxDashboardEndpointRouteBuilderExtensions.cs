@@ -119,11 +119,8 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
             }
         }
 
-        return HttpResults.Ok(pipelines);
+        return HttpResults.Json(pipelines, DashboardJsonContext.Default.ListPipelineInfo);
     }
-
-    /// <summary>One entry of <c>api/pipelines</c>. A null name is the default pipeline.</summary>
-    private sealed record PipelineInfo(string? Name, bool Events);
 
     /// <summary>True when <paramref name="pipeline"/> names the default pipeline.</summary>
     private static bool IsDefault(string? pipeline) => string.IsNullOrEmpty(pipeline);
@@ -143,7 +140,10 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
             : ctx.RequestServices.GetKeyedService<IOutboxDashboardEventPublisher>(pipeline);
 
     private static IResult UnknownPipeline(string? pipeline)
-        => HttpResults.NotFound(new { error = $"The outbox pipeline '{pipeline}' has no dashboard store." });
+        => HttpResults.Json(
+            new ErrorBody($"The outbox pipeline '{pipeline}' has no dashboard store."),
+            DashboardJsonContext.Default.ErrorBody,
+            statusCode: StatusCodes.Status404NotFound);
 
     private static async Task StreamEventsAsync(
         HttpContext ctx,
@@ -215,7 +215,12 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         if (eventName.EndsWith(suffix, StringComparison.Ordinal))
             eventName = eventName[..^suffix.Length];
 
-        var json = JsonSerializer.Serialize(evt, evt.GetType());
+        var typeInfo = DashboardEventJsonContext.Default.GetTypeInfo(evt.GetType())
+            ?? throw new InvalidOperationException(
+                "The dashboard event stream cannot serialize '" + evt.GetType().FullName + "'. "
+                + "Only the event types ZeroAlloc.Outbox publishes are supported, because the "
+                + "dashboard uses source-generated JSON for NativeAOT.");
+        var json = JsonSerializer.Serialize(evt, typeInfo);
         var frame = $"event: {eventName}\ndata: {json}\n\n";
         var bytes = Encoding.UTF8.GetBytes(frame);
         await ctx.Response.Body.WriteAsync(bytes, ct).ConfigureAwait(false);
@@ -239,7 +244,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
             return UnknownPipeline(pipeline);
 
         var snapshot = await store.GetSnapshotAsync(dispatchedLimit ?? 100, ct).ConfigureAwait(false);
-        return HttpResults.Ok(snapshot);
+        return HttpResults.Json(snapshot, DashboardJsonContext.Default.OutboxSnapshot);
     }
 
     private static async Task<IResult> GetThroughputAsync(
@@ -257,7 +262,7 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         {
             points.Add(p);
         }
-        return HttpResults.Ok(points);
+        return HttpResults.Json(points, DashboardJsonContext.Default.ListThroughputPoint);
     }
 
     private static async Task<IResult> RequeueAsync(
@@ -276,7 +281,10 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return HttpResults.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.Json(
+                new ErrorBody(ex.Message),
+                DashboardJsonContext.Default.ErrorBody,
+                statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
         await SafePublishAsync(publisher, new MessageRequeuedEvent(id, DateTimeOffset.UtcNow), ct).ConfigureAwait(false);
@@ -299,7 +307,10 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return HttpResults.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.Json(
+                new ErrorBody(ex.Message),
+                DashboardJsonContext.Default.ErrorBody,
+                statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
         await SafePublishAsync(publisher, new MessageCancelledEvent(id), ct).ConfigureAwait(false);
@@ -321,7 +332,10 @@ public static class OutboxDashboardEndpointRouteBuilderExtensions
         }
         catch (InvalidOperationException ex)
         {
-            return HttpResults.UnprocessableEntity(new { error = ex.Message });
+            return HttpResults.Json(
+                new ErrorBody(ex.Message),
+                DashboardJsonContext.Default.ErrorBody,
+                statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
         // No event — the worker publishes MessageDispatchedEvent once it picks the message up.
