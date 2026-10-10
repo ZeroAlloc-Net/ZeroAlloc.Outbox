@@ -9,7 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
-    <PackageReference Include="ZeroAlloc.Collections" Version="1.1.11" />
+    <PackageReference Include="ZeroAlloc.Collections" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
