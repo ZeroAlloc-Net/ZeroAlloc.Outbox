@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Binds the MapGet and MapPost handlers at compile time, so they need no runtime reflection. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
     <PackageId>ZeroAlloc.Outbox.Dashboard</PackageId>
     <Description>Operations dashboard for ZeroAlloc.Outbox. Minimal API + SSE + embedded HTML.</Description>
     <PackageTags>outbox;dashboard;observability;zeroalloc</PackageTags>
