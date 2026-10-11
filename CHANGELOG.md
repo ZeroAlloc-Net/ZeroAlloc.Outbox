@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.0...v4.4.1) (2026-10-11)
+
+
+### Performance
+
+* stop allocating per poll and per message in the worker and ORM store ([#300](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/300)) ([c73899e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/c73899edd2df60bbe95fc5c6f15e321e410445fd))
+
 ## [4.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.3.0...v4.4.0) (2026-10-10)
 
 
