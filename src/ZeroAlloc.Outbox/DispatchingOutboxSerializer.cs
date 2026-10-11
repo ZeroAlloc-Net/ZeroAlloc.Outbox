@@ -72,8 +72,8 @@ public sealed class DispatchingOutboxSerializer : IOutboxSerializer
         }
         catch (InvalidCastException ex)
         {
-            // The default Deserialize<T> unboxes the result of Deserialize(data, typeof(T)) with a cast,
-            // which throws here when that result is of another type.
+            // The default Deserialize<T> unboxes the result of Deserialize(data, typeof(T)) with a cast. It
+            // throws here when that result is of another type, or null for a non-nullable value type.
             throw WrongResult<T>(ex);
         }
 

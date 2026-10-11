@@ -18,11 +18,11 @@
     <PackageReference Include="AdoNet.Async.Adapters" Version="1.5.1" />
     <!-- SQL Server integration fixture: the OFFSET/FETCH spelling and the DDL
          are only provably correct against a real engine. -->
-    <PackageReference Include="Testcontainers.MsSql" Version="4.15.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.16.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <!-- PostgreSQL integration fixture: FOR UPDATE SKIP LOCKED can only be proven
          exclusive against a real engine. -->
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
   <ItemGroup>

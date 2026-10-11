@@ -35,7 +35,7 @@ The in-memory and EF Core stores still copy the payload into the entry or entity
 
 On the read side, `DispatchingOutboxSerializer` reads each payload through `ISerializerDispatcher.Deserialize<T>(ReadOnlyMemory<byte>)`, which ZeroAlloc.Serialisation 2.8.0 added. The generated `SerializerDispatcher` returns a struct as itself, where `Deserialize(ReadOnlyMemory<byte>, Type)` returned it boxed as `object`.
 
-`DispatchDeserializationTests` drives the generated `IOutboxTypeDispatcher.DispatchAsync` with the generated `SerializerDispatcher` and a message dispatcher that only records the message. Bytes per dispatch on .NET 10.0, before ZeroAlloc.Serialisation 2.8.0 and after:
+`DispatchDeserializationTests` drives the generated `IOutboxTypeDispatcher.DispatchAsync` with the generated `SerializerDispatcher` and a message dispatcher that only records the message. Bytes per dispatch on .NET 10.0, on ZeroAlloc.Serialisation 2.7.0 before and on 2.8.1 after:
 
 | Message | Before | After |
 |---|---:|---:|
