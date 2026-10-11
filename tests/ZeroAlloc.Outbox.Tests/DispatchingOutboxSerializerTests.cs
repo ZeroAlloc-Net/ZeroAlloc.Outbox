@@ -40,6 +40,18 @@ public class DispatchingOutboxSerializerTests
     }
 
     [Fact]
+    public void Deserialize_DispatcherReturnsNullForStruct_Throws()
+    {
+        var serializer = new DispatchingOutboxSerializer(new NullReturningDispatcher());
+
+        var act = () => serializer.Deserialize<SampleStruct>(ReadOnlyMemory<byte>.Empty);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Deserializing SampleStruct returned null or wrong type.")
+            .WithInnerException<InvalidCastException>();
+    }
+
+    [Fact]
     public void Deserialize_GenericOverloadReturnsNull_Throws()
     {
         var serializer = new DispatchingOutboxSerializer(new GenericOnlyDispatcher(value: null));
@@ -69,6 +81,7 @@ public class DispatchingOutboxSerializerTests
 
     private sealed record SampleMessage(string Name, int Value);
     private sealed record OtherMessage(string Key);
+    private readonly record struct SampleStruct(int Value);
 
     /// <summary>Simple stub that round-trips via System.Text.Json for test purposes.</summary>
     private sealed class StubSerializerDispatcher : ISerializerDispatcher
