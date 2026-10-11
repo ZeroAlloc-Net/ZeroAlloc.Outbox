@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.1...v4.4.2) (2026-10-11)
+
+
+### Performance
+
+* serialize outbox payloads into a pooled writer without boxing ([#310](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/310)) ([2ee4c8b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/2ee4c8b392af9c6513bb5b47cdd432aac320b2bb)), closes [#305](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/305)
+
 ## [4.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.0...v4.4.1) (2026-10-11)
 
 
