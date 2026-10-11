@@ -74,6 +74,26 @@ public sealed class OrmOutboxStoreAllocationTests
         claimed.Should().ContainSingle().Which.RawPayload.Should().Equal(1, 2, 3);
     }
 
+    [Fact]
+    public async Task Serializing_And_Enqueuing_A_Message_Copies_Its_Payload_Once()
+    {
+        // The whole enqueue a generated writer runs: DispatchingOutboxSerializer over the
+        // SerializerDispatcher generated for this assembly, then the store. The serializer writes
+        // into a reused writer and copies the bytes once into an exact-size array, which the store
+        // binds as it is, so the payload appears on the heap once.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+        var serializer = new DispatchingOutboxSerializer(new SerializerDispatcher());
+        var message = new LargeOrmMessage(new string('x', 32 * 1024));
+        var payloadLength = serializer.Serialize(message).Length;
+
+        var bytes = Measure(() => store.EnqueueAsync(
+            "Test.Large", serializer.Serialize(message), transaction: null, CancellationToken.None));
+
+        bytes.Should().BeLessThan(payloadLength + payloadLength / 2, "the payload is allocated once, not copied again");
+    }
+
     private static long Measure(Func<ValueTask> enqueue)
     {
         for (var i = 0; i < 10; i++)

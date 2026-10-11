@@ -14,6 +14,23 @@ The "ZeroAlloc" name refers to the dispatch path:
 - The type discriminator (`TypeName` string) is a compile-time constant in the generated class — no string formatting on the hot path.
 - Deserialization still allocates (the message object itself is a heap allocation), but the infrastructure around it does not.
 
+## Enqueue serialization
+
+`DispatchingOutboxSerializer`, the serializer `AddOutbox()` selects when `AddSerializerDispatcher()` is registered, writes each message through `ISerializerDispatcher.Serialize<T>(IBufferWriter<byte>, T)` into a buffer rented from `ArrayPool<byte>.Shared`. A struct message is not boxed, and no intermediate buffer is allocated. The written bytes are copied once into an exact-size array, which `OrmOutboxStore` binds as it is. So the payload appears on the heap once, and that array is the only allocation serialization adds.
+
+`EnqueueSerializationBenchmark` runs the generated writer and the generated `SerializerDispatcher` (System.Text.Json format) against a store that keeps nothing, and against `OrmOutboxStore` over SQLite in memory. .NET 10.0.12, BenchmarkDotNet v0.15.8, `--inProcess`. `Allocated`, before ZeroAlloc.Serialisation 2.7.0 and after:
+
+| Benchmark | Before | After |
+|---|---:|---:|
+| Serialize and enqueue a 3-field struct, fake store | 352 B | **72 B**, the array of its 44-byte payload |
+| Serialize and enqueue a 2-field class, fake store | 312 B | **64 B**, the array of its 36-byte payload |
+| Serialize and enqueue the class, `OrmOutboxStore` | 4,128 B | **3,816 B** |
+| Serialize and enqueue a 32 KB message, `OrmOutboxStore` | 135,520 B | **36,608 B** |
+
+Before, the dispatcher boxed a struct, grew a fresh `ArrayBufferWriter` for every message, and returned a slice of it, which the ORM store then copied again. The last row comes from `OrmOutboxStoreAllocationTests`. `EnqueueSerializationTests` asserts the first two rows exactly: an enqueue allocates the payload array and nothing else.
+
+The in-memory and EF Core stores still copy the payload into the entry or entity they keep, because they hold it after the call returns.
+
 ## AOT / trimmer safety
 
 All dispatch code paths are:
