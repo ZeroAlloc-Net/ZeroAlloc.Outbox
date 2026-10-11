@@ -80,6 +80,10 @@ jobs:
     # plus AddOutbox(), then writes a message through the generator-emitted writer and waits
     # for the worker to dispatch it through the generator-emitted type dispatcher. A second
     # message goes through the keyed store of a named pipeline and its own worker.
+    #
+    # It then publishes samples/ZeroAlloc.Outbox.AotSmoke.Adapters the same way: the ORM store over
+    # SQLite with the Mediator, Resilience and Telemetry bridges, and the dashboard on Kestrel.
+    # EfCore and Dashboard.Blazor are left out; the sample's project file says why.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -120,6 +124,15 @@ jobs:
 
       - name: Run AOT binary
         run: ./aot-out/ZeroAlloc.Outbox.AotSmoke
+
+      - name: Restore adapters
+        run: dotnet restore samples/ZeroAlloc.Outbox.AotSmoke.Adapters/ZeroAlloc.Outbox.AotSmoke.Adapters.csproj
+
+      - name: Publish adapters AOT
+        run: dotnet publish samples/ZeroAlloc.Outbox.AotSmoke.Adapters/ZeroAlloc.Outbox.AotSmoke.Adapters.csproj -r linux-x64 -c Release -o ./aot-adapters-out
+
+      - name: Run adapters AOT binary
+        run: ./aot-adapters-out/ZeroAlloc.Outbox.AotSmoke.Adapters
 
   # No inputs: the workflow discovers every packable project under src/ and
   # checks each against its own published baseline. Naming one package here is

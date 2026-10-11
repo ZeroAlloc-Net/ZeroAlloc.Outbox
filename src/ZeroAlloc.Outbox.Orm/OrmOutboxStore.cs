@@ -1,6 +1,7 @@
 using System.Data.Async;
 using System.Data.Async.Adapters;
 using System.Data.Common;
+using System.Runtime.InteropServices;
 
 namespace ZeroAlloc.Outbox.Orm;
 
@@ -35,6 +36,7 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </remarks>
 public sealed class OrmOutboxStore : IOutboxStore
 {
+    private readonly IAsyncDbConnection _connection;
     private readonly OutboxMessageRepository _repo;
     private readonly IPendingOutboxQuery _pending;
 
@@ -59,6 +61,7 @@ public sealed class OrmOutboxStore : IOutboxStore
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
     {
         ArgumentNullException.ThrowIfNull(connection);
+        _connection = connection;
         _repo = new OutboxMessageRepository(connection);
         _pending = dialect switch
         {
@@ -88,7 +91,7 @@ public sealed class OrmOutboxStore : IOutboxStore
         {
             var now = DateTimeOffset.UtcNow;
             await _repo.InsertAsync(
-                OutboxMessageId.New().Value, typeName, payload.ToArray(),
+                OutboxMessageId.New().Value, typeName, AsArray(payload),
                 (int)OrmOutboxMessageStatus.Pending, now, now, ct).ConfigureAwait(false);
             return;
         }
@@ -99,10 +102,13 @@ public sealed class OrmOutboxStore : IOutboxStore
                 + "committed or rolled back. Enqueue inside an open transaction, or pass null to "
                 + "write immediately.");
 
-        // Wrap the caller's ADO.NET pair in the ORM's adapter so the insert takes one path.
-        var asyncConnection = callerConnection.AsAsync();
-        var asyncTransaction = new AdapterDbTransaction(
-            transaction, (AdapterDbConnection)asyncConnection);
+        // Wrap the caller's ADO.NET pair in the ORM's adapter so the insert takes one path. When
+        // the transaction is on the connection this store already wraps, that wrapper is reused.
+        var asyncConnection = _connection is AdapterDbConnection own
+            && ReferenceEquals((DbConnection)own, callerConnection)
+                ? own
+                : (AdapterDbConnection)callerConnection.AsAsync();
+        var asyncTransaction = new AdapterDbTransaction(transaction, asyncConnection);
         await EnqueueInTransactionAsync(typeName, payload, asyncTransaction, ct).ConfigureAwait(false);
     }
 
@@ -143,11 +149,14 @@ public sealed class OrmOutboxStore : IOutboxStore
         // insert runs on the caller's connection rather than the injected one:
         // enlisting means joining their unit of work, not borrowing their
         // transaction object. This is what makes the enqueue commit or roll back
-        // together with whatever else the caller is writing.
-        var scoped = new OutboxMessageRepository(transaction.Connection);
+        // together with whatever else the caller is writing. A transaction on this store's own
+        // connection, the usual case, reuses the store's repository.
+        var repo = ReferenceEquals(transaction.Connection, _connection)
+            ? _repo
+            : new OutboxMessageRepository(transaction.Connection);
 
-        await scoped.InsertInTransactionAsync(
-            OutboxMessageId.New().Value, typeName, payload.ToArray(),
+        await repo.InsertInTransactionAsync(
+            OutboxMessageId.New().Value, typeName, AsArray(payload),
             (int)OrmOutboxMessageStatus.Pending, now, now, transaction, ct)
             .ConfigureAwait(false);
     }
@@ -268,6 +277,21 @@ public sealed class OrmOutboxStore : IOutboxStore
             .ConfigureAwait(false);
         return changed == 1;
     }
+
+    /// <summary>
+    /// The payload as the array the ORM binds. A serializer typically returns exactly one whole
+    /// array, which is bound as it is; only a slice of a larger buffer is copied.
+    /// </summary>
+    /// <remarks>
+    /// The array is only read, while the insert runs, so binding the caller's own array is safe.
+    /// </remarks>
+    private static byte[] AsArray(ReadOnlyMemory<byte> payload)
+        => MemoryMarshal.TryGetArray(payload, out var segment)
+            && segment.Offset == 0
+            && segment.Array is { } array
+            && segment.Count == array.Length
+                ? array
+                : payload.ToArray();
 
     // A default OutboxLease carries no host, and a null, empty or blank LockedBy would read as
     // unleased, and a blank one identifies no host.

@@ -593,6 +593,33 @@ public sealed class OutboxWorkerTests
     }
 
     [Fact]
+    public async Task A_Dispatcher_That_Cannot_Be_Built_Releases_The_Claimed_Batch()
+    {
+        // Dispatchers are resolved only once a claim returns something, so a dispatcher whose
+        // construction fails does so while this host holds the batch's leases. The batch must
+        // hand them back rather than leave them to expire.
+        var first = NewEntry("Unbuildable.Ping");
+        var second = NewEntry("Unbuildable.Ping");
+        var store = new ScriptedStore([first, second]);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IOutboxStore>(store);
+        services.AddTransient<IOutboxTypeDispatcher>(
+            _ => throw new InvalidOperationException("simulated missing dependency"));
+        await using var provider = services.BuildServiceProvider();
+        var worker = new OutboxWorkerService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Microsoft.Extensions.Options.Options.Create(new OutboxOptions { HostId = "unbuildable" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OutboxWorkerService>.Instance);
+
+        var batch = () => worker.ProcessBatchAsync(CancellationToken.None);
+
+        await batch.Should().ThrowAsync<InvalidOperationException>().WithMessage("simulated missing dependency");
+        store.Released.Should().Equal(first.Id, second.Id);
+        store.Marked.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_Claim_Cancelled_Other_Than_By_Stopping_Does_Not_Stop_The_Worker()
     {
         // A store call can surface a cancellation of its own, such as a command timeout, while

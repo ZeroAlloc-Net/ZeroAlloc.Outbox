@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The AOT smoke of the adapter packages: the ORM store, the Mediator, Resilience and Telemetry
+    bridges, and the dashboard. ZeroAlloc.Outbox.AotSmoke covers the core, the in-memory store
+    and the generator.
+
+    Left out, on purpose:
+      ZeroAlloc.Outbox.EfCore            EF Core runs a LINQ query under NativeAOT only when the
+                                         query was precompiled, by dotnet ef dbcontext optimize
+                                         with precompile-queries, which compiles the application's
+                                         own queries. The store's queries live in this package, so
+                                         they are never precompiled, and the store fails at its
+                                         first query under NativeAOT.
+      ZeroAlloc.Outbox.Dashboard.Blazor  a Razor component library. Blazor Server does not run
+                                         under NativeAOT, and Blazor WebAssembly compiles with its
+                                         own toolchain, so there is no NativeAOT host to publish.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ZeroAlloc.Outbox.AotSmoke.Adapters</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Size</OptimizationPreference>
+
+    <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2067;IL2075;IL2091;IL3050;IL3051</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <!-- CVE-2025-6965 / GHSA-2m69-gcr7-jv3q: pin the native SQLite binary (3.50.3) pulled
+         transitively by Microsoft.Data.Sqlite (2.1.x is vulnerable). -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+    <PackageReference Include="AdoNet.Async.Adapters" Version="1.5.1" />
+
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Orm\ZeroAlloc.Outbox.Orm.csproj" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Mediator\ZeroAlloc.Outbox.Mediator.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Resilience\ZeroAlloc.Outbox.Resilience.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Telemetry\ZeroAlloc.Outbox.Telemetry.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Dashboard\ZeroAlloc.Outbox.Dashboard.csproj"
+                      SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Generator\ZeroAlloc.Outbox.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      UndefineProperties="PublishAot" />
+  </ItemGroup>
+</Project>

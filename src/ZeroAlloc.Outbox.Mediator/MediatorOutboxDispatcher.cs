@@ -13,10 +13,16 @@ namespace ZeroAlloc.Outbox.Mediator;
 public sealed class MediatorOutboxDispatcher<T> : IOutboxDispatcher<T>
     where T : class, INotification
 {
-    private readonly IEnumerable<INotificationHandler<T>> _handlers;
+    // An array: a foreach over it allocates no enumerator, unlike one over IEnumerable<T>.
+    private readonly INotificationHandler<T>[] _handlers;
 
     public MediatorOutboxDispatcher(IEnumerable<INotificationHandler<T>> handlers)
-        => _handlers = handlers;
+    {
+        ArgumentNullException.ThrowIfNull(handlers);
+
+        // The container resolves the sequence as an array; any other sequence is copied once here.
+        _handlers = handlers as INotificationHandler<T>[] ?? handlers.ToArray();
+    }
 
     public async ValueTask DispatchAsync(T message, CancellationToken ct)
     {
