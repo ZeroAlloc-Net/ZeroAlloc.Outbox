@@ -54,12 +54,32 @@ public sealed class DispatchingOutboxSerializer : IOutboxSerializer
         }
     }
 
+    /// <summary>
+    /// Deserializes <paramref name="data"/> as <typeparamref name="T"/>.
+    /// </summary>
+    /// <remarks>
+    /// The value is read through <see cref="ISerializerDispatcher.Deserialize{T}(ReadOnlyMemory{byte})"/>, so a
+    /// value type is returned as itself, not boxed.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The dispatcher returned null, or a value that is not a
+    /// <typeparamref name="T"/>.</exception>
     public T Deserialize<T>(ReadOnlyMemory<byte> data)
     {
-        var result = _dispatcher.Deserialize(data, typeof(T));
-        return result is T typed
-            ? typed
-            : throw new InvalidOperationException(
-                $"Deserializing {typeof(T).Name} returned null or wrong type.");
+        T? result;
+        try
+        {
+            result = _dispatcher.Deserialize<T>(data);
+        }
+        catch (InvalidCastException ex)
+        {
+            // The default Deserialize<T> unboxes the result of Deserialize(data, typeof(T)) with a cast,
+            // which throws here when that result is of another type.
+            throw WrongResult<T>(ex);
+        }
+
+        return result is not null ? result : throw WrongResult<T>(innerException: null);
     }
+
+    private static InvalidOperationException WrongResult<T>(Exception? innerException) =>
+        new($"Deserializing {typeof(T).Name} returned null or wrong type.", innerException);
 }
