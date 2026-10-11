@@ -38,6 +38,6 @@ Recommended order: telemetry **outermost** (so spans capture retries), resilienc
 ```csharp
 services.AddOutbox()
         .AddOrderPlacedOutbox()
-        .WithResilience<OrderPlaced, IResilientOrderPlacedDispatcher, ResilientOrderPlacedDispatcherProxy>()
+        .WithResilience<OrderPlaced, IResilientOrderPlacedDispatcher, IResilientOrderPlacedDispatcherResilienceProxy>()
         .WithTelemetry();
 ```
