@@ -1,3 +1,4 @@
+using System.Buffers;
 using ZeroAlloc.Serialisation;
 
 namespace ZeroAlloc.Outbox;
@@ -21,8 +22,37 @@ public sealed class DispatchingOutboxSerializer : IOutboxSerializer
     public DispatchingOutboxSerializer(ISerializerDispatcher dispatcher)
         => _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
-    public ReadOnlyMemory<byte> Serialize<T>(T value) =>
-        _dispatcher.Serialize(value!, typeof(T));
+    // One writer per thread, reused across calls; its buffer is rented from the shared ArrayPool for the
+    // length of one call, so an idle thread holds no buffer. Serialize empties the slot while it writes,
+    // so a reentrant call on the same thread, from inside a serializer, uses a writer of its own.
+    [ThreadStatic]
+    private static PooledByteBufferWriter? t_writer;
+
+    /// <summary>
+    /// Serializes <paramref name="value"/> as <typeparamref name="T"/> and returns the bytes as one
+    /// exact-size array.
+    /// </summary>
+    /// <remarks>
+    /// The value is written through <see cref="ISerializerDispatcher.Serialize{T}(IBufferWriter{byte}, T)"/>
+    /// into a pooled buffer, so a value type is not boxed and no intermediate buffer is allocated. The
+    /// written bytes are then copied once into the returned array, which the caller owns: a store can
+    /// persist that array as it is.
+    /// </remarks>
+    public ReadOnlyMemory<byte> Serialize<T>(T value)
+    {
+        var writer = t_writer ?? new PooledByteBufferWriter();
+        t_writer = null;
+        try
+        {
+            _dispatcher.Serialize(writer, value);
+            return writer.WrittenSpan.ToArray();
+        }
+        finally
+        {
+            writer.Reset();
+            t_writer = writer;
+        }
+    }
 
     public T Deserialize<T>(ReadOnlyMemory<byte> data)
     {
