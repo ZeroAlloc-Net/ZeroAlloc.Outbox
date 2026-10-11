@@ -109,4 +109,4 @@ services.AddSingleton<ISerializerDispatcher, MessagePackDispatcher>();
 services.AddOutbox();   // selects DispatchingOutboxSerializer over your dispatcher
 ```
 
-`DispatchingOutboxSerializer` is sealed and AOT-safe — it passes the `Type` token received from the caller through to your dispatcher without reflection.
+`DispatchingOutboxSerializer` is sealed and AOT-safe. It serializes through `ISerializerDispatcher.Serialize<T>(IBufferWriter<byte>, T)` into a pooled buffer, then copies the bytes once into the exact-size payload the store persists. The generated `SerializerDispatcher` implements that overload by writing straight into the buffer, without boxing a struct. A dispatcher written by hand that implements only the two members above inherits a default that calls `Serialize(object, Type)` and copies its result into the buffer, so it still works but pays for its own buffer and boxes structs. Override `Serialize<T>(IBufferWriter<byte> writer, T value)` to write into `writer` directly and avoid both.
