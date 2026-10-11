@@ -197,7 +197,7 @@ Correctness-matched overhead vs a hand-rolled SQLite outbox (same connection, bo
 
 **Near-zero abstraction overhead** vs writing the same outbox by hand — the 2–9% delta is `IOutboxWriter<T>` + `IOutboxStore` interface dispatch. The value of ZA.Outbox is the `[OutboxMessage]` attribute + typed writer + ecosystem composability (resilience / telemetry / dispatcher bridges) at this cost.
 
-Serializing a message for enqueue allocates only its exact-size payload array: 72 B for a small struct message, 64 B for a small class message, with the generated `SerializerDispatcher`. The ORM store persists that array without copying it.
+Serializing a message for enqueue allocates only its exact-size payload array: 72 B for a small struct message, 64 B for a small class message, with the generated `SerializerDispatcher`. The ORM store persists that array without copying it. Reading a payload back for dispatch does not box a struct message: a MemoryPack struct dispatches with 0 B allocated.
 
 Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/performance.md).
 
