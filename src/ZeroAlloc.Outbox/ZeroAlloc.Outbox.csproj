@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lets the tests and benchmarks drive one worker batch directly, to measure what it allocates. -->
+    <InternalsVisibleTo Include="ZeroAlloc.Outbox.Tests" />
+    <InternalsVisibleTo Include="ZeroAlloc.Outbox.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

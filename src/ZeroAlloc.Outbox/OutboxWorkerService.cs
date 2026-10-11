@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -59,6 +60,20 @@ public sealed class OutboxWorkerService : BackgroundService
     /// <summary>The named pipeline this worker polls, or null for the default pipeline.</summary>
     private readonly string? _pipeline;
 
+    /// <summary>
+    /// Where each type name's dispatcher sits in the resolved <see cref="IOutboxTypeDispatcher"/>
+    /// sequence, built by the first batch that claims anything. The container resolves the
+    /// sequence in registration order every time, so the map is reused rather than rebuilt per
+    /// batch. A lookup checks the dispatcher it lands on, and rebuilds the map when it misses.
+    /// </summary>
+    private Dictionary<string, int>? _dispatcherIndex;
+
+    /// <summary>
+    /// The budget of the outcome being recorded, reused from one message to the next. The worker
+    /// handles one message at a time, so only one budget is ever running.
+    /// </summary>
+    private CancellationTokenSource? _bookkeeping;
+
     public OutboxWorkerService(
         IServiceScopeFactory scopeFactory,
         IOptions<OutboxOptions> options,
@@ -86,8 +101,8 @@ public sealed class OutboxWorkerService : BackgroundService
     /// Builds every <see cref="IOutboxTypeDispatcher"/> once, then starts the poll loop.
     /// </summary>
     /// <remarks>
-    /// Every batch resolves all the dispatchers before it claims anything, so one that cannot be
-    /// built would fail every batch forever. Building them here fails the host start instead,
+    /// Every batch that claims anything resolves all the dispatchers, so one that cannot be
+    /// built would fail every such batch forever. Building them here fails the host start instead,
     /// with the dispatcher's own exception, such as the one for a missing
     /// <see cref="IOutboxSerializer"/>. For the same reason a named pipeline without a store
     /// fails the host start.
@@ -119,58 +134,71 @@ public sealed class OutboxWorkerService : BackgroundService
             ? null
             : _logger.BeginScope(new KeyValuePair<string, object>[] { new("OutboxPipeline", _pipeline) });
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await ProcessBatchAsync(stoppingToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (!IsStopping(ex, stoppingToken))
-            {
-                // A cancellation that did not come from the stopping token, such as a timeout
-                // inside the store, is an error in this batch, not a request to stop the host.
-                _logger.LogError(ex, "Unhandled error in outbox worker batch.");
-            }
+                try
+                {
+                    await ProcessBatchAsync(stoppingToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (!IsStopping(ex, stoppingToken))
+                {
+                    // A cancellation that did not come from the stopping token, such as a timeout
+                    // inside the store, is an error in this batch, not a request to stop the host.
+                    _logger.LogError(ex, "Unhandled error in outbox worker batch.");
+                }
 
-            try
-            {
-                await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(_options.PollingInterval, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+        }
+        finally
+        {
+            _bookkeeping?.Dispose();
+            _bookkeeping = null;
         }
     }
 
-    private async Task ProcessBatchAsync(CancellationToken ct)
+    /// <summary>
+    /// Runs one poll: claims a batch in a new DI scope and dispatches it.
+    /// </summary>
+    /// <remarks>
+    /// The scope is created before the claim because the store may be scoped, as the EF Core
+    /// and ORM stores are, and the dispatchers of the batch then share that scope. Nothing else
+    /// is resolved until the claim returns something, so an idle poll costs the scope and the
+    /// claim and nothing more.
+    /// </remarks>
+    internal async Task ProcessBatchAsync(CancellationToken ct)
     {
 #pragma warning disable MA0004 // ConfigureAwait cannot be applied to 'await using' — scope disposal runs on thread pool
         await using var scope = _scopeFactory.CreateAsyncScope();
 #pragma warning restore MA0004
-        IOutboxStore store;
-        IOutboxDashboardEventPublisher? publisher;
-        if (_pipeline is null)
-        {
-            store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
-            publisher = scope.ServiceProvider.GetService<IOutboxDashboardEventPublisher>();
-        }
-        else
-        {
-            store = scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(_pipeline);
-            publisher = scope.ServiceProvider.GetKeyedService<IOutboxDashboardEventPublisher>(_pipeline);
-        }
-
-        var dispatchers = new Dictionary<string, IOutboxTypeDispatcher>(StringComparer.Ordinal);
-        foreach (var d in scope.ServiceProvider.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>())
-            dispatchers[d.TypeName] = d;
+        var services = scope.ServiceProvider;
+        var store = _pipeline is null
+            ? services.GetRequiredService<IOutboxStore>()
+            : services.GetRequiredKeyedService<IOutboxStore>(_pipeline);
 
         var lease = new OutboxLease(_options.HostId, _options.LeaseDuration);
         var entries = await store.ClaimPendingAsync(_options.BatchSize, lease, ct).ConfigureAwait(false);
+        if (entries.Count == 0) return;
 
         var progress = new BatchProgress();
         try
         {
+            // Resolved inside the try: should a dispatcher fail to build, the batch hands its
+            // leases back like any other failed batch.
+            var publisher = _pipeline is null
+                ? services.GetService<IOutboxDashboardEventPublisher>()
+                : services.GetKeyedService<IOutboxDashboardEventPublisher>(_pipeline);
+            var dispatchers = ResolveDispatchers(services);
+
             while (progress.Next < entries.Count)
             {
                 ct.ThrowIfCancellationRequested();
@@ -179,12 +207,73 @@ public sealed class OutboxWorkerService : BackgroundService
         }
         catch (Exception ex)
         {
-            // Stopping mid-batch, or a store call failed. Hand back what this host claimed but
-            // did not finish, including an entry whose dispatch was cancelled or never ran, so
-            // another host need not wait out the lease. An entry whose dispatch ran is already
+            // Stopping mid-batch, or a store call or building a dispatcher failed. Hand back what
+            // this host claimed but did not finish, including an entry whose dispatch was
+            // cancelled or never ran, so another host need not wait out the lease. An entry whose dispatch ran is already
             // behind progress.Next and keeps its lease: releasing it would get it dispatched twice.
             await ReleaseUnfinishedAsync(store, entries, progress.Next, lease, ex, ct).ConfigureAwait(false);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the dispatchers of one batch, in its scope, as an array the batch looks up
+    /// through <see cref="_dispatcherIndex"/>.
+    /// </summary>
+    private IOutboxTypeDispatcher[] ResolveDispatchers(IServiceProvider services)
+    {
+        var resolved = services.GetRequiredService<IEnumerable<IOutboxTypeDispatcher>>();
+
+        // The default container resolves a sequence as an array; any other enumerable is copied once.
+        var dispatchers = resolved as IOutboxTypeDispatcher[] ?? resolved.ToArray();
+        _dispatcherIndex ??= BuildDispatcherIndex(dispatchers);
+        return dispatchers;
+    }
+
+    /// <summary>
+    /// Maps each type name to the position of its dispatcher. When two dispatchers claim one
+    /// type name, the last registered wins.
+    /// </summary>
+    private static Dictionary<string, int> BuildDispatcherIndex(IOutboxTypeDispatcher[] dispatchers)
+    {
+        var index = new Dictionary<string, int>(dispatchers.Length, StringComparer.Ordinal);
+        for (var i = 0; i < dispatchers.Length; i++)
+            index[dispatchers[i].TypeName] = i;
+        return index;
+    }
+
+    /// <summary>
+    /// Finds the dispatcher of <paramref name="typeName"/> among this batch's
+    /// <paramref name="dispatchers"/>.
+    /// </summary>
+    /// <remarks>
+    /// A miss rebuilds the map from this batch's dispatchers before giving up, so a container
+    /// that resolves the sequence in a different order or length is still served correctly. A
+    /// genuine miss is a message with no dispatcher, which is dead-lettered, so the rebuild is
+    /// off the dispatch path.
+    /// </remarks>
+    private bool TryGetDispatcher(
+        IOutboxTypeDispatcher[] dispatchers, string typeName, [NotNullWhen(true)] out IOutboxTypeDispatcher? dispatcher)
+    {
+        if (TryFind(_dispatcherIndex!, dispatchers, typeName, out dispatcher))
+            return true;
+
+        _dispatcherIndex = BuildDispatcherIndex(dispatchers);
+        return TryFind(_dispatcherIndex, dispatchers, typeName, out dispatcher);
+
+        static bool TryFind(
+            Dictionary<string, int> index, IOutboxTypeDispatcher[] dispatchers, string typeName,
+            [NotNullWhen(true)] out IOutboxTypeDispatcher? dispatcher)
+        {
+            if (index.TryGetValue(typeName, out var i) && i < dispatchers.Length
+                && string.Equals(dispatchers[i].TypeName, typeName, StringComparison.Ordinal))
+            {
+                dispatcher = dispatchers[i];
+                return true;
+            }
+
+            dispatcher = null;
+            return false;
         }
     }
 
@@ -226,7 +315,7 @@ public sealed class OutboxWorkerService : BackgroundService
     private async Task ProcessEntryAsync(
         IOutboxStore store,
         IOutboxDashboardEventPublisher? publisher,
-        Dictionary<string, IOutboxTypeDispatcher> dispatchers,
+        IOutboxTypeDispatcher[] dispatchers,
         IReadOnlyList<OutboxEntry> entries,
         BatchProgress progress,
         OutboxLease lease,
@@ -249,7 +338,7 @@ public sealed class OutboxWorkerService : BackgroundService
             return;
         }
 
-        if (!dispatchers.TryGetValue(entry.TypeName, out var dispatcher))
+        if (!TryGetDispatcher(dispatchers, entry.TypeName, out var dispatcher))
         {
             await DeadLetterMissingDispatcherAsync(store, publisher, entry, lease, ct).ConfigureAwait(false);
             progress.Next++;
@@ -308,17 +397,17 @@ public sealed class OutboxWorkerService : BackgroundService
         Activity? activity,
         CancellationToken stoppingToken)
     {
-        using var bookkeeping = new CancellationTokenSource(s_bookkeepingTimeout);
+        var bookkeeping = StartBookkeepingBudget();
 
         if (failure is not null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, failure.Message);
-            await HandleDispatchFailureAsync(store, publisher, entry, lease, failure, bookkeeping.Token, stoppingToken)
+            await HandleDispatchFailureAsync(store, publisher, entry, lease, failure, bookkeeping, stoppingToken)
                 .ConfigureAwait(false);
             return;
         }
 
-        var moved = await store.MarkSucceededAsync(entry.Id, lease, bookkeeping.Token).ConfigureAwait(false);
+        var moved = await store.MarkSucceededAsync(entry.Id, lease, bookkeeping).ConfigureAwait(false);
 
         _dispatchAttempts.Add(1, tag);
         activity?.SetStatus(ActivityStatusCode.Ok);
@@ -329,10 +418,33 @@ public sealed class OutboxWorkerService : BackgroundService
             return;
         }
 
-        await SafePublishAsync(
-            publisher,
-            new MessageDispatchedEvent(entry.Id, DateTimeOffset.UtcNow, entry.RetryCount + 1),
-            stoppingToken).ConfigureAwait(false);
+        if (publisher is not null)
+        {
+            await SafePublishAsync(
+                publisher,
+                new MessageDispatchedEvent(entry.Id, DateTimeOffset.UtcNow, entry.RetryCount + 1),
+                stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Starts a fresh <see cref="s_bookkeepingTimeout"/> budget for recording one outcome, and
+    /// returns its token.
+    /// </summary>
+    /// <remarks>
+    /// The source is reset and reused for the next message rather than allocated per message.
+    /// One that already timed out cannot be reset, so it is replaced.
+    /// </remarks>
+    private CancellationToken StartBookkeepingBudget()
+    {
+        if (_bookkeeping is null || !_bookkeeping.TryReset())
+        {
+            _bookkeeping?.Dispose();
+            _bookkeeping = new CancellationTokenSource();
+        }
+
+        _bookkeeping.CancelAfter(s_bookkeepingTimeout);
+        return _bookkeeping.Token;
     }
 
     /// <summary>
@@ -384,11 +496,10 @@ public sealed class OutboxWorkerService : BackgroundService
     /// propagates from here releases nothing that was dispatched.
     /// </remarks>
     private async ValueTask SafePublishAsync(
-        IOutboxDashboardEventPublisher? publisher,
+        IOutboxDashboardEventPublisher publisher,
         OutboxDashboardEvent evt,
         CancellationToken stoppingToken)
     {
-        if (publisher is null) return;
         try
         {
             await publisher.PublishAsync(evt, stoppingToken).ConfigureAwait(false);
@@ -420,10 +531,13 @@ public sealed class OutboxWorkerService : BackgroundService
         _deadLetters.Add(1, MessageTags(entry.TypeName));
 
         // No dispatch attempt was made; report the stored retry count as total attempts.
-        await SafePublishAsync(
-            publisher,
-            new MessageDeadLetteredEvent(entry.Id, error, entry.RetryCount),
-            ct).ConfigureAwait(false);
+        if (publisher is not null)
+        {
+            await SafePublishAsync(
+                publisher,
+                new MessageDeadLetteredEvent(entry.Id, error, entry.RetryCount),
+                ct).ConfigureAwait(false);
+        }
     }
 
     private async Task HandleDispatchFailureAsync(
@@ -450,10 +564,14 @@ public sealed class OutboxWorkerService : BackgroundService
 
             _deadLetters.Add(1, MessageTags(entry.TypeName));
 
-            await SafePublishAsync(
-                publisher,
-                new MessageDeadLetteredEvent(entry.Id, ex.Message, newRetryCount),
-                stoppingToken).ConfigureAwait(false);
+            if (publisher is not null)
+            {
+                await SafePublishAsync(
+                    publisher,
+                    new MessageDeadLetteredEvent(entry.Id, ex.Message, newRetryCount),
+                    stoppingToken).ConfigureAwait(false);
+            }
+
             return;
         }
 
@@ -474,10 +592,13 @@ public sealed class OutboxWorkerService : BackgroundService
 
         _retries.Add(1, MessageTags(entry.TypeName));
 
-        await SafePublishAsync(
-            publisher,
-            new MessageFailedEvent(entry.Id, ex.Message, newRetryCount, nextRetry),
-            stoppingToken).ConfigureAwait(false);
+        if (publisher is not null)
+        {
+            await SafePublishAsync(
+                publisher,
+                new MessageFailedEvent(entry.Id, ex.Message, newRetryCount, nextRetry),
+                stoppingToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

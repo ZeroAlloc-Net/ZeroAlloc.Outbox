@@ -46,7 +46,53 @@ public class MediatorOutboxDispatcherTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("handler failed");
     }
 
+    [Fact]
+    public void DispatchAsync_AllocatesNothing_WhenHandlersCompleteSynchronously()
+    {
+        var handlers = new INotificationHandler<OrderCreated>[] { new NoOpHandler(), new NoOpHandler() };
+        var dispatcher = new MediatorOutboxDispatcher<OrderCreated>(handlers);
+        var message = new OrderCreated("ord-4");
+
+        for (var i = 0; i < 20; i++)
+            Dispatch();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 100; i++)
+            Dispatch();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        allocated.Should().Be(0, "iterating the handlers must not allocate an enumerator per message");
+
+        void Dispatch()
+        {
+            var pending = dispatcher.DispatchAsync(message, CancellationToken.None);
+            if (!pending.IsCompletedSuccessfully)
+                throw new InvalidOperationException("Every handler should complete synchronously.");
+        }
+    }
+
+    [Fact]
+    public async Task DispatchAsync_CallsHandlersOfANonArraySequence_InOrder()
+    {
+        var log = new List<string>();
+        var handlers = new List<INotificationHandler<OrderCreated>>
+        {
+            new RecordingHandler(log, "A"),
+            new RecordingHandler(log, "B"),
+        };
+        var dispatcher = new MediatorOutboxDispatcher<OrderCreated>(handlers.AsReadOnly());
+
+        await dispatcher.DispatchAsync(new OrderCreated("ord-5"), CancellationToken.None);
+
+        log.Should().Equal("A:ord-5", "B:ord-5");
+    }
+
     private sealed record OrderCreated(string OrderId) : INotification;
+
+    private sealed class NoOpHandler : INotificationHandler<OrderCreated>
+    {
+        public ValueTask Handle(OrderCreated notification, CancellationToken ct) => ValueTask.CompletedTask;
+    }
 
     private sealed class RecordingHandler(List<string> log, string tag) : INotificationHandler<OrderCreated>
     {
