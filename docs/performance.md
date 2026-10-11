@@ -12,7 +12,7 @@ The "ZeroAlloc" name refers to the dispatch path:
 
 - The `IOutboxTypeDispatcher` implementation is generated at compile time — no `Dictionary<string, Delegate>`, no `MethodInfo.Invoke`, no generic instantiation at runtime.
 - The type discriminator (`TypeName` string) is a compile-time constant in the generated class — no string formatting on the hot path.
-- Deserialization still allocates (the message object itself is a heap allocation), but the infrastructure around it does not.
+- Deserialization allocates what the message itself needs, such as a class instance and its strings, but the infrastructure around it does not. A struct message is not boxed.
 
 ## Enqueue serialization
 
@@ -30,6 +30,19 @@ The "ZeroAlloc" name refers to the dispatch path:
 Before, the dispatcher boxed a struct, grew a fresh `ArrayBufferWriter` for every message, and returned a slice of it, which the ORM store then copied again. The last row comes from `OrmOutboxStoreAllocationTests`. `EnqueueSerializationTests` asserts the first two rows exactly: an enqueue allocates the payload array and nothing else.
 
 The in-memory and EF Core stores still copy the payload into the entry or entity they keep, because they hold it after the call returns.
+
+## Dispatch deserialization
+
+On the read side, `DispatchingOutboxSerializer` reads each payload through `ISerializerDispatcher.Deserialize<T>(ReadOnlyMemory<byte>)`, which ZeroAlloc.Serialisation 2.8.0 added. The generated `SerializerDispatcher` returns a struct as itself, where `Deserialize(ReadOnlyMemory<byte>, Type)` returned it boxed as `object`.
+
+`DispatchDeserializationTests` drives the generated `IOutboxTypeDispatcher.DispatchAsync` with the generated `SerializerDispatcher` and a message dispatcher that only records the message. Bytes per dispatch on .NET 10.0, before ZeroAlloc.Serialisation 2.8.0 and after:
+
+| Message | Before | After |
+|---|---:|---:|
+| 3-field struct, MemoryPack | 40 B, the box | **0 B** |
+| 3-field struct, System.Text.Json | 248 B | **208 B**, what System.Text.Json allocates to read it |
+
+The tests assert the second column exactly: 0 B for MemoryPack, and for System.Text.Json the same number of bytes that `JsonSerializer.Deserialize` allocates for the payload on its own. A class message still allocates its instance, which the dispatcher hands on.
 
 ## AOT / trimmer safety
 
