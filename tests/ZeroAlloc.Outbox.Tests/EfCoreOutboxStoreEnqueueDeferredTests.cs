@@ -36,7 +36,6 @@ public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
         await _store.EnqueueDeferredAsync("Test.Cmd", new byte[] { 1, 2, 3 }, CancellationToken.None);
 
         // Tracked entity exists but no row yet (no SaveChanges called).
-#pragma warning disable HLQ005 // Assert.Single is xUnit's API, not LINQ Single
         Assert.Single(_db.ChangeTracker.Entries<OutboxMessageEntity>());
         var pending = await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
         Assert.Empty(pending);
@@ -45,7 +44,6 @@ public sealed class EfCoreOutboxStoreEnqueueDeferredTests : IAsyncLifetime
         await _db.SaveChangesAsync(CancellationToken.None);
         pending = await _store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
         Assert.Single(pending);
-#pragma warning restore HLQ005
         Assert.Equal("Test.Cmd", pending[0].TypeName);
     }
 
