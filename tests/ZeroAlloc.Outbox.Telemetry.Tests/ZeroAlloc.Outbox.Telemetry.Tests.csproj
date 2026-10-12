@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <!-- Repo-wide TreatWarningsAsErrors with custom DiagnosticIds; keep silent for the back-compat tests. -->
-    <NoWarn>$(NoWarn);MA0004;HLQ012</NoWarn>
+    <NoWarn>$(NoWarn);MA0004</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- src stays on the ZeroAlloc.Mediator 5.1.5 floor it ships with; the tests run against
