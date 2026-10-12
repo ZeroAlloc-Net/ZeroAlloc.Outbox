@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.4.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.2...v4.4.3) (2026-10-11)
+
+
+### Performance
+
+* read outbox payloads through the generic Deserialize&lt;T&gt; ([#317](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/317)) ([95af1c4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/95af1c43db6d042d699d2b8832da1369f661b3af)), closes [#312](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/312)
+* require ZeroAlloc.Serialisation 2.8.1 so a null struct read still throws ([#320](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/320)) ([a035d8f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/a035d8ff36cf00f6ebc1127ae6fd8ba9f9c1410e))
+
 ## [4.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.1...v4.4.2) (2026-10-11)
 
 
