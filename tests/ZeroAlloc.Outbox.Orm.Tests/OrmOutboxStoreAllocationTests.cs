@@ -3,13 +3,14 @@ using System.Data.Async.Adapters;
 using System.Data.Common;
 using AwesomeAssertions;
 using Xunit;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Outbox.Orm.Tests;
 
 /// <summary>
 /// What an enqueue allocates. Microsoft.Data.Sqlite completes its async calls synchronously, so
-/// each enqueue runs on the test thread and <see cref="GC.GetAllocatedBytesForCurrentThread"/>
-/// sees all of it. SQLite copies a bound blob into native memory, not onto the managed heap.
+/// each enqueue runs on the test thread and <see cref="AllocationGate"/>, which counts the
+/// calling thread's allocations, sees all of it. SQLite copies a bound blob into native memory, not onto the managed heap.
 /// </summary>
 public sealed class OrmOutboxStoreAllocationTests
 {
@@ -94,16 +95,8 @@ public sealed class OrmOutboxStoreAllocationTests
         bytes.Should().BeLessThan(payloadLength + payloadLength / 2, "the payload is allocated once, not copied again");
     }
 
-    private static long Measure(Func<ValueTask> enqueue)
-    {
-        for (var i = 0; i < 10; i++)
-            Run(enqueue);
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10; i++)
-            Run(enqueue);
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
-    }
+    private static long Measure(Func<ValueTask> enqueue) =>
+        AllocationGate.MeasureBytesPerCall(10, () => Run(enqueue));
 
     private static void Run(Func<ValueTask> enqueue)
     {

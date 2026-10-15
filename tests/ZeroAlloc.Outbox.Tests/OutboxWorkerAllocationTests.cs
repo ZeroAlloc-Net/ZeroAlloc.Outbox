@@ -2,12 +2,14 @@ using System.Data.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Outbox.Tests;
 
 /// <summary>
 /// What one worker batch allocates. The store and dispatcher complete synchronously, so the whole
-/// batch runs on the test thread and <see cref="GC.GetAllocatedBytesForCurrentThread"/> sees all of it.
+/// batch runs on the test thread and <see cref="AllocationGate"/>, which counts the calling
+/// thread's allocations, sees all of it.
 /// </summary>
 /// <remarks>
 /// Not run in parallel: another test's ActivityListener or MeterListener on "ZeroAlloc.Outbox"
@@ -18,6 +20,7 @@ namespace ZeroAlloc.Outbox.Tests;
 public sealed class OutboxWorkerAllocationTests
 {
     private const string TypeName = "MyApp.Ping";
+    private const int Iterations = 10;
 
     [Fact]
     public void IdlePoll_ResolvesNoDispatcher()
@@ -47,16 +50,17 @@ public sealed class OutboxWorkerAllocationTests
         var worker = CreateWorker(provider);
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 
-        var scopeOnly = Measure(() =>
-        {
-            var scope = scopeFactory.CreateAsyncScope();
-            _ = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
-            scope.DisposeAsync().GetAwaiter().GetResult();
-        });
-        var idle = Measure(() => RunBatch(worker));
-
-        idle.Should().BeLessThanOrEqualTo(scopeOnly,
-            "the scope is the store's, and nothing else is needed until something is claimed");
+        // The scope is the store's, and nothing else is needed until something is claimed.
+        AllocationGate.AssertNoMoreThan(
+            Iterations,
+            baseline: () =>
+            {
+                var scope = scopeFactory.CreateAsyncScope();
+                _ = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+                scope.DisposeAsync().GetAwaiter().GetResult();
+            },
+            candidate: () => RunBatch(worker),
+            "idle poll");
     }
 
     [Fact]
@@ -69,8 +73,8 @@ public sealed class OutboxWorkerAllocationTests
         var one = CreateWorker(oneProvider);
         var many = CreateWorker(manyProvider);
 
-        var oneBytes = Measure(() => RunBatch(one));
-        var manyBytes = Measure(() => RunBatch(many));
+        var oneBytes = AllocationGate.MeasureBytesPerCall(Iterations, () => RunBatch(one));
+        var manyBytes = AllocationGate.MeasureBytesPerCall(Iterations, () => RunBatch(many));
 
         (manyBytes - oneBytes).Should().Be(0,
             "with no dashboard publisher, recording a dispatch outcome allocates nothing per message");
@@ -95,17 +99,6 @@ public sealed class OutboxWorkerAllocationTests
         var task = worker.ProcessBatchAsync(CancellationToken.None);
         if (!task.IsCompletedSuccessfully)
             throw new InvalidOperationException("Every call in the batch should complete synchronously.");
-    }
-
-    private static long Measure(Action action)
-    {
-        for (var i = 0; i < 20; i++)
-            action();
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10; i++)
-            action();
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
     }
 
     private sealed class NoOpDispatcher : IOutboxTypeDispatcher
