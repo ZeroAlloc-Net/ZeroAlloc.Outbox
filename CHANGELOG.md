@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.3...v4.4.4) (2026-10-15)
+
+
+### Documentation
+
+* correct readme dispatcher sample, options claim and package list ([#331](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/331)) ([d0b63e6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/d0b63e69f12e3a3322f80ca0d6a433a9fe11c03d))
+
 ## [4.4.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.2...v4.4.3) (2026-10-11)
 
 
