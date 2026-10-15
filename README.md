@@ -6,7 +6,7 @@
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
-Source-generated transactional outbox for .NET. Annotate a message type with `[OutboxMessage]` and a Roslyn source generator emits a typed writer and dispatcher bridge — no reflection, no boxing, AOT-safe. Backed by EF Core (production) or in-memory (tests), with a built-in polling worker, exponential-backoff retry, and dead-letter support.
+Source-generated transactional outbox for .NET. Annotate a message type with `[OutboxMessage]` and a Roslyn source generator emits a typed writer and dispatcher bridge — no reflection, no boxing, AOT-safe. Backed by ZeroAlloc.ORM or EF Core (production) or in-memory (tests), with a built-in polling worker, exponential-backoff retry, and dead-letter support.
 
 Multiple packages in this family — see [Documentation](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/tree/main/docs/) or NuGet for the full list.
 
@@ -21,9 +21,17 @@ The source generator is bundled into the main package — a single `PackageRefer
 dotnet add package ZeroAlloc.Outbox
 
 # Pick a store:
+dotnet add package ZeroAlloc.Outbox.Orm       # production — ZeroAlloc.ORM raw SQL, Native AOT (net10.0)
 dotnet add package ZeroAlloc.Outbox.EfCore    # production — Entity Framework Core
 dotnet add package ZeroAlloc.Outbox.InMemory  # testing — in-process, no database
+
+# Optional bridges:
+dotnet add package ZeroAlloc.Outbox.Mediator    # dispatch through ZeroAlloc.Mediator IMediator.Publish
+dotnet add package ZeroAlloc.Outbox.Resilience  # wrap dispatchers in a ZeroAlloc.Resilience proxy
+dotnet add package ZeroAlloc.Outbox.Telemetry   # OpenTelemetry instrumentation around dispatch
 ```
+
+See [Mediator Integration](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/03-mediator-integration.md), [Resilience Bridge](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/07-resilience-bridge.md) and [OpenTelemetry integration](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/08-telemetry.md).
 
 > The standalone `ZeroAlloc.Outbox.Generator` package is still published for backwards compatibility with existing direct PackageReferences, but new consumers should reference only `ZeroAlloc.Outbox`.
 
@@ -52,7 +60,7 @@ builder.Services.AddOutbox(options =>
             options.MaxAttempts     = 3;
             options.LeaseDuration   = TimeSpan.FromMinutes(2); // must exceed your slowest dispatch
         })
-        .WithEfCore<AppDbContext>()      // or .WithInMemoryStore()
+        .WithEfCore<AppDbContext>()      // or .WithOrm() / .WithInMemoryStore()
         .AddOrderPlacedOutbox();         // generated extension
 ```
 
@@ -90,7 +98,7 @@ public class OrderService(IOutboxWriter<OrderPlaced> writer, AppDbContext db)
 ```csharp
 public class OrderPlacedDispatcher(IMessageBus bus) : IOutboxDispatcher<OrderPlaced>
 {
-    public async Task DispatchAsync(OrderPlaced message, CancellationToken ct)
+    public async ValueTask DispatchAsync(OrderPlaced message, CancellationToken ct)
         => await bus.PublishAsync(message, ct);
 }
 
@@ -207,6 +215,7 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 |---------|-------|
 | Source-generated writers | `[OutboxMessage]` triggers generator; typed `IOutboxWriter<T>` emitted at compile time |
 | Typed dispatchers | `IOutboxDispatcher<T>` — implement once, wire to any transport (bus, HTTP, email) |
+| ORM store | Raw SQL through ZeroAlloc.ORM on the caller's transaction; SQLite, PostgreSQL or SQL Server |
 | EF Core store | Writes and reads via `DbContext`; enlist in ambient transaction for atomicity |
 | InMemory store | Thread-safe in-process store for unit and integration tests |
 | Polling worker | `OutboxWorkerService` (`IHostedService`) polls on configurable interval with scope isolation |
@@ -214,7 +223,7 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | Exponential backoff | Retry delay = `RetryBaseDelay × 2^(attempt-1)`; configurable via `OutboxOptions` |
 | Dead-letter | Entries that exceed `MaxAttempts` are dead-lettered with the failure reason |
 | AOT / trimmer safe | All dispatch code is generated; no `Type.GetType`, no `MakeGenericType`. `AddOutbox()` is trim- and AOT-safe; reflection JSON is an explicit opt-in |
-| `IOptions<OutboxOptions>` | Full options support with hot-reload via standard `Microsoft.Extensions.Options` |
+| `IOptions<OutboxOptions>` | Configured through standard `Microsoft.Extensions.Options`; the worker reads its options once when it starts, so a change takes effect after a restart |
 
 ---
 
@@ -225,6 +234,10 @@ Full methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAll
 | [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) | Warning | `[OutboxMessage]` applied to an interface — code will not be generated |
 | [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) | Warning | `[OutboxMessage]` applied to a static class — code will not be generated |
 | [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md) | Warning | `[OutboxMessage]` applied to a nested type — use a top-level type for a stable type discriminator |
+| [ZO0004](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0004.md) | Warning | Generic `[OutboxMessage]` type has no closed usage |
+| [ZO0005](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0005.md) | Error | Stored type name is longer than 256 characters |
+| [ZO0006](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0006.md) | Error | `[OutboxMessage]` declaration of a closed generic type is invalid |
+| [ZO0007](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0007.md) | Error | Outbox message would get the same generated names as another message |
 
 ---
 
@@ -241,7 +254,9 @@ Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/bl
 - [Dependency Injection](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dependency-injection.md)
 - [Migrating to v3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/migrating-to-v3.md)
 - [Migrating to v4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/migrating-to-v4.md)
-- Diagnostics: [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) · [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) · [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md)
+- [Dashboard](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/dashboard.md) · [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/testing.md) · [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/performance.md)
+- [Cookbook](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/tree/main/docs/cookbook/): EF Core transaction, custom dispatcher, Mediator integration, dead-letter handling, testing with a host, AOT-safe serialisation, Resilience bridge, telemetry
+- Diagnostics: [ZO0001](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0001.md) · [ZO0002](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0002.md) · [ZO0003](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0003.md) · [ZO0004](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0004.md) · [ZO0005](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0005.md) · [ZO0006](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0006.md) · [ZO0007](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/diagnostics/ZO0007.md)
 
 ---
 
