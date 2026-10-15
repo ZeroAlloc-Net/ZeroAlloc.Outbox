@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Data.Common;
 using System.Runtime.InteropServices;
 using ZeroAlloc.Serialisation;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Outbox.Tests;
 
@@ -11,11 +12,13 @@ namespace ZeroAlloc.Outbox.Tests;
 /// the payload it is handed and allocates nothing, so what is measured is the serialization alone.
 /// </summary>
 /// <remarks>
-/// Every call completes synchronously on the test thread, so
-/// <see cref="GC.GetAllocatedBytesForCurrentThread"/> sees all of it.
+/// Every call completes synchronously on the test thread, so <see cref="AllocationGate"/>, which
+/// counts the calling thread's allocations, sees all of it.
 /// </remarks>
 public sealed class EnqueueSerializationTests
 {
+    private const int Iterations = 10;
+
     private static readonly SerializerDispatcher s_dispatcher = new();
 
     [Fact]
@@ -147,16 +150,8 @@ public sealed class EnqueueSerializationTests
         inner.ToArray().Should().Equal([7, 7, 7]);
     }
 
-    private static long Measure(Func<ValueTask> enqueue)
-    {
-        for (var i = 0; i < 10; i++)
-            Complete(enqueue());
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10; i++)
-            Complete(enqueue());
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
-    }
+    private static long Measure(Func<ValueTask> enqueue) =>
+        AllocationGate.MeasureBytesPerCall(Iterations, () => Complete(enqueue()));
 
     private static void Complete(ValueTask task)
     {

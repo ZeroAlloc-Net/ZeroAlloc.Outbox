@@ -1,6 +1,7 @@
 using ZeroAlloc.Mediator;
 using ZeroAlloc.Outbox;
 using ZeroAlloc.Outbox.Mediator;
+using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Outbox.Mediator.Tests;
 
@@ -53,15 +54,8 @@ public class MediatorOutboxDispatcherTests
         var dispatcher = new MediatorOutboxDispatcher<OrderCreated>(handlers);
         var message = new OrderCreated("ord-4");
 
-        for (var i = 0; i < 20; i++)
-            Dispatch();
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-            Dispatch();
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        allocated.Should().Be(0, "iterating the handlers must not allocate an enumerator per message");
+        // Iterating the handlers must not allocate an enumerator per message.
+        AllocationGate.AssertBudget(0, 100, Dispatch, "DispatchAsync over two synchronous handlers");
 
         void Dispatch()
         {
