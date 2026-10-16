@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.4...v4.4.5) (2026-10-16)
+
+
+### Documentation
+
+* rewrite the readme as a product page ([#349](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/349)) ([3797a29](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/3797a2962ed0a71041d83deabd6b1d7718549e83))
+
 ## [4.4.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.3...v4.4.4) (2026-10-15)
 
 
