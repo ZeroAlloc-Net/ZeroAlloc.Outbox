@@ -8,10 +8,31 @@ sidebar_position: 3
 
 ## 1. Install the NuGet packages
 
+The source generator is bundled into the main package, so a single `PackageReference` is all you
+need for the generator:
+
 ```bash
+# Core abstractions + source generator (always required)
 dotnet add package ZeroAlloc.Outbox
-dotnet add package ZeroAlloc.Outbox.EfCore   # or ZeroAlloc.Outbox.InMemory for tests
+
+# Pick a store:
+dotnet add package ZeroAlloc.Outbox.Orm       # production — ZeroAlloc.ORM raw SQL, Native AOT (net10.0)
+dotnet add package ZeroAlloc.Outbox.EfCore    # production — Entity Framework Core
+dotnet add package ZeroAlloc.Outbox.InMemory  # testing — in-process, no database
+
+# Optional bridges:
+dotnet add package ZeroAlloc.Outbox.Mediator    # dispatch through ZeroAlloc.Mediator IMediator.Publish
+dotnet add package ZeroAlloc.Outbox.Resilience  # wrap dispatchers in a ZeroAlloc.Resilience proxy
+dotnet add package ZeroAlloc.Outbox.Telemetry   # OpenTelemetry instrumentation around dispatch
 ```
+
+See [Mediator Integration](cookbook/03-mediator-integration.md), [Resilience Bridge](cookbook/07-resilience-bridge.md)
+and [OpenTelemetry integration](cookbook/08-telemetry.md).
+
+> The standalone `ZeroAlloc.Outbox.Generator` package is still published for backwards compatibility
+> with existing direct PackageReferences, but new consumers should reference only `ZeroAlloc.Outbox`.
+
+The rest of this page uses the EF Core store.
 
 ---
 
@@ -141,4 +162,4 @@ store.AllEntries().Should().ContainSingle()
 | `MaxAttempts` | `5` | Dispatch attempts before dead-lettering |
 | `BatchSize` | `50` | Messages fetched per polling cycle |
 | `PollingInterval` | `5 s` | Delay between polling cycles |
-| `RetryBaseDelay` | `2 s` | Base delay for exponential back-off (`delay × 2^attempt`) |
+| `RetryBaseDelay` | `2 s` | Base delay for exponential back-off (`RetryBaseDelay × 2^(attempt-1)`) |

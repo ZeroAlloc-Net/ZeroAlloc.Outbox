@@ -6,7 +6,7 @@ using ZeroAlloc.Outbox.InMemory;
 namespace ZeroAlloc.Outbox.Tests;
 
 /// <summary>
-/// Regression tests ensuring the README's setup snippets produce a service provider
+/// Regression tests ensuring the dashboard setup snippets in docs/dashboard.md produce a service provider
 /// from which the dashboard endpoints can resolve their dependencies.
 /// </summary>
 public sealed class DashboardDIResolutionTests
