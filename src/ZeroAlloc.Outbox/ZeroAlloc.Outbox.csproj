@@ -20,7 +20,7 @@
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
       PrivateAssets="all" />
-    <PackageReference Include="ZeroAlloc.ValueObjects" Version="2.2.0" />
+    <PackageReference Include="ZeroAlloc.ValueObjects" Version="2.2.1" />
     <PackageReference Include="ZeroAlloc.Resilience" Version="3.3.4" />
     <PackageReference Include="ZeroAlloc.StateMachine" Version="1.6.4" />
     <PackageReference Include="ZeroAlloc.Serialisation" Version="2.8.2" />
