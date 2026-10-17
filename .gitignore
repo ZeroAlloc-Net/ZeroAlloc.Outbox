@@ -8,3 +8,6 @@ BenchmarkDotNet.Artifacts/
 
 # Snapshot mismatch artifacts, written by GeneratorSnapshot on a failing run.
 *.received.*
+
+# Test results and coverage reports
+TestResults/
