@@ -47,7 +47,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.31" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.32" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
@@ -59,7 +59,7 @@
          net8.0 target has no Pkcs in its graph. -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
     <!-- One container per test class, a database per test; shared with ZeroAlloc.Outbox.Orm.Tests. -->
