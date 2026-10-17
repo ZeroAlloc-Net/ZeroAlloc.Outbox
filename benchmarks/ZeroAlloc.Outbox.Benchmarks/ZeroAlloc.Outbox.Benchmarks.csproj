@@ -16,7 +16,7 @@
          transitively by Microsoft.Data.Sqlite / EF Core Sqlite (2.1.x is vulnerable). -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
 
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
     <PackageReference Include="AdoNet.Async.Adapters" Version="1.5.2" />
 
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj" />
