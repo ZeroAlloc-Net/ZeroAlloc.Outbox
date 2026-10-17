@@ -20,7 +20,7 @@
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
     <!-- MemoryPackStructMessage: a struct format that reads without allocating, for the read-path gate. -->
     <PackageReference Include="MemoryPack" Version="1.21.4" />
-    <PackageReference Include="ZeroAlloc.TestHelpers" Version="1.7.*">
+    <PackageReference Include="ZeroAlloc.TestHelpers" Version="1.8.*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>contentfiles;build</IncludeAssets>
     </PackageReference>
