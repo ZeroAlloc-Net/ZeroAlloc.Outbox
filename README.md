@@ -93,12 +93,14 @@ Stores and integrations:
 
 ## Performance
 
-Against a hand-rolled SQLite outbox on the same connection, both transactional. .NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+Against a hand-rolled SQLite outbox on the same connection, both transactional. .NET 10, BenchmarkDotNet, same run; time is the ratio against the hand-rolled outbox, allocations are exact.
 
 | Operation | Hand-rolled | ZA.Outbox | Overhead |
 |---|---:|---:|---:|
-| Enqueue (1 message, transactional) | 6.86 µs / 2.08 KB | **6.99 µs / 2.13 KB** | +2% time, +2% alloc |
-| Dispatch tick (10 messages) | 105.4 µs / 11.9 KB | **115.0 µs / 11.09 KB** | +9% time, **−7% alloc** |
+| Enqueue (1 message, transactional) | 1.00 / 2,128 B | **1.03 / 2,184 B** | +3% time, +3% alloc |
+| Dispatch tick (10 messages) | 1.00 / 12,184 B | **1.05 / 11,520 B** | +5% time, **−5% alloc** |
+
+An idle worker poll allocates 128 B, its DI scope, and nothing else.
 
 Full numbers, including enqueue serialisation and dispatch deserialisation budgets: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/performance.md).
 
