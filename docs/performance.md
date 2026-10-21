@@ -69,21 +69,39 @@ The worker creates one `IServiceScope` per batch cycle, not per entry. For a bat
 
 The head-to-head dispatch tick below claims and marks, but does not renew, so its figures leave out that per-entry renewal round trip. They measure the abstraction overhead of the claim and mark path, not the full cost of a worker cycle.
 
+`DispatchLoopBenchmark` measures one poll of `OutboxWorkerService` against a store and a dispatcher that complete synchronously and allocate nothing, so every byte is the worker's own. Same run as the head-to-head below.
+
+| Poll | Allocated |
+|---|---:|
+| Idle, nothing claimed | 128 B, the poll's DI scope |
+| Claims and dispatches 50 entries | 3,269 B |
+
+The idle poll creates the scope because a scoped store, such as the EF Core one, can only be resolved inside it; it resolves no dispatcher. `OutboxWorkerAllocationTests` asserts that an idle poll allocates nothing beyond that scope.
+
 ## Head-to-head vs hand-rolled SQLite outbox
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-05-14_
+_Last refreshed: 2026-10-21_
 
 Correctness-matched comparison: both rows use the **same SQLite-in-memory connection** (different tables), both wrap each enqueue in a transaction, both run a claim-then-dispatch-then-commit cycle on the dispatch tick. Storage variance cancels out — the remaining delta is the cost of the `IOutboxWriter<T>` + `IOutboxStore` + serializer abstraction layer.
 
-.NET 10.0.7, i9-12900HK, BenchmarkDotNet v0.15.4.
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26300.9711)
+12th Gen Intel Core i9-12900HK 2.50GHz, 1 CPU, 20 logical and 14 physical cores
+.NET SDK 10.0.402
+  [Host] : .NET 10.0.13 (10.0.13, 10.0.1326.50504), X64 RyuJIT x86-64-v3
+```
 
-| Operation | Hand-rolled | ZA.Outbox | Overhead |
+> Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
+
+Each benchmark ran out of process in three launches on an otherwise idle machine, pinned to two performance cores. `Ratio` is ZA.Outbox's mean time relative to the hand-rolled row of the same operation in the same run, with the lowest and highest of the three launches in brackets.
+
+| Operation | Hand-rolled | ZA.Outbox | Allocated, hand-rolled → ZA.Outbox |
 |---|---:|---:|---:|
-| Enqueue (1 message, transactional) | 6.86 µs / 2.08 KB | **6.99 µs / 2.13 KB** | +2% time, +2% alloc |
-| Dispatch tick (10 messages) | 105.4 µs / 11.9 KB | **115.0 µs / 11.09 KB** | +9% time, **−7% alloc** |
+| Enqueue (1 message, transactional) | 1.00 | **1.03** (1.02–1.04) | 2,128 B → 2,184 B, +3% |
+| Dispatch tick (10 messages) | 1.00 | **1.05** (1.00–1.12) | 12,184 B → **11,520 B, −5%** |
 
-**Honest reading**: ZA.Outbox adds **near-zero abstraction overhead** vs writing the same correctness-matched SQLite outbox by hand. The 2–9% wall-clock delta is the `IOutboxWriter<T>` + `IOutboxStore` interface dispatch + serializer call overhead. Memory allocation is within ±5% of hand-rolled, sometimes lower.
+**Honest reading**: ZA.Outbox adds **near-zero abstraction overhead** vs writing the same correctness-matched SQLite outbox by hand. The 3–5% time delta is the `IOutboxWriter<T>` + `IOutboxStore` interface dispatch + serializer call overhead. Memory allocation is within ±5% of hand-rolled, and lower on the dispatch tick.
 
 The value of the abstraction is the `[OutboxMessage]` attribute + the typed writer + composability with other ZA packages (dispatcher, dashboard, resilience, telemetry bridges) — paid for at near-no runtime cost.
 <!-- BENCH:END -->
@@ -95,12 +113,12 @@ The [benchmarks/ZeroAlloc.Outbox.Benchmarks](https://github.com/ZeroAlloc-Net/Ze
 The setup uses a fake `IOutboxStore` that records into an in-memory counter and a fake serializer that returns a pre-allocated 32-byte payload. This isolates the writer's own path from the store and serializer — the claim is that the generator-emitted forwarder allocates `0 B/op`. Whatever allocation the consumer's actual store or serializer introduces is theirs, not the library's.
 
 ```bash
-dotnet run --project benchmarks/ZeroAlloc.Outbox.Benchmarks -c Release --filter "*"
+dotnet run --project benchmarks/ZeroAlloc.Outbox.Benchmarks -c Release -- --filter "*" --launchCount 3
 ```
 
 What to watch:
 
 - **Allocated column**: must read `0 B/op`. The writer should forward directly to `_store.EnqueueAsync(...)` without any intermediate allocation. A regression points at a new step in the emitted `WriteAsync` — most likely an accidental boxing or a `ValueTask → Task` coercion
-- **Mean column**: stays within a few nanoseconds of a direct interface call. Meaningful departure suggests the generator is doing more work per call than in the previous commit
+- **Time**: compare a run against the previous commit's in the same session, not against published figures. A clear slowdown suggests the generator is doing more work per call than before
 
 The benchmark does NOT exercise the dispatch / worker / retry paths. Those are store-dependent and covered by the store-specific test projects (`ZeroAlloc.Outbox.Tests`, `ZeroAlloc.Outbox.EfCore.Tests`).
