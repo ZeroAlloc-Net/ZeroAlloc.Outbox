@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.5...v4.4.6) (2026-10-22)
+
+
+### Documentation
+
+* re-run the benchmarks pinned, with three launches ([#378](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/378)) ([037322c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/037322c0d1427f4b1b5bbc8933e337f17001e623))
+
 ## [4.4.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.4...v4.4.5) (2026-10-16)
 
 
