@@ -15,6 +15,9 @@ public sealed class DispatchDeserializationTests
 {
     private const int Iterations = 100;
 
+    // Alternating measurement rounds of the baseline and the dispatch path; see the Json_Struct test.
+    private const int Rounds = 4;
+
     private static readonly SerializerDispatcher s_dispatcher = new();
 
     [Fact]
@@ -44,10 +47,22 @@ public sealed class DispatchDeserializationTests
 
         // System.Text.Json allocates while it reads a struct with constructor parameters. That cost is the
         // format's own; the outbox must add nothing to it, a box of the struct included.
-        var json = AllocationGate.MeasureBytesPerCall(Iterations, () =>
-            JsonSerializer.Deserialize(payload.Span, EnqueueMessageJsonContext.Default.StructEnqueueMessage));
-        var bytes = AllocationGate.MeasureBytesPerCall(Iterations, () =>
-            Complete(typeDispatcher.DispatchAsync(payload, CancellationToken.None)));
+        //
+        // Both paths run the same System.Text.Json code, and that code reads 40 B more while it is still
+        // Tier0 than once it is optimised (208 B against 168 B). AllocationGate can return a reading taken
+        // before the tier-up of a multi-method call path has finished (ZeroAlloc.TestHelpers#94), and
+        // measuring the baseline first then hands it the unoptimised code and the dispatch path the
+        // optimised code. So the two are measured in alternating rounds and each keeps its least reading,
+        // which is the optimised one: code that is not yet optimised only ever allocates more.
+        var json = long.MaxValue;
+        var bytes = long.MaxValue;
+        for (var round = 0; round < Rounds; round++)
+        {
+            json = Math.Min(json, AllocationGate.MeasureBytesPerCall(Iterations, () =>
+                JsonSerializer.Deserialize(payload.Span, EnqueueMessageJsonContext.Default.StructEnqueueMessage)));
+            bytes = Math.Min(bytes, AllocationGate.MeasureBytesPerCall(Iterations, () =>
+                Complete(typeDispatcher.DispatchAsync(payload, CancellationToken.None))));
+        }
 
         received.Last.Should().Be(message);
         bytes.Should().Be(json, "the struct is read back as itself through Deserialize<T>, without a box");
