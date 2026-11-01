@@ -56,13 +56,14 @@ internal sealed class HandRolledOutbox
             while (r.Read())
                 rows.Add((r.GetInt64(0), r.GetString(1), (byte[])r.GetValue(2)));
         }
+        using var upd = _conn.CreateCommand();
+        upd.Transaction = tx;
+        upd.CommandText = "UPDATE hand_outbox SET status='done' WHERE id=$id;";
+        var idParam = upd.Parameters.Add("$id", SqliteType.Integer);
         foreach (var (id, type, payload) in rows)
         {
             handler(type, payload);
-            using var upd = _conn.CreateCommand();
-            upd.Transaction = tx;
-            upd.CommandText = "UPDATE hand_outbox SET status='done' WHERE id=$id;";
-            upd.Parameters.AddWithValue("$id", id);
+            idParam.Value = id;
             upd.ExecuteNonQuery();
         }
         tx.Commit();
