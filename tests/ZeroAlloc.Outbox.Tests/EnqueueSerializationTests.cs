@@ -14,7 +14,12 @@ namespace ZeroAlloc.Outbox.Tests;
 /// <remarks>
 /// Every call completes synchronously on the test thread, so <see cref="AllocationGate"/>, which
 /// counts the calling thread's allocations, sees all of it.
+/// Not run in parallel: <see cref="AllocationGate"/> waits for tiered compilation to settle, and the
+/// runtime holds tiering back while the EF Core, SQLite and container tests keep JIT-compiling new
+/// methods on other threads.
 /// </remarks>
+[Collection(nameof(EnqueueSerializationTests))]
+[CollectionDefinition(nameof(EnqueueSerializationTests), DisableParallelization = true)]
 public sealed class EnqueueSerializationTests
 {
     private const int Iterations = 10;
