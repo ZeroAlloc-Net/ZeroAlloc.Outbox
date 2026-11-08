@@ -71,7 +71,7 @@ public static class OrmOutboxServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        Register(builder, dialect, OrmConnectionSource.Container, DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.Container, OrmOutboxOptions.DefaultTableName);
         return builder;
     }
 
@@ -118,7 +118,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connectionKey);
 
-        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), OrmOutboxOptions.DefaultTableName);
         return builder;
     }
 
@@ -157,7 +157,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connection);
 
-        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), OrmOutboxOptions.DefaultTableName);
         return builder;
     }
 
@@ -181,7 +181,8 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </exception>
     /// <example>
     /// <code>
-    /// services.AddOutbox("workflow", o => { }).WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "WorkflowOutbox");
+    /// services.AddOutbox("workflow", o => { })
+    ///         .WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "WorkflowOutbox");
     /// </code>
     /// </example>
     public static IOutboxBuilder WithOrm(
@@ -254,8 +255,6 @@ public static class OrmOutboxServiceCollectionExtensions
         Register(builder, dialect, OrmConnectionSource.FromFactory(connection), TableNameFrom(configure));
         return builder;
     }
-
-    private const string DefaultTableName = "OutboxMessages";
 
     private static string TableNameFrom(Action<OrmOutboxOptions> configure)
     {

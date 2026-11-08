@@ -5,6 +5,8 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </summary>
 public sealed class OrmOutboxOptions
 {
+    internal const string DefaultTableName = "OutboxMessages";
+
     /// <summary>
     /// The outbox table this pipeline's store reads and writes. Defaults to <c>OutboxMessages</c>.
     /// </summary>
@@ -14,5 +16,5 @@ public sealed class OrmOutboxOptions
     /// so a quoted and an unquoted name, or two names that differ in case, count as different
     /// tables. Create the table with <see cref="OutboxOrmMigrations"/> or your own migration.
     /// </remarks>
-    public string TableName { get; set; } = "OutboxMessages";
+    public string TableName { get; set; } = DefaultTableName;
 }
