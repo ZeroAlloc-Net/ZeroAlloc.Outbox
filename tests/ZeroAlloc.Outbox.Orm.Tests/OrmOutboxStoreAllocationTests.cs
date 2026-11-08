@@ -2,6 +2,7 @@ using System.Data.Async;
 using System.Data.Async.Adapters;
 using System.Data.Common;
 using AwesomeAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using ZeroAlloc.TestHelpers;
 
@@ -93,6 +94,51 @@ public sealed class OrmOutboxStoreAllocationTests
             "Test.Large", serializer.Serialize(message), transaction: null, CancellationToken.None));
 
         bytes.Should().BeLessThan(payloadLength + payloadLength / 2, "the payload is allocated once, not copied again");
+    }
+
+    // The store is scoped, so a worker poll and every request scope builds one. Its SQL is built
+    // once per configuration, not per store: what is left is the store and its statement runner.
+    private const long StoreBytes = 72; // the store, 40 bytes, and its statement runner, 32
+
+    [Theory]
+    [InlineData(OutboxOrmDialect.Sqlite, "OutboxMessages", false)]
+    [InlineData(OutboxOrmDialect.Postgres, "\"OutboxMessages\"", true)]
+    [InlineData(OutboxOrmDialect.SqlServer, "[Outbox]", true)]
+    public async Task Constructing_A_Store_Builds_No_Sql(OutboxOrmDialect dialect, string table, bool quote)
+    {
+        await using var fx = new SqliteFixture();
+        var connection = await fx.ConnectAsync();
+        _ = new OrmOutboxStore(connection, dialect, table, quote); // fills the SQL cache
+
+        var bytes = AllocationGate.MeasureBytesPerCall(
+            100, () => _ = new OrmOutboxStore(connection, dialect, table, quote));
+
+        bytes.Should().Be(StoreBytes);
+    }
+
+    [Fact]
+    public async Task Resolving_A_Pipelines_Store_From_A_Scope_Builds_No_Sql()
+    {
+        await using var fx = new SqliteFixture();
+        var services = new ServiceCollection();
+        services.AddSingleton(await fx.ConnectAsync());
+        services.AddOutbox("p", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = "Custom");
+        await using var sp = services.BuildServiceProvider();
+        var scopes = sp.GetRequiredService<IServiceScopeFactory>();
+        using (var warm = scopes.CreateScope())
+            _ = warm.ServiceProvider.GetRequiredKeyedService<OrmOutboxStore>("p");
+
+        var withScope = AllocationGate.MeasureBytesPerCall(100, () =>
+        {
+            using var scope = scopes.CreateScope();
+            _ = scope.ServiceProvider.GetRequiredKeyedService<OrmOutboxStore>("p");
+        });
+        var scopeOnly = AllocationGate.MeasureBytesPerCall(100, () =>
+        {
+            using var scope = scopes.CreateScope();
+        });
+
+        (withScope - scopeOnly).Should().BeLessThan(300, "the store and its runner, with no SQL strings");
     }
 
     private static long Measure(Func<ValueTask> enqueue) =>

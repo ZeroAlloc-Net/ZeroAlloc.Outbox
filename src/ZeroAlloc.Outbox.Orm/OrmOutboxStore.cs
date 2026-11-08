@@ -60,7 +60,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// other statement is plain ANSI.
     /// </param>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
-        : this(connection, dialect, "OutboxMessages")
+        : this(connection, dialect, OrmOutboxOptions.DefaultTableName)
     {
     }
 
@@ -106,8 +106,16 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _sql = new OutboxSql(dialect, tableName, quoteColumns);
+        _sql = OutboxSql.For(dialect, tableName, quoteColumns);
         _repo = new OutboxMessageStatements(connection, _sql);
+    }
+
+    /// <summary>Creates a store with statements built once for its configuration.</summary>
+    internal OrmOutboxStore(IAsyncDbConnection connection, OutboxSql sql)
+    {
+        _connection = connection;
+        _sql = sql;
+        _repo = new OutboxMessageStatements(connection, sql);
     }
 
     /// <inheritdoc />

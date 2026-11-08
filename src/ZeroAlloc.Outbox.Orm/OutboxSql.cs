@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace ZeroAlloc.Outbox.Orm;
 
 /// <summary>
@@ -39,6 +41,8 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </remarks>
 internal sealed class OutboxSql
 {
+    private static readonly ConcurrentDictionary<(OutboxOrmDialect, string, bool), OutboxSql> s_cache = new();
+
     private readonly string _open;
     private readonly string _close;
 
@@ -100,6 +104,20 @@ internal sealed class OutboxSql
         ReadState = $"SELECT {Q("Status")}, {Q("RetryCount")} FROM {tableName} WHERE {Q("Id")} = @id";
 
         Claim = BuildClaim(dialect, tableName);
+    }
+
+    /// <summary>
+    /// The statements for one configuration, built once. The store is scoped, so building them
+    /// per store would allocate every statement again on each worker poll and request scope.
+    /// </summary>
+    public static OutboxSql For(OutboxOrmDialect dialect, string tableName, bool quoteColumns)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var key = (dialect, tableName, quoteColumns);
+        return s_cache.TryGetValue(key, out var sql)
+            ? sql
+            : s_cache.GetOrAdd(key, static k => new OutboxSql(k.Item1, k.Item2, k.Item3));
     }
 
     public string Insert { get; }

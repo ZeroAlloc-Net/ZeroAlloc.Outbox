@@ -372,8 +372,10 @@ public static class OrmOutboxServiceCollectionExtensions
 
         public bool QuoteColumns { get; } = quoteColumns;
 
+        private readonly OutboxSql _sql = OutboxSql.For(dialect, tableName, quoteColumns);
+
         public OrmOutboxStore Create(IServiceProvider sp)
-            => new(Connection.Resolve(sp), Dialect, TableName, QuoteColumns);
+            => new(Connection.Resolve(sp), _sql);
 
         public OrmOutboxStore CreateKeyed(IServiceProvider sp, object? key)
             => Create(sp);

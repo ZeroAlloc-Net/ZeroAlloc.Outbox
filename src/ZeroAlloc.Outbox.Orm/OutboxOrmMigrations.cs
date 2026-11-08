@@ -37,12 +37,12 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </example>
 public static class OutboxOrmMigrations
 {
+    private const int MaxTableNameLength = 40;
+
     // The name the history table records the outbox's migrations under. A fixed string rather
     // than the source type's name, ZeroAlloc.ORM's default, so renaming or moving the type can
     // never make the runner apply the outbox migrations again. It must never change: a changed
     // name reads as a new source, and databases already migrated would apply everything again.
-    private const int MaxTableNameLength = 40;
-
     private const string SourceName = "ZeroAlloc.Outbox.Orm";
 
     /// <summary>Schema for SQLite.</summary>
