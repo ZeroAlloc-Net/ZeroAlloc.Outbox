@@ -80,3 +80,16 @@ table name is fixed, only one ORM pipeline works per connection, and `OrmOutboxS
   each.
 - The optional two-stock-workers case is a stretch goal, not required.
 - Release: purely additive, so a minor bump.
+
+## Amendment 2026-11-08: quoted columns for an EF Core Postgres table
+
+Found while implementing the switch-over test: EF Core's Npgsql provider creates quoted,
+mixed-case columns such as `"Id"`. `OutboxSql` writes unquoted column names, which Postgres folds
+to `id`, so a Postgres EF Core to ORM switch-over fails with `42703` even when `TableName` is
+quoted. The operator chose to fix this in the same change.
+
+- `OrmOutboxOptions.QuoteColumns` (bool, default `false`, so existing databases do not move).
+- When true, `OutboxSql` quotes every column name in the dialect's style: `"Col"` for Postgres
+  and SQLite, `[Col]` for SQL Server. Aliases and RETURNING / OUTPUT lists included.
+- Part of the registration identity: re-registering one pipeline with another value conflicts.
+- The Postgres switch-over test from the issue becomes the acceptance test for it.

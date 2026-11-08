@@ -124,3 +124,19 @@
 - [ ] **Step 5: Commit** `docs: describe the Orm table name and requeue`.
 - [ ] **Step 6: File the follow-up.** Open an issue on ZeroAlloc.ORM asking for a table-name placeholder in `[Command]` and `[Query]`, so the runtime builder in `OutboxSql` can return to generated code. Group it into one issue, and check for an existing one first.
 - [ ] **Step 7: Open the PR** only when the user asks; the branch is `feat/434-orm-table-name`. The PR closes #434.
+
+### Task 6: QuoteColumns for an EF Core Postgres table (added 2026-11-08)
+
+**Files:**
+- Modify: `src/ZeroAlloc.Outbox.Orm/OrmOutboxOptions.cs`, `OutboxSql.cs`, `OrmOutboxStore.cs`, `OrmOutboxServiceCollectionExtensions.cs`, `PublicAPI.Unshipped.txt`
+- Test: `tests/ZeroAlloc.Outbox.Orm.Tests/OutboxSqlTests.cs`, `OrmNamedPipelineTests.cs`, `OrmEfCoreSwitchoverTests.cs`
+- Docs: `docs/store-adapters.md`
+
+**Interfaces:**
+- Produces: `public bool OrmOutboxOptions.QuoteColumns { get; set; }` (default `false`); `OrmOutboxStore(IAsyncDbConnection, OutboxOrmDialect, string tableName, bool quoteColumns)` as a new constructor; `OutboxSql(dialect, tableName, quoteColumns)`.
+
+- [ ] **Step 1: Write failing tests.** `OutboxSqlTests`: with `quoteColumns` true every statement of every dialect quotes every column in the dialect's style (`"Id"` for Postgres and SQLite, `[Id]` for SQL Server), including the claim's CTE aliases and RETURNING / OUTPUT lists; with false the text is byte-identical to today's. `OrmNamedPipelineTests`: re-registering a pipeline with another `QuoteColumns` throws; two pipelines on one connection with the same table but different `QuoteColumns` are the same table and still throw.
+- [ ] **Step 2: Implement.** Quote through one helper in `OutboxSql`; the reader must map by the column names or ordinals the claim returns, so quoted RETURNING / OUTPUT work. Add the constructor overload, carry the flag on the registration factory, compare it in the conflict check.
+- [ ] **Step 3: Postgres switch-over.** Restore the saved attempt (`.superpowers/sdd/.../task-5-postgres-switchover-attempt.cs.txt`) as a passing Postgres test using `o.TableName = "\"OutboxMessages\""` and `o.QuoteColumns = true`: both pre-existing rows delivered once, the dead letter requeued and delivered, the second pipeline's table unchanged. Keep the SQL Server one.
+- [ ] **Step 4: Docs.** Document `QuoteColumns` with when to use it (an existing EF Core Postgres table), and remove the Postgres limitation the docs now state.
+- [ ] **Step 5: Verify and commit.** Run the Orm test project, build with no warnings, api-compat for `ZeroAlloc.Outbox.Orm`. Commit `feat: quote outbox columns for an EF Core Postgres table`.
