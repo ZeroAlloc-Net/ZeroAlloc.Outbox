@@ -1,6 +1,6 @@
 # Outbox.Orm: per-pipeline table name, several pipelines per connection, RequeueAsync
 
-Issue: ZeroAlloc-Net/ZeroAlloc.Outbox#434. Status: awaiting approval.
+Issue: ZeroAlloc-Net/ZeroAlloc.Outbox#434. Status: approved and implemented.
 
 ## Intent
 

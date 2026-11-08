@@ -90,7 +90,7 @@ services.AddOutbox("audit", configure)
         .WithOrm(OutboxOrmDialect.SqlServer, sp => sp.GetRequiredService<AuditDb>().Connection);
 ```
 
-The outbox never disposes a connection a factory returns, so return one the application owns. Prefer the keyed form when the container should own it. Two pipelines on the same connection, whether the container's, the same key or the same factory delegate, are fine on different tables and throw at registration on the same table, since they would poll it twice. The rule is connection plus table: the same connection with `OutboxA` and `OutboxB` registers, the same connection with the same table does not. Each pipeline's worker polls on its own schedule, so pipelines sharing one connection issue commands on it at the same time. Use a connection that allows that, or give each pipeline a connection of its own. On SQL Server the workers fail with "The connection does not support MultipleActiveResultSets" unless the connection string sets `MultipleActiveResultSets=true`; whether another provider's connection allows concurrent commands is that provider's rule. Each table needs the outbox schema, see [Migration](#migration). The default pipeline's `WithOrm(dialect)` is unchanged.
+The outbox never disposes a connection a factory returns, so return one the application owns. Prefer the keyed form when the container should own it. Two pipelines on the same connection, whether the container's, the same key or the same factory delegate, are fine on different tables and throw at registration on the same table, since they would poll it twice. The rule is connection plus table: the same connection with `OutboxA` and `OutboxB` registers, the same connection with the same table does not. Pipelines that share a connection registration need that registration to be scoped or transient, so each worker scope gets a connection of its own: `services.AddScoped<IAsyncDbConnection>(_ => OpenDb())`. One connection instance registered as a singleton and shared by several workers is unsupported, since a database connection is not safe for concurrent use. Each table needs the outbox schema, see [Migration](#migration). The default pipeline's `WithOrm(dialect)` is unchanged.
 
 > No `IOutboxDashboardStore` is registered for this store. The dashboard's aggregate-view surface is much larger and isn't implemented here, so pointing the dashboard at the ORM store fails at registration instead of silently reporting nothing.
 
@@ -153,7 +153,7 @@ The store also implements `IOutboxRequeue`, registered next to `IOutboxStore` an
 
 ### Schema
 
-The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration (on PostgreSQL set `QuoteColumns`, see [Quoted columns](#quoted-columns)) — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
+The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration (on PostgreSQL set `TableName` to the quoted name, such as `"OutboxMessages"`, and `QuoteColumns` to `true`, see [Quoted columns](#quoted-columns)) — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
 
 | Column | Type (Postgres) | Notes |
 |--------|------|-------|

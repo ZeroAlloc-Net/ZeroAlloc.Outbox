@@ -5,8 +5,8 @@ namespace ZeroAlloc.Outbox;
 /// </summary>
 /// <remarks>
 /// The narrow operator action behind a "retry" button, for stores that cannot offer the whole
-/// <see cref="IOutboxDashboardStore"/>. A store implementing both exposes the same behaviour
-/// through either.
+/// <see cref="IOutboxDashboardStore"/>. The ORM store implements it. The EF Core store has
+/// requeue only through <see cref="IOutboxDashboardStore"/>.
 /// </remarks>
 public interface IOutboxRequeue
 {
