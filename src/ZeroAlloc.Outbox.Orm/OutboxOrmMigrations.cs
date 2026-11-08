@@ -17,9 +17,9 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </para>
 /// <para>
 /// Every dialect's source for the default <c>OutboxMessages</c> table has the same fixed
-/// <see cref="IMigrationSource.Name"/>, <c>ZeroAlloc.Outbox.Orm</c>, so the outbox numbers its migrations on its own in
-/// ZeroAlloc.ORM's history table, next to your application's migrations and any
-/// other library's, each starting at version 1. Run each source through its own
+/// <see cref="IMigrationSource.Name"/>, <c>ZeroAlloc.Outbox.Orm</c>, so the outbox numbers its
+/// migrations on its own in ZeroAlloc.ORM's history table, next to your application's
+/// migrations and any other library's, each starting at version 1. Run each source through its own
 /// <c>MigrationRunner</c> on the same connection. A pipeline with its own table gets its
 /// schema from <see cref="For"/>, which names the source after the table.
 /// </para>
@@ -41,6 +41,8 @@ public static class OutboxOrmMigrations
     // than the source type's name, ZeroAlloc.ORM's default, so renaming or moving the type can
     // never make the runner apply the outbox migrations again. It must never change: a changed
     // name reads as a new source, and databases already migrated would apply everything again.
+    private const int MaxTableNameLength = 40;
+
     private const string SourceName = "ZeroAlloc.Outbox.Orm";
 
     /// <summary>Schema for SQLite.</summary>
@@ -126,17 +128,20 @@ public static class OutboxOrmMigrations
     /// <param name="dialect">The database the schema is for.</param>
     /// <param name="tableName">
     /// The table to create, a plain identifier: letters, digits and underscores, not starting
-    /// with a digit. It is used unquoted in the DDL, and the index is named
+    /// with a digit, at most 40 characters (the index name adds 22, and PostgreSQL truncates
+    /// identifiers at 63 bytes). It is used unquoted in the DDL, and the index is named
     /// <c>IX_{tableName}_Status_NextRetryAt</c>.
     /// </param>
     /// <returns>
-    /// A source named <c>ZeroAlloc.Outbox.Orm:{tableName}</c>, so each table has its own history
-    /// next to the others. For <c>OutboxMessages</c> it is the same source as
-    /// <see cref="Sqlite"/>, <see cref="Postgres"/> or <see cref="SqlServer"/>, under the
-    /// unchanged name <c>ZeroAlloc.Outbox.Orm</c>.
+    /// A source named <c>ZeroAlloc.Outbox.Orm:{tableName}</c> with the name in lower case, so
+    /// each table has its own history next to the others, and names differing only in case share
+    /// one, as the databases treat them as one table. For <c>OutboxMessages</c>, in any case, it is
+    /// the same source as <see cref="Sqlite"/>, <see cref="Postgres"/> or
+    /// <see cref="SqlServer"/>, under the unchanged name <c>ZeroAlloc.Outbox.Orm</c>.
     /// </returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="tableName"/> is not a plain identifier, or <paramref name="dialect"/> is unknown.
+    /// <paramref name="tableName"/> is not a plain identifier or is longer than 40 characters,
+    /// or <paramref name="dialect"/> is unknown.
     /// </exception>
     public static IMigrationSource For(OutboxOrmDialect dialect, string tableName)
     {
@@ -144,14 +149,14 @@ public static class OutboxOrmMigrations
         {
             throw new ArgumentException(
                 "ZeroAlloc.Outbox: the table name must be a plain identifier: letters, digits and "
-                + "underscores, not starting with a digit.",
+                + "underscores, not starting with a digit, at most 40 characters.",
                 nameof(tableName));
         }
 
-        if (dialect is < OutboxOrmDialect.Sqlite or > OutboxOrmDialect.SqlServer)
+        if (!Enum.IsDefined(dialect))
             throw new ArgumentException("ZeroAlloc.Outbox: unknown dialect.", nameof(dialect));
 
-        if (string.Equals(tableName, OrmOutboxOptions.DefaultTableName, StringComparison.Ordinal))
+        if (string.Equals(tableName, OrmOutboxOptions.DefaultTableName, StringComparison.OrdinalIgnoreCase))
         {
             return dialect switch
             {
@@ -161,7 +166,7 @@ public static class OutboxOrmMigrations
             };
         }
 
-        var name = SourceName + ":" + tableName;
+        var name = SourceName + ":" + tableName.ToLowerInvariant();
         var index = "IX_" + tableName + "_Status_NextRetryAt";
         return dialect switch
         {
@@ -243,7 +248,7 @@ public static class OutboxOrmMigrations
 
     private static bool IsPlainIdentifier(string? name)
     {
-        if (string.IsNullOrEmpty(name) || char.IsAsciiDigit(name[0]))
+        if (string.IsNullOrEmpty(name) || name.Length > MaxTableNameLength || char.IsAsciiDigit(name[0]))
             return false;
         foreach (var c in name)
         {

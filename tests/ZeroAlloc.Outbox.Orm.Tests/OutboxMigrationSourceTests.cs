@@ -55,7 +55,7 @@ public sealed class OutboxMigrationSourceTests
     {
         var source = OutboxOrmMigrations.For(dialect, "WorkflowOutbox");
 
-        source.Name.Should().Be("ZeroAlloc.Outbox.Orm:WorkflowOutbox");
+        source.Name.Should().Be("ZeroAlloc.Outbox.Orm:workflowoutbox");
         var migrations = source.GetMigrations();
         migrations.Select(m => (m.Version, m.Name)).Should().Equal((1, "create_outbox_messages"), (2, "add_outbox_lease"));
         migrations[0].Sql.Should().Contain("WorkflowOutbox").And.Contain("IX_WorkflowOutbox_Status_NextRetryAt");
@@ -89,6 +89,40 @@ public sealed class OutboxMigrationSourceTests
     }
 
     [Fact]
+    public void For_accepts_40_characters_and_rejects_41()
+    {
+        OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, new string('a', 40)).Should().NotBeNull();
+
+        var act = () => OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, new string('a', 41));
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void For_accepts_underscores_digits_and_mixed_case()
+    {
+        var source = OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, "My_Outbox2");
+
+        source.GetMigrations()[0].Sql.Should().Contain("CREATE TABLE IF NOT EXISTS My_Outbox2");
+    }
+
+    [Theory]
+    [InlineData(OutboxOrmDialect.Sqlite)]
+    [InlineData(OutboxOrmDialect.Postgres)]
+    [InlineData(OutboxOrmDialect.SqlServer)]
+    public void For_folds_case_in_the_default_name_and_the_history_name(OutboxOrmDialect dialect)
+    {
+        OutboxOrmMigrations.For(dialect, "outboxmessages").Should().BeSameAs(DefaultSource(dialect));
+
+        var upper = OutboxOrmMigrations.For(dialect, "WorkflowOutbox");
+        var lower = OutboxOrmMigrations.For(dialect, "workflowoutbox");
+
+        upper.Name.Should().Be("ZeroAlloc.Outbox.Orm:workflowoutbox");
+        lower.Name.Should().Be(upper.Name);
+        upper.GetMigrations()[0].Sql.Should().Contain("WorkflowOutbox").And.NotContain("workflowoutbox");
+    }
+
+    [Fact]
     public void For_rejects_a_null_name()
     {
         var act = () => OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, null!);
@@ -118,8 +152,8 @@ public sealed class OutboxMigrationSourceTests
         [
             (OutboxSourceName, 1L, "create_outbox_messages"),
             (OutboxSourceName, 2L, "add_outbox_lease"),
-            ("ZeroAlloc.Outbox.Orm:WorkflowOutbox", 1L, "create_outbox_messages"),
-            ("ZeroAlloc.Outbox.Orm:WorkflowOutbox", 2L, "add_outbox_lease"),
+            ("ZeroAlloc.Outbox.Orm:workflowoutbox", 1L, "create_outbox_messages"),
+            ("ZeroAlloc.Outbox.Orm:workflowoutbox", 2L, "add_outbox_lease"),
         ]);
     }
 
