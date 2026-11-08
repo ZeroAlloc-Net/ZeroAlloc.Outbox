@@ -198,6 +198,36 @@ public static class OrmOutboxServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Persists a named pipeline's outbox messages through ZeroAlloc.ORM, against the container's
+    /// <see cref="IAsyncDbConnection"/>, in the table <paramref name="configure"/> sets.
+    /// </summary>
+    /// <param name="builder">The named pipeline's builder, from <c>AddOutbox(name, configure)</c>.</param>
+    /// <param name="dialect">Which database the registered connection talks to.</param>
+    /// <param name="configure">Sets the <see cref="OrmOutboxOptions"/>, such as the table name.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    /// <remarks>
+    /// The same as the overload for <see cref="IOutboxBuilder"/>. It exists so an
+    /// <c>Action&lt;OrmOutboxOptions&gt;</c> held in a variable binds on a named builder, where it
+    /// would otherwise be ambiguous with the overload that takes a connection key.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><see cref="OrmOutboxOptions.TableName"/> is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
+    /// ORM store with another dialect, connection or table. Or another pipeline already uses the ORM
+    /// store on the container's connection and the same table.
+    /// </exception>
+    public static IOutboxBuilder WithOrm(
+        this INamedOutboxBuilder builder,
+        OutboxOrmDialect dialect,
+        Action<OrmOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        Register(builder, dialect, OrmConnectionSource.Container, OptionsFrom(configure));
+        return builder;
+    }
+
+    /// <summary>
     /// Persists a named pipeline's outbox messages through ZeroAlloc.ORM, against the
     /// <see cref="IAsyncDbConnection"/> registered under <paramref name="connectionKey"/>, in the
     /// table <paramref name="configure"/> sets.

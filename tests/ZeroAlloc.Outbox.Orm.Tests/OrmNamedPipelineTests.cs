@@ -284,6 +284,35 @@ public sealed class OrmNamedPipelineTests
         services.Count.Should().Be(count);
     }
 
+    [Fact]
+    public void An_options_action_held_in_a_variable_binds_on_a_named_builder()
+    {
+        Action<OrmOutboxOptions> configure = o => o.TableName = "OutboxA";
+        var services = new ServiceCollection();
+
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, configure);
+
+        var act = () => services.AddOutbox("b", _ => { }).WithOrm(OutboxOrmDialect.Postgres, configure);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*");
+    }
+
+    [Fact]
+    public void Each_lambda_form_binds_to_its_overload_on_a_named_builder()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<System.Data.Async.IAsyncDbConnection>("k", (_, _) => null!);
+
+        // An options lambda, a statement lambda, a connection factory and a connection key.
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = "OutboxA");
+        services.AddOutbox("b", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => { o.TableName = "OutboxB"; });
+        services.AddOutbox("c", _ => { }).WithOrm(
+            OutboxOrmDialect.Sqlite, (IServiceProvider _) => null!);
+        services.AddOutbox("d", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, connectionKey: "k");
+
+        services.Count(d => d.ServiceKey is "a" or "b" or "c" or "d" && d.ServiceType == typeof(OrmOutboxStore))
+            .Should().Be(4);
+    }
+
     private sealed class RecordingDispatcher(Action<ReadOnlyMemory<byte>> action) : IOutboxTypeDispatcher
     {
         public string TypeName => OrmNamedPipelineTests.TypeName;

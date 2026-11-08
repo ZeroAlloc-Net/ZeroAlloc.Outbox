@@ -12,3 +12,4 @@ static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.For(ZeroAlloc.Outbox.Orm.OutboxO
 ZeroAlloc.Outbox.Orm.OrmOutboxOptions.QuoteColumns.get -> bool
 ZeroAlloc.Outbox.Orm.OrmOutboxOptions.QuoteColumns.set -> void
 ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, string! tableName, bool quoteColumns) -> void
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, System.Action<ZeroAlloc.Outbox.Orm.OrmOutboxOptions!>! configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
