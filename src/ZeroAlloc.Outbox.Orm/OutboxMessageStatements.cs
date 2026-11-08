@@ -258,11 +258,11 @@ internal sealed class OutboxMessageStatements(IAsyncDbConnection connection, Out
         return true;
     }
 
-    private static void Add(IAsyncDbCommand cmd, string name, object value)
+    private static void Add(IAsyncDbCommand cmd, string name, object? value)
     {
         var p = cmd.CreateParameter();
         p.ParameterName = name;
-        p.Value = value;
+        p.Value = value ?? DBNull.Value;
         cmd.Parameters.Add(p);
     }
 }

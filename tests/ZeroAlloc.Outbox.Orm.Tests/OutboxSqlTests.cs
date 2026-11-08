@@ -42,6 +42,19 @@ public sealed class OutboxSqlTests
     }
 
     [Fact]
+    public void Claim_has_the_shape_of_its_dialect()
+    {
+        var pg = new OutboxSql(OutboxOrmDialect.Postgres, "OutboxMessages").Claim;
+        pg.Should().Contain("MATERIALIZED").And.Contain("SKIP LOCKED");
+
+        var ss = new OutboxSql(OutboxOrmDialect.SqlServer, "OutboxMessages").Claim;
+        ss.Should().Contain("READPAST").And.Contain("UPDLOCK").And.Contain("ROWLOCK");
+
+        var lite = new OutboxSql(OutboxOrmDialect.Sqlite, "OutboxMessages").Claim;
+        lite.Should().Contain("LIMIT").And.Contain("RETURNING");
+    }
+
+    [Fact]
     public void Default_table_text_is_the_unquoted_name()
     {
         var sql = new OutboxSql(OutboxOrmDialect.Sqlite, "OutboxMessages");
