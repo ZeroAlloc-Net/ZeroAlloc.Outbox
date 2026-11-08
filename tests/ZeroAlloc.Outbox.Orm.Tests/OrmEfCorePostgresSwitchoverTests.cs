@@ -45,8 +45,8 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
             var secondBefore = await SnapshotAsync(connectionString, "workflow_outbox");
             secondBefore.Should().HaveCount(3);
 
-            // Both pipelines on the ORM store. Npgsql allows one active command per connection and the
-            // two workers run at once, so the second pipeline has a connection of its own.
+            // Both pipelines on the ORM store. The two workers run at once and a
+            // connection need not allow concurrent commands, so the second pipeline has one of its own.
             await using var shared = await OpenAsync(connectionString);
             await using var other = await OpenAsync(connectionString);
             var delivered = new ConcurrentQueue<byte>();
@@ -249,6 +249,8 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
     {
         DBNull => "<null>",
         byte[] bytes => Convert.ToHexString(bytes),
+        DateTimeOffset t => t.ToString("O", CultureInfo.InvariantCulture),
+        DateTime t => t.ToString("O", CultureInfo.InvariantCulture),
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? string.Empty,
     };

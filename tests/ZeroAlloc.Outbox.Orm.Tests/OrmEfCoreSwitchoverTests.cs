@@ -242,6 +242,8 @@ public sealed class OrmEfCoreSwitchoverTests(SqlServerFixture server) : IClassFi
     {
         DBNull => "<null>",
         byte[] bytes => Convert.ToHexString(bytes),
+        DateTimeOffset t => t.ToString("O", CultureInfo.InvariantCulture),
+        DateTime t => t.ToString("O", CultureInfo.InvariantCulture),
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => value.ToString() ?? string.Empty,
     };
