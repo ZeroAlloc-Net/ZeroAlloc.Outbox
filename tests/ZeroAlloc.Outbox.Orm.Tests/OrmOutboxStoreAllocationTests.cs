@@ -100,6 +100,10 @@ public sealed class OrmOutboxStoreAllocationTests
     // once per configuration, not per store: what is left is the store and its statement runner.
     private const long StoreBytes = 72; // the store, 40 bytes, and its statement runner, 32
 
+    // The measured store must escape. Left unused, the Release JIT can stack-allocate it and the
+    // gate reads 32 bytes instead of 72.
+    private static OrmOutboxStore? s_sink;
+
     [Theory]
     [InlineData(OutboxOrmDialect.Sqlite, "OutboxMessages", false)]
     [InlineData(OutboxOrmDialect.Postgres, "\"OutboxMessages\"", true)]
@@ -111,7 +115,7 @@ public sealed class OrmOutboxStoreAllocationTests
         _ = new OrmOutboxStore(connection, dialect, table, quote); // fills the SQL cache
 
         var bytes = AllocationGate.MeasureBytesPerCall(
-            100, () => _ = new OrmOutboxStore(connection, dialect, table, quote));
+            100, () => s_sink = new OrmOutboxStore(connection, dialect, table, quote));
 
         bytes.Should().Be(StoreBytes);
     }
