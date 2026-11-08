@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using Xunit;
 
@@ -73,5 +74,70 @@ public sealed class OutboxSqlTests
             .And.Contain("DeadLetterError = NULL").And.Contain("ProcessedAt = NULL")
             .And.Contain("LockedBy = NULL").And.Contain("LockedUntil = NULL")
             .And.Contain("WHERE Id = @id AND Status = @deadLetter");
+    }
+
+    private static readonly string[] Columns =
+    [
+        "Id", "TypeName", "Payload", "Status", "RetryCount", "NextRetryAt", "CreatedAt",
+        "ProcessedAt", "DeadLetterError", "LockedBy", "LockedUntil",
+    ];
+
+    private static (string Open, string Close) Quotes(OutboxOrmDialect dialect)
+        => dialect == OutboxOrmDialect.SqlServer ? ("[", "]") : ("\"", "\"");
+
+    public static TheoryData<OutboxOrmDialect> Dialects() => new()
+    {
+        OutboxOrmDialect.Sqlite, OutboxOrmDialect.Postgres, OutboxOrmDialect.SqlServer,
+    };
+
+    [Theory]
+    [MemberData(nameof(Dialects))]
+    public void Quoted_columns_quote_every_column_name_in_every_statement(OutboxOrmDialect dialect)
+    {
+        var (open, close) = Quotes(dialect);
+        var bare = string.Join('|', Columns);
+        foreach (var statement in All(new OutboxSql(dialect, "Outbox", quoteColumns: true)))
+        {
+            // A column name not wrapped in the dialect's quotes is a bug. Parameters (@status) and
+            // the table name are not columns.
+            var unquoted = Regex.Matches(
+                statement, $@"(?<![\w@{Regex.Escape(open)}])({bare})(?![\w{Regex.Escape(close)}])",
+                RegexOptions.None, TimeSpan.FromSeconds(5));
+            unquoted.Count.Should().Be(0,$"every column is quoted in: {statement}");
+            statement.Should().Contain($"{open}Id{close}");
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Dialects))]
+    public void Quoted_columns_text_is_the_unquoted_text_with_quotes_added(OutboxOrmDialect dialect)
+    {
+        var (open, close) = Quotes(dialect);
+        var plain = All(new OutboxSql(dialect, "Outbox"));
+        var quoted = All(new OutboxSql(dialect, "Outbox", quoteColumns: true));
+
+        for (var i = 0; i < plain.Length; i++)
+        {
+            var stripped = quoted[i].Replace(open, string.Empty, StringComparison.Ordinal)
+                .Replace(close, string.Empty, StringComparison.Ordinal);
+            stripped.Should().Be(plain[i]);
+            plain[i].Should().NotContain(open, "the default text has no quotes");
+        }
+    }
+
+    [Fact]
+    public void Quoted_aliases_and_returning_lists_use_the_dialects_style()
+    {
+        new OutboxSql(OutboxOrmDialect.Postgres, "T", quoteColumns: true).Claim.Should()
+            .Contain("WHERE t.\"Id\" = c.\"Id\"")
+            .And.Contain("RETURNING t.\"Id\", t.\"TypeName\", t.\"Payload\", t.\"RetryCount\", t.\"CreatedAt\"");
+        new OutboxSql(OutboxOrmDialect.SqlServer, "T", quoteColumns: true).Claim.Should()
+            .Contain("OUTPUT inserted.[Id], inserted.[TypeName], inserted.[Payload], inserted.[RetryCount], inserted.[CreatedAt]");
+        new OutboxSql(OutboxOrmDialect.Sqlite, "T", quoteColumns: true).Claim.Should()
+            .Contain("RETURNING \"Id\", \"TypeName\", \"Payload\", \"RetryCount\", \"CreatedAt\"");
+        new OutboxSql(OutboxOrmDialect.Postgres, "T", quoteColumns: true).ReadState.Should()
+            .Be("SELECT \"Status\", \"RetryCount\" FROM T WHERE \"Id\" = @id");
+        new OutboxSql(OutboxOrmDialect.Postgres, "T").ReadState.Should()
+            .Be("SELECT Status, RetryCount FROM T WHERE Id = @id");
     }
 }

@@ -132,7 +132,20 @@ The name is used verbatim, so quote it yourself where the database needs it. Nam
 
 > `TableName` is trusted configuration. It is spliced into every SQL statement the store issues, and nothing validates or escapes it. Take it from code or deployment configuration, never from user input or any other untrusted source.
 
-On PostgreSQL the store's statements name the columns unquoted, which the server folds to lower case. A table whose columns are quoted and mixed case, as EF Core's PostgreSQL provider creates them, cannot be read by the ORM store; use a table made by `OutboxOrmMigrations` there. On SQL Server and SQLite column names are case-insensitive and an EF Core table is read as it is.
+### Quoted columns
+
+The store names its columns unquoted. On PostgreSQL the server folds that to lower case, so a table whose columns were created quoted and mixed case, as EF Core's PostgreSQL provider creates them, has no `id` column and the first claim fails with `42703`. Set `QuoteColumns` to quote every column name in the dialect's style, `"Id"` on PostgreSQL and SQLite and `[Id]` on SQL Server:
+
+```csharp
+// Read the table EF Core's Npgsql provider created.
+services.AddOutbox().WithOrm(OutboxOrmDialect.Postgres, o =>
+{
+    o.TableName = "\"OutboxMessages\"";
+    o.QuoteColumns = true;
+});
+```
+
+It defaults to `false`, which leaves the SQL as it is. Use it for an existing EF Core table on PostgreSQL, and leave it off for a table made by `OutboxOrmMigrations`, whose columns are unquoted. SQL Server and SQLite compare column names case-insensitively, so an EF Core table there is read as it is. `QuoteColumns` is part of a pipeline's registration: registering the same pipeline again with another value throws, and two pipelines on one connection and table still conflict whatever their `QuoteColumns`. `OrmOutboxStore` takes it as the last constructor argument.
 
 ### Requeue
 
@@ -140,7 +153,7 @@ The store also implements `IOutboxRequeue`, registered next to `IOutboxStore` an
 
 ### Schema
 
-The same `OutboxMessages` table as the EF Core adapter — on SQL Server and SQLite the two stores can be swapped without a data migration (see [Table name](#table-name) for PostgreSQL) — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
+The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration (on PostgreSQL set `QuoteColumns`, see [Quoted columns](#quoted-columns)) — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
 
 | Column | Type (Postgres) | Notes |
 |--------|------|-------|

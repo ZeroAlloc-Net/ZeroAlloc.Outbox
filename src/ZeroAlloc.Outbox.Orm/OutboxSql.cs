@@ -8,7 +8,9 @@ namespace ZeroAlloc.Outbox.Orm;
 /// The table name is spliced in verbatim, so quoting is the caller's choice: <c>OutboxMessages</c>,
 /// <c>"OutboxMessages"</c> and <c>public."Outbox Messages"</c> all work. It is trusted
 /// configuration, never user input. The statements are plain ANSI except the batch claim, which
-/// each dialect spells its own way. Column and parameter names are fixed.
+/// each dialect spells its own way. Column and parameter names are fixed. With <c>quoteColumns</c> every column is quoted in the
+/// dialect's style, <c>"Id"</c> or <c>[Id]</c>, for a table whose columns were created quoted and
+/// mixed case, as EF Core does on PostgreSQL; otherwise the text is unchanged.
 /// </para>
 /// <para>
 /// Every mark is guarded by <c>Status = @pending AND LockedBy = @hostId</c> and the store reads the
@@ -36,59 +38,65 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </remarks>
 internal sealed class OutboxSql
 {
-    public OutboxSql(OutboxOrmDialect dialect, string tableName)
+    private readonly string _open;
+    private readonly string _close;
+
+    public OutboxSql(OutboxOrmDialect dialect, string tableName, bool quoteColumns = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
+        (_open, _close) = !quoteColumns ? (string.Empty, string.Empty)
+            : dialect == OutboxOrmDialect.SqlServer ? ("[", "]") : ("\"", "\"");
+
         Insert = $"""
             INSERT INTO {tableName}
-                (Id, TypeName, Payload, Status, RetryCount, NextRetryAt, CreatedAt)
+                ({Q("Id")}, {Q("TypeName")}, {Q("Payload")}, {Q("Status")}, {Q("RetryCount")}, {Q("NextRetryAt")}, {Q("CreatedAt")})
             VALUES
                 (@id, @typeName, @payload, @status, 0, @nextRetryAt, @createdAt)
             """;
 
         MarkProcessed = $"""
             UPDATE {tableName}
-            SET Status = @status, ProcessedAt = @processedAt,
-                LockedBy = NULL, LockedUntil = NULL
-            WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
+            SET {Q("Status")} = @status, {Q("ProcessedAt")} = @processedAt,
+                {Q("LockedBy")} = NULL, {Q("LockedUntil")} = NULL
+            WHERE {Q("Id")} = @id AND {Q("Status")} = @pending AND {Q("LockedBy")} = @hostId
             """;
 
         MarkForRetry = $"""
             UPDATE {tableName}
-            SET RetryCount = @retryCount, NextRetryAt = @nextRetryAt,
-                LockedBy = NULL, LockedUntil = NULL
-            WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
+            SET {Q("RetryCount")} = @retryCount, {Q("NextRetryAt")} = @nextRetryAt,
+                {Q("LockedBy")} = NULL, {Q("LockedUntil")} = NULL
+            WHERE {Q("Id")} = @id AND {Q("Status")} = @pending AND {Q("LockedBy")} = @hostId
             """;
 
         DeadLetter = $"""
             UPDATE {tableName}
-            SET Status = @status, DeadLetterError = @error, ProcessedAt = @processedAt,
-                LockedBy = NULL, LockedUntil = NULL
-            WHERE Id = @id AND Status = @pending AND LockedBy = @hostId
+            SET {Q("Status")} = @status, {Q("DeadLetterError")} = @error, {Q("ProcessedAt")} = @processedAt,
+                {Q("LockedBy")} = NULL, {Q("LockedUntil")} = NULL
+            WHERE {Q("Id")} = @id AND {Q("Status")} = @pending AND {Q("LockedBy")} = @hostId
             """;
 
         ReleaseLease = $"""
             UPDATE {tableName}
-            SET LockedBy = NULL, LockedUntil = NULL
-            WHERE Id = @id AND LockedBy = @hostId AND Status = @pending
+            SET {Q("LockedBy")} = NULL, {Q("LockedUntil")} = NULL
+            WHERE {Q("Id")} = @id AND {Q("LockedBy")} = @hostId AND {Q("Status")} = @pending
             """;
 
         RenewLease = $"""
             UPDATE {tableName}
-            SET LockedUntil = @until
-            WHERE Id = @id AND LockedBy = @hostId AND LockedUntil >= @now AND Status = @status
+            SET {Q("LockedUntil")} = @until
+            WHERE {Q("Id")} = @id AND {Q("LockedBy")} = @hostId AND {Q("LockedUntil")} >= @now AND {Q("Status")} = @status
             """;
 
         Requeue = $"""
             UPDATE {tableName}
-            SET Status = @status, RetryCount = 0, NextRetryAt = @now,
-                DeadLetterError = NULL, ProcessedAt = NULL,
-                LockedBy = NULL, LockedUntil = NULL
-            WHERE Id = @id AND Status = @deadLetter
+            SET {Q("Status")} = @status, {Q("RetryCount")} = 0, {Q("NextRetryAt")} = @now,
+                {Q("DeadLetterError")} = NULL, {Q("ProcessedAt")} = NULL,
+                {Q("LockedBy")} = NULL, {Q("LockedUntil")} = NULL
+            WHERE {Q("Id")} = @id AND {Q("Status")} = @deadLetter
             """;
 
-        ReadState = $"SELECT Status, RetryCount FROM {tableName} WHERE Id = @id";
+        ReadState = $"SELECT {Q("Status")}, {Q("RetryCount")} FROM {tableName} WHERE {Q("Id")} = @id";
 
         Claim = BuildClaim(dialect, tableName);
     }
@@ -111,44 +119,47 @@ internal sealed class OutboxSql
 
     public string ReadState { get; }
 
-    private static string BuildClaim(OutboxOrmDialect dialect, string tableName)
+    /// <summary>A column name, quoted in the dialect's style when the pipeline asked for it.</summary>
+    private string Q(string column) => _open + column + _close;
+
+    private string BuildClaim(OutboxOrmDialect dialect, string tableName)
         => dialect switch
         {
             OutboxOrmDialect.SqlServer => $"""
                 WITH claim AS (
-                    SELECT TOP (@batchSize) Id, TypeName, Payload, RetryCount, CreatedAt, LockedBy, LockedUntil
+                    SELECT TOP (@batchSize) {Q("Id")}, {Q("TypeName")}, {Q("Payload")}, {Q("RetryCount")}, {Q("CreatedAt")}, {Q("LockedBy")}, {Q("LockedUntil")}
                     FROM {tableName} WITH (ROWLOCK, READPAST, UPDLOCK)
-                    WHERE Status = @status AND NextRetryAt <= @now
-                      AND (LockedUntil IS NULL OR LockedUntil < @now)
-                    ORDER BY CreatedAt)
-                UPDATE claim SET LockedBy = @hostId, LockedUntil = @until
-                OUTPUT inserted.Id, inserted.TypeName, inserted.Payload, inserted.RetryCount, inserted.CreatedAt
+                    WHERE {Q("Status")} = @status AND {Q("NextRetryAt")} <= @now
+                      AND ({Q("LockedUntil")} IS NULL OR {Q("LockedUntil")} < @now)
+                    ORDER BY {Q("CreatedAt")})
+                UPDATE claim SET {Q("LockedBy")} = @hostId, {Q("LockedUntil")} = @until
+                OUTPUT inserted.{Q("Id")}, inserted.{Q("TypeName")}, inserted.{Q("Payload")}, inserted.{Q("RetryCount")}, inserted.{Q("CreatedAt")}
                 """,
             OutboxOrmDialect.Postgres => $"""
                 WITH c AS MATERIALIZED (
-                    SELECT Id FROM {tableName}
-                    WHERE Status = @status AND NextRetryAt <= @now
-                      AND (LockedUntil IS NULL OR LockedUntil < @now)
-                    ORDER BY CreatedAt
+                    SELECT {Q("Id")} FROM {tableName}
+                    WHERE {Q("Status")} = @status AND {Q("NextRetryAt")} <= @now
+                      AND ({Q("LockedUntil")} IS NULL OR {Q("LockedUntil")} < @now)
+                    ORDER BY {Q("CreatedAt")}
                     LIMIT @batchSize
                     FOR UPDATE SKIP LOCKED)
                 UPDATE {tableName} t
-                SET LockedBy = @hostId, LockedUntil = @until
+                SET {Q("LockedBy")} = @hostId, {Q("LockedUntil")} = @until
                 FROM c
-                WHERE t.Id = c.Id
-                RETURNING t.Id, t.TypeName, t.Payload, t.RetryCount, t.CreatedAt
+                WHERE t.{Q("Id")} = c.{Q("Id")}
+                RETURNING t.{Q("Id")}, t.{Q("TypeName")}, t.{Q("Payload")}, t.{Q("RetryCount")}, t.{Q("CreatedAt")}
                 """,
             _ => $"""
                 UPDATE {tableName}
-                SET LockedBy = @hostId, LockedUntil = @until
-                WHERE Id IN (
-                    SELECT Id FROM {tableName}
-                    WHERE Status = @status AND NextRetryAt <= @now
-                      AND (LockedUntil IS NULL OR LockedUntil < @now)
-                    ORDER BY CreatedAt
+                SET {Q("LockedBy")} = @hostId, {Q("LockedUntil")} = @until
+                WHERE {Q("Id")} IN (
+                    SELECT {Q("Id")} FROM {tableName}
+                    WHERE {Q("Status")} = @status AND {Q("NextRetryAt")} <= @now
+                      AND ({Q("LockedUntil")} IS NULL OR {Q("LockedUntil")} < @now)
+                    ORDER BY {Q("CreatedAt")}
                     LIMIT @batchSize)
-                  AND (LockedUntil IS NULL OR LockedUntil < @now)
-                RETURNING Id, TypeName, Payload, RetryCount, CreatedAt
+                  AND ({Q("LockedUntil")} IS NULL OR {Q("LockedUntil")} < @now)
+                RETURNING {Q("Id")}, {Q("TypeName")}, {Q("Payload")}, {Q("RetryCount")}, {Q("CreatedAt")}
                 """,
         };
 }

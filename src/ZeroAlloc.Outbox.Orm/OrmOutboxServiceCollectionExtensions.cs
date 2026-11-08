@@ -72,7 +72,7 @@ public static class OrmOutboxServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        Register(builder, dialect, OrmConnectionSource.Container, OrmOutboxOptions.DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.Container, new OrmOutboxOptions());
         return builder;
     }
 
@@ -119,7 +119,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connectionKey);
 
-        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), OrmOutboxOptions.DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), new OrmOutboxOptions());
         return builder;
     }
 
@@ -158,7 +158,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connection);
 
-        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), OrmOutboxOptions.DefaultTableName);
+        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), new OrmOutboxOptions());
         return builder;
     }
 
@@ -193,7 +193,7 @@ public static class OrmOutboxServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        Register(builder, dialect, OrmConnectionSource.Container, TableNameFrom(configure));
+        Register(builder, dialect, OrmConnectionSource.Container, OptionsFrom(configure));
         return builder;
     }
 
@@ -222,7 +222,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connectionKey);
 
-        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), TableNameFrom(configure));
+        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), OptionsFrom(configure));
         return builder;
     }
 
@@ -253,11 +253,11 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connection);
 
-        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), TableNameFrom(configure));
+        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), OptionsFrom(configure));
         return builder;
     }
 
-    private static string TableNameFrom(Action<OrmOutboxOptions> configure)
+    private static OrmOutboxOptions OptionsFrom(Action<OrmOutboxOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
@@ -269,12 +269,14 @@ public static class OrmOutboxServiceCollectionExtensions
                 "ZeroAlloc.Outbox: OrmOutboxOptions.TableName must not be null or blank.", nameof(configure));
         }
 
-        return options.TableName;
+        return options;
     }
 
     private static void Register(
-        IOutboxBuilder builder, OutboxOrmDialect dialect, OrmConnectionSource connection, string tableName)
+        IOutboxBuilder builder, OutboxOrmDialect dialect, OrmConnectionSource connection, OrmOutboxOptions options)
     {
+        var tableName = options.TableName;
+        var quoteColumns = options.QuoteColumns;
         var services = builder.Services;
         var pipeline = OutboxStoreRegistration.PipelineOf(builder);
         OutboxStoreRegistration.ThrowIfConflicting(services, pipeline, typeof(OrmOutboxStore), "WithOrm()");
@@ -285,25 +287,7 @@ public static class OrmOutboxServiceCollectionExtensions
         if (existing is not null
             && OutboxStoreRegistration.FactoryTarget(existing) is OrmOutboxStoreFactory registered)
         {
-            if (registered.Dialect != dialect)
-            {
-                throw OutboxStoreRegistration.Conflict(
-                    "WithOrm()", pipeline, $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
-            }
-
-            if (!registered.Connection.Equals(connection))
-            {
-                throw OutboxStoreRegistration.Conflict(
-                    "WithOrm()", pipeline,
-                    $"OrmOutboxStore on {registered.Connection}, not on {connection},");
-            }
-
-            if (!string.Equals(registered.TableName, tableName, StringComparison.Ordinal))
-            {
-                throw OutboxStoreRegistration.Conflict(
-                    "WithOrm()", pipeline,
-                    $"OrmOutboxStore on table {registered.TableName}, not on table {tableName},");
-            }
+            ThrowIfDiffers(registered, pipeline, dialect, connection, options);
         }
 
         OutboxStoreRegistration.ThrowIfSharedWithAnotherPipeline(
@@ -315,7 +299,7 @@ public static class OrmOutboxServiceCollectionExtensions
                      || (otherFactory.Connection.Equals(connection)
                          && string.Equals(otherFactory.TableName, tableName, StringComparison.Ordinal)));
 
-        var factory = new OrmOutboxStoreFactory(dialect, connection, tableName);
+        var factory = new OrmOutboxStoreFactory(dialect, connection, tableName, quoteColumns);
         if (pipeline is null)
         {
             services.TryAddScoped(factory.Create);
@@ -333,11 +317,52 @@ public static class OrmOutboxServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Throws when a pipeline registered again differs from its first registration in dialect,
+    /// connection, table or column quoting. TryAdd would silently keep the first.
+    /// </summary>
+    private static void ThrowIfDiffers(
+        OrmOutboxStoreFactory registered,
+        string? pipeline,
+        OutboxOrmDialect dialect,
+        OrmConnectionSource connection,
+        OrmOutboxOptions options)
+    {
+        var tableName = options.TableName;
+        var quoteColumns = options.QuoteColumns;
+        if (registered.Dialect != dialect)
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline, $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
+        }
+
+        if (!registered.Connection.Equals(connection))
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore on {registered.Connection}, not on {connection},");
+        }
+
+        if (!string.Equals(registered.TableName, tableName, StringComparison.Ordinal))
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore on table {registered.TableName}, not on table {tableName},");
+        }
+
+        if (registered.QuoteColumns != quoteColumns)
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore with QuoteColumns {registered.QuoteColumns}, not {quoteColumns},");
+        }
+    }
+
+    /// <summary>
     /// Creates the store with the dialect, connection and table it was registered with. A named class
     /// rather than a lambda, so a later <c>WithOrm</c> call can read them back from the registration.
     /// </summary>
     private sealed class OrmOutboxStoreFactory(
-        OutboxOrmDialect dialect, OrmConnectionSource connection, string tableName)
+        OutboxOrmDialect dialect, OrmConnectionSource connection, string tableName, bool quoteColumns)
     {
         public OutboxOrmDialect Dialect { get; } = dialect;
 
@@ -345,8 +370,10 @@ public static class OrmOutboxServiceCollectionExtensions
 
         public string TableName { get; } = tableName;
 
+        public bool QuoteColumns { get; } = quoteColumns;
+
         public OrmOutboxStore Create(IServiceProvider sp)
-            => new(Connection.Resolve(sp), Dialect, TableName);
+            => new(Connection.Resolve(sp), Dialect, TableName, QuoteColumns);
 
         public OrmOutboxStore CreateKeyed(IServiceProvider sp, object? key)
             => Create(sp);

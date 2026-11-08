@@ -17,4 +17,19 @@ public sealed class OrmOutboxOptions
     /// tables. Create the table with <see cref="OutboxOrmMigrations"/> or your own migration.
     /// </remarks>
     public string TableName { get; set; } = DefaultTableName;
+
+    /// <summary>
+    /// Quotes every column name in the store's SQL, in the dialect's style: <c>"Id"</c> on
+    /// PostgreSQL and SQLite, <c>[Id]</c> on SQL Server. Defaults to <c>false</c>, which leaves
+    /// the SQL as it was.
+    /// </summary>
+    /// <remarks>
+    /// Set it for a table whose columns were created quoted and mixed case, such as the
+    /// <c>"OutboxMessages"</c> table EF Core's PostgreSQL provider creates, where an unquoted
+    /// <c>Id</c> folds to <c>id</c> and finds no column. A table made by
+    /// <see cref="OutboxOrmMigrations"/> has unquoted columns and needs this off. It is part of a
+    /// pipeline's registration identity: registering the same pipeline again with another value
+    /// throws.
+    /// </remarks>
+    public bool QuoteColumns { get; set; }
 }

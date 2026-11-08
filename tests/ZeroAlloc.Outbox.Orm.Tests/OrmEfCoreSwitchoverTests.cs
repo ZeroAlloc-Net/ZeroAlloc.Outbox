@@ -22,9 +22,8 @@ namespace ZeroAlloc.Outbox.Orm.Tests;
 /// <remarks>
 /// Two tables share one SQL Server database. The EF Core store's table is <c>OutboxMessages</c>,
 /// which the ORM pipeline addresses as <c>[OutboxMessages]</c>. The second pipeline's table is
-/// <c>workflow_outbox</c>, made by <see cref="OutboxOrmMigrations.For"/>. Not run on PostgreSQL:
-/// there EF Core quotes its mixed-case column names, which the ORM store's unquoted statements
-/// do not match.
+/// <c>workflow_outbox</c>, made by <see cref="OutboxOrmMigrations.For"/>. The PostgreSQL case, which needs
+/// <c>QuoteColumns</c>, is <see cref="OrmEfCorePostgresSwitchoverTests"/>.
 /// </remarks>
 public sealed class OrmEfCoreSwitchoverTests(SqlServerFixture server) : IClassFixture<SqlServerFixture>
 {

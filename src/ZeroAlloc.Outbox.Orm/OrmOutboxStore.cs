@@ -78,11 +78,35 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// database needs it. It is trusted configuration, never user input.
     /// </param>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName)
+        : this(connection, dialect, tableName, quoteColumns: false)
+    {
+    }
+
+    /// <summary>
+    /// Creates a store over the application's connection, for a specific database and outbox
+    /// table, optionally quoting every column name.
+    /// </summary>
+    /// <param name="connection">The connection the outbox table lives on.</param>
+    /// <param name="dialect">
+    /// Selects the batch-claim spelling. Only the batch claim differs; every
+    /// other statement is plain ANSI.
+    /// </param>
+    /// <param name="tableName">
+    /// The outbox table, used verbatim in every statement, so quote it yourself where the
+    /// database needs it. It is trusted configuration, never user input.
+    /// </param>
+    /// <param name="quoteColumns">
+    /// Quotes every column name in the dialect's style, <c>"Id"</c> on PostgreSQL and SQLite and
+    /// <c>[Id]</c> on SQL Server. Set it for a table whose columns were created quoted and mixed
+    /// case, such as the one EF Core's PostgreSQL provider creates.
+    /// </param>
+    public OrmOutboxStore(
+        IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName, bool quoteColumns)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _sql = new OutboxSql(dialect, tableName);
+        _sql = new OutboxSql(dialect, tableName, quoteColumns);
         _repo = new OutboxMessageStatements(connection, _sql);
     }
 

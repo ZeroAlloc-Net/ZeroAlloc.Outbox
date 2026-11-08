@@ -244,6 +244,46 @@ public sealed class OrmNamedPipelineTests
         reader.GetInt64(1).Should().Be(2, "pipeline b's table is untouched");
     }
 
+    [Fact]
+    public void Reregistering_one_pipeline_with_another_QuoteColumns_throws()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "OutboxA");
+
+        var act = () => services.AddOutbox("a", _ => { })
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*QuoteColumns*");
+    }
+
+    [Fact]
+    public void Two_pipelines_on_one_connection_and_table_with_different_QuoteColumns_still_throw()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "OutboxA");
+
+        var act = () => services.AddOutbox("b", _ => { })
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*");
+    }
+
+    [Fact]
+    public void QuoteColumns_defaults_to_false_and_reregistering_with_the_same_value_is_a_noop()
+    {
+        new OrmOutboxOptions().QuoteColumns.Should().BeFalse();
+        var services = new ServiceCollection();
+        var builder = services.AddOutbox("a", _ => { });
+        void Register() => builder
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+        Register();
+        var count = services.Count;
+
+        Register();
+
+        services.Count.Should().Be(count);
+    }
+
     private sealed class RecordingDispatcher(Action<ReadOnlyMemory<byte>> action) : IOutboxTypeDispatcher
     {
         public string TypeName => OrmNamedPipelineTests.TypeName;
