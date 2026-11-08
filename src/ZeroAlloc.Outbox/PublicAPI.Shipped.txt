@@ -118,6 +118,8 @@ ZeroAlloc.Outbox.IOutboxDashboardStore.GetThroughputAsync(System.TimeSpan window
 ZeroAlloc.Outbox.IOutboxDashboardStore.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxDispatcher<T>
 ZeroAlloc.Outbox.IOutboxDispatcher<T>.DispatchAsync(T message, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+ZeroAlloc.Outbox.IOutboxRequeue
+ZeroAlloc.Outbox.IOutboxRequeue.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Outbox.IOutboxSerializer
 ZeroAlloc.Outbox.IOutboxSerializer.Deserialize<T>(System.ReadOnlyMemory<byte> data) -> T
 ZeroAlloc.Outbox.IOutboxSerializer.Serialize<T>(T value) -> System.ReadOnlyMemory<byte>
