@@ -64,6 +64,255 @@ public sealed class OrmNamedPipelineTests
         dispatched.Order().Should().Equal(new byte[] { 0, 1, 2, 3, 4 }, "each message is dispatched exactly once");
     }
 
+    private static void Pipeline(IServiceCollection services, string name, string table)
+        => services.AddOutbox(name, _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = table);
+
+    [Fact]
+    public void Two_pipelines_on_the_container_connection_with_different_tables_register()
+    {
+        var services = new ServiceCollection();
+        Pipeline(services, "a", "OutboxA");
+
+        var act = () => Pipeline(services, "b", "OutboxB");
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Two_pipelines_on_the_container_connection_with_the_same_table_throw()
+    {
+        var services = new ServiceCollection();
+        Pipeline(services, "a", "OutboxA");
+
+        var act = () => Pipeline(services, "b", "OutboxA");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*");
+    }
+
+    [Fact]
+    public void Reregistering_one_pipeline_with_another_table_throws()
+    {
+        var services = new ServiceCollection();
+        Pipeline(services, "a", "OutboxA");
+
+        var act = () => Pipeline(services, "a", "OutboxB");
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*OutboxB*");
+    }
+
+    [Fact]
+    public void Reregistering_with_the_same_table_is_a_noop()
+    {
+        var services = new ServiceCollection();
+        var builder = services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = "OutboxA");
+        var count = services.Count;
+
+        builder.WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = "OutboxA");
+
+        services.Count.Should().Be(count);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Blank_table_name_throws_ArgumentException_at_registration(string? table)
+    {
+        var act = () => new ServiceCollection().AddOutbox().WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = table!);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Tables_differing_only_in_quoting_are_different_tables()
+    {
+        var services = new ServiceCollection();
+        Pipeline(services, "a", "OutboxA");
+
+        var act = () => Pipeline(services, "b", "\"OutboxA\"");
+
+        act.Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Blank_table_name_throws_for_the_keyed_and_factory_overloads(string? table)
+    {
+        var services = new ServiceCollection();
+        var a = services.AddOutbox("a", _ => { });
+        var b = services.AddOutbox("b", _ => { });
+
+        ((Action)(() => a.WithOrm(OutboxOrmDialect.Sqlite, "key", o => o.TableName = table!)))
+            .Should().Throw<ArgumentException>();
+        ((Action)(() => b.WithOrm(OutboxOrmDialect.Sqlite, _ => null!, o => o.TableName = table!)))
+            .Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_table_name_given_to_a_keyed_or_factory_registration_reaches_the_store(bool keyed)
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var connection = await fx.ConnectAsync();
+        await using var _ = connection;
+        var raw = await fx.OpenRawAsync();
+        await using var __ = raw;
+        await using (var create = raw.CreateCommand())
+        {
+            create.CommandText = "CREATE TABLE CustomOutbox AS SELECT * FROM OutboxMessages WHERE 0";
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var services = new ServiceCollection();
+        var builder = services.AddOutbox("custom", _ => { });
+        if (keyed)
+        {
+            services.AddKeyedSingleton("db", connection);
+            builder.WithOrm(OutboxOrmDialect.Sqlite, "db", o => o.TableName = "CustomOutbox");
+        }
+        else
+        {
+            builder.WithOrm(OutboxOrmDialect.Sqlite, _ => connection, o => o.TableName = "CustomOutbox");
+        }
+
+        await using var sp = services.BuildServiceProvider();
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredKeyedService<OrmOutboxStore>("custom");
+            await store.EnqueueAsync(TypeName, new byte[] { 1 }, transaction: null, CancellationToken.None);
+        }
+
+        await using var count = raw.CreateCommand();
+        count.CommandText = "SELECT (SELECT COUNT(*) FROM CustomOutbox), (SELECT COUNT(*) FROM OutboxMessages)";
+        await using var reader = await count.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetInt64(0).Should().Be(1);
+        reader.GetInt64(1).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Requeue_resolves_per_named_pipeline_and_hits_only_its_table()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var connection = await fx.ConnectAsync();
+        await using var _ = connection;
+        var raw = await fx.OpenRawAsync();
+        await using var __ = raw;
+        foreach (var table in new[] { "OutboxA", "OutboxB" })
+        {
+            await using var create = raw.CreateCommand();
+            create.CommandText = $"CREATE TABLE {table} AS SELECT * FROM OutboxMessages WHERE 0";
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var services = new ServiceCollection();
+        services.AddSingleton(connection);
+        Pipeline(services, "a", "OutboxA");
+        Pipeline(services, "b", "OutboxB");
+        await using var sp = services.BuildServiceProvider();
+        await using var scope = sp.CreateAsyncScope();
+        foreach (var name in new[] { "a", "b" })
+            await scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(name)
+                .EnqueueAsync(TypeName, new byte[] { 1 }, transaction: null, CancellationToken.None);
+        await using (var kill = raw.CreateCommand())
+        {
+            kill.CommandText = "UPDATE OutboxA SET Status = 2, RetryCount = 5, DeadLetterError = 'x';"
+                + "UPDATE OutboxB SET Status = 2, RetryCount = 5, DeadLetterError = 'x';";
+            await kill.ExecuteNonQueryAsync();
+        }
+
+        string idA;
+        await using (var read = raw.CreateCommand())
+        {
+            read.CommandText = "SELECT Id FROM OutboxA";
+            idA = (string)(await read.ExecuteScalarAsync())!;
+        }
+
+        await scope.ServiceProvider.GetRequiredKeyedService<IOutboxRequeue>("a")
+            .RequeueAsync(new OutboxMessageId(Guid.Parse(idA)), CancellationToken.None);
+
+        await using var check = raw.CreateCommand();
+        check.CommandText = "SELECT (SELECT Status FROM OutboxA), (SELECT Status FROM OutboxB)";
+        await using var reader = await check.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetInt64(0).Should().Be(0, "pipeline a's row was requeued");
+        reader.GetInt64(1).Should().Be(2, "pipeline b's table is untouched");
+    }
+
+    [Fact]
+    public void Reregistering_one_pipeline_with_another_QuoteColumns_throws()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "OutboxA");
+
+        var act = () => services.AddOutbox("a", _ => { })
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*QuoteColumns*");
+    }
+
+    [Fact]
+    public void Two_pipelines_on_one_connection_and_table_with_different_QuoteColumns_still_throw()
+    {
+        var services = new ServiceCollection();
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "OutboxA");
+
+        var act = () => services.AddOutbox("b", _ => { })
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Both use*the table OutboxA*");
+    }
+
+    [Fact]
+    public void QuoteColumns_defaults_to_false_and_reregistering_with_the_same_value_is_a_noop()
+    {
+        new OrmOutboxOptions().QuoteColumns.Should().BeFalse();
+        var services = new ServiceCollection();
+        var builder = services.AddOutbox("a", _ => { });
+        void Register() => builder
+            .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
+        Register();
+        var count = services.Count;
+
+        Register();
+
+        services.Count.Should().Be(count);
+    }
+
+    [Fact]
+    public void An_options_action_held_in_a_variable_binds_on_a_named_builder()
+    {
+        Action<OrmOutboxOptions> configure = o => o.TableName = "OutboxA";
+        var services = new ServiceCollection();
+
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Postgres, configure);
+
+        var act = () => services.AddOutbox("b", _ => { }).WithOrm(OutboxOrmDialect.Postgres, configure);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*");
+    }
+
+    [Fact]
+    public void Each_lambda_form_binds_to_its_overload_on_a_named_builder()
+    {
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton<System.Data.Async.IAsyncDbConnection>("k", (_, _) => null!);
+
+        // An options lambda, a statement lambda, a connection factory and a connection key.
+        services.AddOutbox("a", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => o.TableName = "OutboxA");
+        services.AddOutbox("b", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, o => { o.TableName = "OutboxB"; });
+        services.AddOutbox("c", _ => { }).WithOrm(
+            OutboxOrmDialect.Sqlite, (IServiceProvider _) => null!);
+        services.AddOutbox("d", _ => { }).WithOrm(OutboxOrmDialect.Sqlite, connectionKey: "k");
+
+        services.Count(d => d.ServiceKey is "a" or "b" or "c" or "d" && d.ServiceType == typeof(OrmOutboxStore))
+            .Should().Be(4);
+    }
+
     private sealed class RecordingDispatcher(Action<ReadOnlyMemory<byte>> action) : IOutboxTypeDispatcher
     {
         public string TypeName => OrmNamedPipelineTests.TypeName;

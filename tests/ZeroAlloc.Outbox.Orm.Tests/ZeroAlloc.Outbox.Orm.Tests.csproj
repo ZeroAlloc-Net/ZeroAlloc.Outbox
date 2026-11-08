@@ -36,6 +36,9 @@
          exclusive against a real engine. -->
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
+    <!-- The switch-over test creates the EF Core store's table through its own provider. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
   <ItemGroup>
     <!-- One container per test class, a database per test; shared with ZeroAlloc.Outbox.Tests. -->

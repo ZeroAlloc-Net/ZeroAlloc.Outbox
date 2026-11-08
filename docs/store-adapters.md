@@ -77,7 +77,7 @@ builder.Services.AddOutbox()
 
 This registers `OrmOutboxStore` as `IOutboxStore` (scoped) against the `IAsyncDbConnection` already registered in the container — register that connection yourself; its lifetime, provider and connection string belong to the application, not to the outbox. `WithOrm()` with no dialect argument defaults to SQLite. The dialect only selects the batch-claim statement; every other statement the store issues is plain ANSI SQL shared across all three.
 
-On a [named pipeline](dependency-injection.md#named-pipelines), `services.AddOutbox("workflow", configure).WithOrm(dialect)` registers the store keyed by the pipeline's name instead. It still uses the container's one `IAsyncDbConnection`, so only one pipeline can use the ORM store that way. To point a named pipeline at a database of its own, give it a connection of its own:
+On a [named pipeline](dependency-injection.md#named-pipelines), `services.AddOutbox("workflow", configure).WithOrm(dialect)` registers the store keyed by the pipeline's name instead. It uses the container's `IAsyncDbConnection`, so pipelines that share it each need an outbox table of their own, set with `TableName` (below). To point a named pipeline at a database of its own, give it a connection of its own:
 
 ```csharp
 // A keyed connection, owned and disposed by the container.
@@ -90,7 +90,7 @@ services.AddOutbox("audit", configure)
         .WithOrm(OutboxOrmDialect.SqlServer, sp => sp.GetRequiredService<AuditDb>().Connection);
 ```
 
-The outbox never disposes a connection a factory returns, so return one the application owns. Prefer the keyed form when the container should own it. Two pipelines on the same connection, whether the container's, the same key or the same factory delegate, throw at registration, since they would poll the same table. Each database needs the outbox schema from `OutboxOrmMigrations`. The default pipeline's `WithOrm(dialect)` is unchanged.
+The outbox never disposes a connection a factory returns, so return one the application owns. Prefer the keyed form when the container should own it. Two pipelines on the same connection, whether the container's, the same key or the same factory delegate, are fine on different tables and throw at registration on the same table, since they would poll it twice. The rule is connection plus table: the same connection with `OutboxA` and `OutboxB` registers, the same connection with the same table does not. Pipelines that share a connection registration need that registration to be scoped or transient, so each worker scope gets a connection of its own: `services.AddScoped<IAsyncDbConnection>(_ => OpenDb())`. One connection instance registered as a singleton and shared by several workers is unsupported, since a database connection is not safe for concurrent use. Each table needs the outbox schema, see [Migration](#migration). The default pipeline's `WithOrm(dialect)` is unchanged.
 
 > No `IOutboxDashboardStore` is registered for this store. The dashboard's aggregate-view surface is much larger and isn't implemented here, so pointing the dashboard at the ORM store fails at registration instead of silently reporting nothing.
 
@@ -112,9 +112,48 @@ The insert runs on `tx.Connection`, not on the connection the store was created 
 
 `EnqueueDeferredAsync` is not overridden: the ORM has no ambient unit of work to defer into, so it writes immediately. A caller that needs deferral buffers the rows and calls `EnqueueInTransactionAsync` at its own commit point.
 
+### Table name
+
+By default the store uses the table `OutboxMessages`. Set `TableName` to use another one, for example to run two pipelines on one connection, or to read a table an EF Core store already created:
+
+```csharp
+services.AddOutbox("workflow", configure)
+        .WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "workflow_outbox");
+
+// Quoted and schema-qualified forms are spliced into the SQL as written.
+//   PostgreSQL:  "Outbox"    "app"."Outbox"    app.workflow_outbox
+//   SQL Server:  [Outbox]    [app].[Outbox]    app.workflow_outbox
+//   SQLite:      "Outbox"    main.workflow_outbox
+```
+
+The overloads that take a connection key or a connection factory take the same `Action<OrmOutboxOptions>` as their last argument.
+
+The name is used verbatim, so quote it yourself where the database needs it. Names compare with ordinal string equality: `Outbox`, `outbox` and `"Outbox"` count as three different tables for the registration check, even where the database would treat some of them as one. A blank name throws `ArgumentException`.
+
+> `TableName` is trusted configuration. It is spliced into every SQL statement the store issues, and nothing validates or escapes it. Take it from code or deployment configuration, never from user input or any other untrusted source.
+
+### Quoted columns
+
+The store names its columns unquoted. On PostgreSQL the server folds that to lower case, so a table whose columns were created quoted and mixed case, as EF Core's PostgreSQL provider creates them, has no `id` column and the first claim fails with `42703`. Set `QuoteColumns` to quote every column name in the dialect's style, `"Id"` on PostgreSQL and SQLite and `[Id]` on SQL Server:
+
+```csharp
+// Read the table EF Core's Npgsql provider created.
+services.AddOutbox().WithOrm(OutboxOrmDialect.Postgres, o =>
+{
+    o.TableName = "\"OutboxMessages\"";
+    o.QuoteColumns = true;
+});
+```
+
+It defaults to `false`, which leaves the SQL as it is. Use it for an existing EF Core table on PostgreSQL, and leave it off for a table made by `OutboxOrmMigrations`, whose columns are unquoted. SQL Server and SQLite compare column names case-insensitively, so an EF Core table there is read as it is. `QuoteColumns` is part of a pipeline's registration: registering the same pipeline again with another value throws, and two pipelines on one connection and table still conflict whatever their `QuoteColumns`. `OrmOutboxStore` takes it as the last constructor argument.
+
+### Requeue
+
+The store also implements `IOutboxRequeue`, registered next to `IOutboxStore` and keyed by the pipeline's name on a named pipeline. `RequeueAsync(id, ct)` moves a dead-lettered message back to pending, due now, with a fresh attempt counter and no lease, so the worker dispatches it again. It throws `InvalidOperationException` when the message does not exist or is not dead-lettered, and leaves a message in any other state unchanged. It only touches the pipeline's own table.
+
 ### Schema
 
-The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
+The same `OutboxMessages` table as the EF Core adapter — the two stores can be swapped without a data migration (on PostgreSQL set `TableName` to the quoted name, such as `"OutboxMessages"`, and `QuoteColumns` to `true`, see [Quoted columns](#quoted-columns)) — created by `OutboxOrmMigrations`, not by the store itself; the store does not create tables on the fly.
 
 | Column | Type (Postgres) | Notes |
 |--------|------|-------|
@@ -156,6 +195,17 @@ Migration 1 is guarded on every dialect (`IF NOT EXISTS` on SQLite and Postgres,
 > ```
 >
 > Migration 1 then runs as a no-op against the existing table and index. On Postgres and SQL Server no step is needed. If `__zaorm_migrations` already exists without a `source` column, because another source ran on ZeroAlloc.ORM before 2.2, run that source once first so the runner upgrades the table, then insert the row.
+
+### Another table
+
+For a pipeline with its own `TableName`, `OutboxOrmMigrations.For(dialect, tableName)` returns the same two migrations for that table:
+
+```csharp
+var workflow = OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, "workflow_outbox");
+await new MigrationRunner(connection, workflow, new PostgresMigrationDialect()).RunAsync(ct);
+```
+
+The name must be a plain identifier: letters, digits and underscores, not starting with a digit, at most 40 characters (the index name adds 22, and PostgreSQL truncates identifiers at 63 bytes). It is used unquoted in the DDL and the index is `IX_{tableName}_Status_NextRetryAt`, so a quoted or schema-qualified table is created by your own migration. Pass the same plain name as the pipeline's `TableName`. Each table gets its own history under the source name `ZeroAlloc.Outbox.Orm:{tableName}` with the name in lower case, since the databases treat names differing in case as one table. `OutboxMessages`, in any case, returns the default source with the unchanged name `ZeroAlloc.Outbox.Orm`. The runner of each table runs next to the others on the same connection.
 
 ### Several sources in one database
 

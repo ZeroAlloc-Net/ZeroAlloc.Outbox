@@ -1,1 +1,3 @@
 #nullable enable
+ZeroAlloc.Outbox.IOutboxRequeue
+ZeroAlloc.Outbox.IOutboxRequeue.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask

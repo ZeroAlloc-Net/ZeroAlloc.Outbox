@@ -26,8 +26,9 @@ public static class OrmOutboxServiceCollectionExtensions
     /// <c>MigrationRunner</c>; the store does not create tables on the fly.
     /// </para>
     /// <para>
-    /// No <c>IOutboxDashboardStore</c> is registered. That interface is a much
-    /// larger surface this adapter does not implement, and registering a
+    /// The store is also registered as an <see cref="IOutboxRequeue"/>, so an operator action can
+    /// move a dead-lettered message back to pending. No <c>IOutboxDashboardStore</c> is registered.
+    /// That interface is a much larger surface this adapter does not implement, and registering a
     /// non-functional one would leave the dashboard silently empty rather than
     /// failing where the mistake was made.
     /// </para>
@@ -36,9 +37,10 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </para>
     /// <para>
     /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers the
-    /// store as an <see cref="OrmOutboxStore"/> and an <see cref="IOutboxStore"/> keyed by the
-    /// pipeline's name. The store still uses the container's unkeyed
-    /// <see cref="IAsyncDbConnection"/>, so only one pipeline can use it that way. To point a named
+    /// store as an <see cref="OrmOutboxStore"/>, an <see cref="IOutboxStore"/> and an
+    /// <see cref="IOutboxRequeue"/>, each keyed by the pipeline's name. The store still uses the container's unkeyed
+    /// <see cref="IAsyncDbConnection"/>, so each pipeline needs a table of its own there, set with
+    /// <see cref="WithOrm(IOutboxBuilder, OutboxOrmDialect, Action{OrmOutboxOptions})"/>. To point a named
     /// pipeline at a database of its own, use
     /// <see cref="WithOrm(INamedOutboxBuilder, OutboxOrmDialect, object)"/> or
     /// <see cref="WithOrm(INamedOutboxBuilder, OutboxOrmDialect, Func{IServiceProvider, IAsyncDbConnection})"/>.
@@ -46,9 +48,9 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// A different <see cref="IOutboxStore"/> is already registered for the same pipeline, such as
-    /// another store adapter or the ORM store with another dialect or connection. Or another
-    /// pipeline already uses the ORM store on the container's connection, and would poll the same
-    /// table.
+    /// another store adapter or the ORM store with another dialect, connection or table. Or another
+    /// pipeline already uses the ORM store on the container's connection and the same table, and
+    /// would poll it too.
     /// </exception>
     /// <example>
     /// <code>
@@ -70,7 +72,7 @@ public static class OrmOutboxServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        Register(builder, dialect, OrmConnectionSource.Container);
+        Register(builder, dialect, OrmConnectionSource.Container, new OrmOutboxOptions());
         return builder;
     }
 
@@ -99,8 +101,8 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
-    /// ORM store with another dialect or connection. Or another pipeline already uses the ORM store
-    /// on the same keyed connection, and would poll the same table.
+    /// ORM store with another dialect, connection or table. Or another pipeline already uses the ORM
+    /// store on the same keyed connection and the same table, and would poll it too.
     /// </exception>
     /// <example>
     /// <code>
@@ -117,7 +119,7 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connectionKey);
 
-        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey));
+        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), new OrmOutboxOptions());
         return builder;
     }
 
@@ -146,7 +148,7 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
-    /// ORM store with another dialect or connection.
+    /// ORM store with another dialect, connection or table.
     /// </exception>
     public static IOutboxBuilder WithOrm(
         this INamedOutboxBuilder builder,
@@ -156,12 +158,155 @@ public static class OrmOutboxServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(connection);
 
-        Register(builder, dialect, OrmConnectionSource.FromFactory(connection));
+        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), new OrmOutboxOptions());
         return builder;
     }
 
-    private static void Register(IOutboxBuilder builder, OutboxOrmDialect dialect, OrmConnectionSource connection)
+    /// <summary>
+    /// Persists outbox messages through ZeroAlloc.ORM, against the container's
+    /// <see cref="IAsyncDbConnection"/>, in the table <paramref name="configure"/> sets.
+    /// </summary>
+    /// <param name="builder">The outbox builder.</param>
+    /// <param name="dialect">Which database the registered connection talks to.</param>
+    /// <param name="configure">Sets the <see cref="OrmOutboxOptions"/>, such as the table name.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    /// <remarks>
+    /// Two pipelines can share the container's connection when they use different tables. The table
+    /// name is compared with ordinal string equality; see <see cref="OrmOutboxOptions.TableName"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><see cref="OrmOutboxOptions.TableName"/> is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
+    /// ORM store with another dialect, connection or table. Or another pipeline already uses the ORM
+    /// store on the container's connection and the same table.
+    /// </exception>
+    /// <example>
+    /// <code>
+    /// services.AddOutbox("workflow", o => { })
+    ///         .WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "WorkflowOutbox");
+    /// </code>
+    /// </example>
+    public static IOutboxBuilder WithOrm(
+        this IOutboxBuilder builder,
+        OutboxOrmDialect dialect,
+        Action<OrmOutboxOptions> configure)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        Register(builder, dialect, OrmConnectionSource.Container, OptionsFrom(configure));
+        return builder;
+    }
+
+    /// <summary>
+    /// Persists a named pipeline's outbox messages through ZeroAlloc.ORM, against the container's
+    /// <see cref="IAsyncDbConnection"/>, in the table <paramref name="configure"/> sets.
+    /// </summary>
+    /// <param name="builder">The named pipeline's builder, from <c>AddOutbox(name, configure)</c>.</param>
+    /// <param name="dialect">Which database the registered connection talks to.</param>
+    /// <param name="configure">Sets the <see cref="OrmOutboxOptions"/>, such as the table name.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    /// <remarks>
+    /// The same as the overload for <see cref="IOutboxBuilder"/>. It exists so an
+    /// <c>Action&lt;OrmOutboxOptions&gt;</c> held in a variable binds on a named builder, where it
+    /// would otherwise be ambiguous with the overload that takes a connection key.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><see cref="OrmOutboxOptions.TableName"/> is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
+    /// ORM store with another dialect, connection or table. Or another pipeline already uses the ORM
+    /// store on the container's connection and the same table.
+    /// </exception>
+    public static IOutboxBuilder WithOrm(
+        this INamedOutboxBuilder builder,
+        OutboxOrmDialect dialect,
+        Action<OrmOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        Register(builder, dialect, OrmConnectionSource.Container, OptionsFrom(configure));
+        return builder;
+    }
+
+    /// <summary>
+    /// Persists a named pipeline's outbox messages through ZeroAlloc.ORM, against the
+    /// <see cref="IAsyncDbConnection"/> registered under <paramref name="connectionKey"/>, in the
+    /// table <paramref name="configure"/> sets.
+    /// </summary>
+    /// <param name="builder">The named pipeline's builder, from <c>AddOutbox(name, configure)</c>.</param>
+    /// <param name="dialect">Which database the keyed connection talks to.</param>
+    /// <param name="connectionKey">The service key of the <see cref="IAsyncDbConnection"/> to use.</param>
+    /// <param name="configure">Sets the <see cref="OrmOutboxOptions"/>, such as the table name.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    /// <exception cref="ArgumentException"><see cref="OrmOutboxOptions.TableName"/> is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
+    /// ORM store with another dialect, connection or table. Or another pipeline already uses the ORM
+    /// store on the same keyed connection and the same table.
+    /// </exception>
+    public static IOutboxBuilder WithOrm(
+        this INamedOutboxBuilder builder,
+        OutboxOrmDialect dialect,
+        object connectionKey,
+        Action<OrmOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(connectionKey);
+
+        Register(builder, dialect, OrmConnectionSource.Keyed(connectionKey), OptionsFrom(configure));
+        return builder;
+    }
+
+    /// <summary>
+    /// Persists a named pipeline's outbox messages through ZeroAlloc.ORM, against the
+    /// <see cref="IAsyncDbConnection"/> <paramref name="connection"/> returns, in the table
+    /// <paramref name="configure"/> sets.
+    /// </summary>
+    /// <param name="builder">The named pipeline's builder, from <c>AddOutbox(name, configure)</c>.</param>
+    /// <param name="dialect">Which database the connection talks to.</param>
+    /// <param name="connection">
+    /// Returns the connection for one scope. The outbox does not dispose it; see
+    /// <see cref="WithOrm(INamedOutboxBuilder, OutboxOrmDialect, Func{IServiceProvider, IAsyncDbConnection})"/>.
+    /// </param>
+    /// <param name="configure">Sets the <see cref="OrmOutboxOptions"/>, such as the table name.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    /// <exception cref="ArgumentException"><see cref="OrmOutboxOptions.TableName"/> is null or blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A different <see cref="IOutboxStore"/> is already registered for the pipeline, including the
+    /// ORM store with another dialect, connection or table.
+    /// </exception>
+    public static IOutboxBuilder WithOrm(
+        this INamedOutboxBuilder builder,
+        OutboxOrmDialect dialect,
+        Func<IServiceProvider, IAsyncDbConnection> connection,
+        Action<OrmOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(connection);
+
+        Register(builder, dialect, OrmConnectionSource.FromFactory(connection), OptionsFrom(configure));
+        return builder;
+    }
+
+    private static OrmOutboxOptions OptionsFrom(Action<OrmOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new OrmOutboxOptions();
+        configure(options);
+        if (string.IsNullOrWhiteSpace(options.TableName))
+        {
+            throw new ArgumentException(
+                "ZeroAlloc.Outbox: OrmOutboxOptions.TableName must not be null or blank.", nameof(configure));
+        }
+
+        return options;
+    }
+
+    private static void Register(
+        IOutboxBuilder builder, OutboxOrmDialect dialect, OrmConnectionSource connection, OrmOutboxOptions options)
+    {
+        var tableName = options.TableName;
+        var quoteColumns = options.QuoteColumns;
         var services = builder.Services;
         var pipeline = OutboxStoreRegistration.PipelineOf(builder);
         OutboxStoreRegistration.ThrowIfConflicting(services, pipeline, typeof(OrmOutboxStore), "WithOrm()");
@@ -172,53 +317,95 @@ public static class OrmOutboxServiceCollectionExtensions
         if (existing is not null
             && OutboxStoreRegistration.FactoryTarget(existing) is OrmOutboxStoreFactory registered)
         {
-            if (registered.Dialect != dialect)
-            {
-                throw OutboxStoreRegistration.Conflict(
-                    "WithOrm()", pipeline, $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
-            }
-
-            if (!registered.Connection.Equals(connection))
-            {
-                throw OutboxStoreRegistration.Conflict(
-                    "WithOrm()", pipeline,
-                    $"OrmOutboxStore on {registered.Connection}, not on {connection},");
-            }
+            ThrowIfDiffers(registered, pipeline, dialect, connection, options);
         }
 
         OutboxStoreRegistration.ThrowIfSharedWithAnotherPipeline(
             services, pipeline, typeof(OrmOutboxStore), "WithOrm()",
-            $"Both use {connection}. Give each pipeline a connection of its own with " +
-            "WithOrm(dialect, connectionKey) or WithOrm(dialect, connection) on its named builder.",
+            $"Both use {connection} and the table {tableName}. Give each pipeline a table of its own with " +
+            "WithOrm(dialect, configure), or a connection of its own with WithOrm(dialect, connectionKey) " +
+            "or WithOrm(dialect, connection) on its named builder.",
             other => OutboxStoreRegistration.FactoryTarget(other) is not OrmOutboxStoreFactory otherFactory
-                     || otherFactory.Connection.Equals(connection));
+                     || (otherFactory.Connection.Equals(connection)
+                         && string.Equals(otherFactory.TableName, tableName, StringComparison.Ordinal)));
 
-        var factory = new OrmOutboxStoreFactory(dialect, connection);
+        var factory = new OrmOutboxStoreFactory(dialect, connection, tableName, quoteColumns);
         if (pipeline is null)
         {
             services.TryAddScoped(factory.Create);
             services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
+            services.TryAddScoped<IOutboxRequeue>(sp => sp.GetRequiredService<OrmOutboxStore>());
         }
         else
         {
             services.TryAddKeyedScoped(pipeline, factory.CreateKeyed);
             services.TryAddKeyedScoped<IOutboxStore>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<OrmOutboxStore>(key));
+            services.TryAddKeyedScoped<IOutboxRequeue>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<OrmOutboxStore>(key));
         }
     }
 
     /// <summary>
-    /// Creates the store with the dialect and connection it was registered with. A named class
-    /// rather than a lambda, so a later <c>WithOrm</c> call can read both back from the registration.
+    /// Throws when a pipeline registered again differs from its first registration in dialect,
+    /// connection, table or column quoting. TryAdd would silently keep the first.
     /// </summary>
-    private sealed class OrmOutboxStoreFactory(OutboxOrmDialect dialect, OrmConnectionSource connection)
+    private static void ThrowIfDiffers(
+        OrmOutboxStoreFactory registered,
+        string? pipeline,
+        OutboxOrmDialect dialect,
+        OrmConnectionSource connection,
+        OrmOutboxOptions options)
+    {
+        var tableName = options.TableName;
+        var quoteColumns = options.QuoteColumns;
+        if (registered.Dialect != dialect)
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline, $"OrmOutboxStore with dialect {registered.Dialect}, not {dialect},");
+        }
+
+        if (!registered.Connection.Equals(connection))
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore on {registered.Connection}, not on {connection},");
+        }
+
+        if (!string.Equals(registered.TableName, tableName, StringComparison.Ordinal))
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore on table {registered.TableName}, not on table {tableName},");
+        }
+
+        if (registered.QuoteColumns != quoteColumns)
+        {
+            throw OutboxStoreRegistration.Conflict(
+                "WithOrm()", pipeline,
+                $"OrmOutboxStore with QuoteColumns {registered.QuoteColumns}, not {quoteColumns},");
+        }
+    }
+
+    /// <summary>
+    /// Creates the store with the dialect, connection and table it was registered with. A named class
+    /// rather than a lambda, so a later <c>WithOrm</c> call can read them back from the registration.
+    /// </summary>
+    private sealed class OrmOutboxStoreFactory(
+        OutboxOrmDialect dialect, OrmConnectionSource connection, string tableName, bool quoteColumns)
     {
         public OutboxOrmDialect Dialect { get; } = dialect;
 
         public OrmConnectionSource Connection { get; } = connection;
 
+        public string TableName { get; } = tableName;
+
+        public bool QuoteColumns { get; } = quoteColumns;
+
+        private readonly OutboxSql _sql = OutboxSql.For(dialect, tableName, quoteColumns);
+
         public OrmOutboxStore Create(IServiceProvider sp)
-            => new(Connection.Resolve(sp), Dialect);
+            => new(Connection.Resolve(sp), _sql);
 
         public OrmOutboxStore CreateKeyed(IServiceProvider sp, object? key)
             => Create(sp);

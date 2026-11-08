@@ -1,7 +1,7 @@
 namespace ZeroAlloc.Outbox.Orm;
 
 /// <summary>
-/// A pending outbox row as materialised by <see cref="OutboxMessageRepository"/>.
+/// A pending outbox row as materialised by the outbox statements.
 /// </summary>
 /// <remarks>
 /// Only the columns the poller needs are selected. <c>Payload</c> is the BLOB

@@ -1,1 +1,15 @@
 #nullable enable
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, string! tableName) -> void
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions.OrmOutboxOptions() -> void
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions.TableName.get -> string!
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions.TableName.set -> void
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.IOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, System.Action<ZeroAlloc.Outbox.Orm.OrmOutboxOptions!>! configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, object! connectionKey, System.Action<ZeroAlloc.Outbox.Orm.OrmOutboxOptions!>! configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, System.Func<System.IServiceProvider!, System.Data.Async.IAsyncDbConnection!>! connection, System.Action<ZeroAlloc.Outbox.Orm.OrmOutboxOptions!>! configure) -> ZeroAlloc.Outbox.IOutboxBuilder!
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.RequeueAsync(ZeroAlloc.Outbox.OutboxMessageId id, System.Threading.CancellationToken ct) -> System.Threading.Tasks.ValueTask
+static ZeroAlloc.Outbox.Orm.OutboxOrmMigrations.For(ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, string! tableName) -> ZeroAlloc.ORM.Migrations.IMigrationSource!
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions.QuoteColumns.get -> bool
+ZeroAlloc.Outbox.Orm.OrmOutboxOptions.QuoteColumns.set -> void
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, string! tableName, bool quoteColumns) -> void
+static ZeroAlloc.Outbox.Orm.OrmOutboxServiceCollectionExtensions.WithOrm(this ZeroAlloc.Outbox.INamedOutboxBuilder! builder, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, System.Action<ZeroAlloc.Outbox.Orm.OrmOutboxOptions!>! configure) -> ZeroAlloc.Outbox.IOutboxBuilder!

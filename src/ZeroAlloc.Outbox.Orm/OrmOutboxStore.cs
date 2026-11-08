@@ -27,18 +27,19 @@ namespace ZeroAlloc.Outbox.Orm;
 /// expired without being taken over can still record its outcome.
 /// </para>
 /// <para>
-/// This implements <see cref="IOutboxStore"/> only. The dashboard's
-/// <c>IOutboxDashboardStore</c> is a distinctly larger surface — aggregate
-/// views, projections, operator actions — and is deliberately left out rather
+/// This implements <see cref="IOutboxStore"/> and <see cref="IOutboxRequeue"/>, the one operator
+/// action that needs no dashboard: moving a dead-lettered message back to pending. The rest of the
+/// dashboard's <c>IOutboxDashboardStore</c> is a distinctly larger surface — aggregate
+/// views, projections, the other operator actions — and is deliberately left out rather
 /// than stubbed, so a dashboard pointed at this store fails at registration
 /// instead of silently reporting nothing.
 /// </para>
 /// </remarks>
-public sealed class OrmOutboxStore : IOutboxStore
+public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
 {
     private readonly IAsyncDbConnection _connection;
-    private readonly OutboxMessageRepository _repo;
-    private readonly IPendingOutboxQuery _pending;
+    private readonly OutboxMessageStatements _repo;
+    private readonly OutboxSql _sql;
 
     /// <summary>
     /// Creates a store over the application's connection.
@@ -59,18 +60,62 @@ public sealed class OrmOutboxStore : IOutboxStore
     /// other statement is plain ANSI.
     /// </param>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
+        : this(connection, dialect, OrmOutboxOptions.DefaultTableName)
+    {
+    }
+
+    /// <summary>
+    /// Creates a store over the application's connection, for a specific database and outbox
+    /// table.
+    /// </summary>
+    /// <param name="connection">The connection the outbox table lives on.</param>
+    /// <param name="dialect">
+    /// Selects the batch-claim spelling. Only the batch claim differs; every
+    /// other statement is plain ANSI.
+    /// </param>
+    /// <param name="tableName">
+    /// The outbox table, used verbatim in every statement, so quote it yourself where the
+    /// database needs it. It is trusted configuration, never user input.
+    /// </param>
+    public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName)
+        : this(connection, dialect, tableName, quoteColumns: false)
+    {
+    }
+
+    /// <summary>
+    /// Creates a store over the application's connection, for a specific database and outbox
+    /// table, optionally quoting every column name.
+    /// </summary>
+    /// <param name="connection">The connection the outbox table lives on.</param>
+    /// <param name="dialect">
+    /// Selects the batch-claim spelling. Only the batch claim differs; every
+    /// other statement is plain ANSI.
+    /// </param>
+    /// <param name="tableName">
+    /// The outbox table, used verbatim in every statement, so quote it yourself where the
+    /// database needs it. It is trusted configuration, never user input.
+    /// </param>
+    /// <param name="quoteColumns">
+    /// Quotes every column name in the dialect's style, <c>"Id"</c> on PostgreSQL and SQLite and
+    /// <c>[Id]</c> on SQL Server. Set it for a table whose columns were created quoted and mixed
+    /// case, such as the one EF Core's PostgreSQL provider creates.
+    /// </param>
+    public OrmOutboxStore(
+        IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName, bool quoteColumns)
     {
         ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _repo = new OutboxMessageRepository(connection);
-        _pending = dialect switch
-        {
-            // SQL Server has neither LIMIT nor RETURNING. Postgres takes row
-            // locks with SKIP LOCKED, which SQLite neither has nor needs.
-            OutboxOrmDialect.SqlServer => new ClaimSqlServerPendingOutboxQuery(connection),
-            OutboxOrmDialect.Postgres => new ClaimPostgresPendingOutboxQuery(connection),
-            _ => new ClaimSqlitePendingOutboxQuery(connection),
-        };
+        _sql = OutboxSql.For(dialect, tableName, quoteColumns);
+        _repo = new OutboxMessageStatements(connection, _sql);
+    }
+
+    /// <summary>Creates a store with statements built once for its configuration.</summary>
+    internal OrmOutboxStore(IAsyncDbConnection connection, OutboxSql sql)
+    {
+        _connection = connection;
+        _sql = sql;
+        _repo = new OutboxMessageStatements(connection, sql);
     }
 
     /// <inheritdoc />
@@ -153,7 +198,7 @@ public sealed class OrmOutboxStore : IOutboxStore
         // connection, the usual case, reuses the store's repository.
         var repo = ReferenceEquals(transaction.Connection, _connection)
             ? _repo
-            : new OutboxMessageRepository(transaction.Connection);
+            : new OutboxMessageStatements(transaction.Connection, _sql);
 
         await repo.InsertInTransactionAsync(
             OutboxMessageId.New().Value, typeName, AsArray(payload),
@@ -178,7 +223,7 @@ public sealed class OrmOutboxStore : IOutboxStore
         ThrowIfNoHost(lease);
 
         var now = DateTimeOffset.UtcNow;
-        var rows = await _pending.ClaimPendingAsync(
+        var rows = await _repo.ClaimPendingAsync(
             (int)OrmOutboxMessageStatus.Pending, now, now + lease.Duration, lease.HostId, batchSize, ct)
             .ConfigureAwait(false);
 
@@ -276,6 +321,31 @@ public sealed class OrmOutboxStore : IOutboxStore
             (int)OrmOutboxMessageStatus.Pending, lease.HostId, ct)
             .ConfigureAwait(false);
         return changed == 1;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// One conditional <c>UPDATE</c> guarded by the row being dead-lettered, so the database decides
+    /// and a message that is pending, leased or dispatched is never touched. The state in the
+    /// exception is read only after a miss.
+    /// </remarks>
+    public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
+    {
+        var changed = await _repo.RequeueAsync(
+            id.Value, (int)OrmOutboxMessageStatus.Pending, DateTimeOffset.UtcNow,
+            (int)OrmOutboxMessageStatus.DeadLetter, ct)
+            .ConfigureAwait(false);
+        if (changed == 1) return;
+
+        var row = await _repo.ReadStateAsync(id.Value, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Message {id} not found.");
+        var state = (OrmOutboxMessageStatus)row.Status switch
+        {
+            OrmOutboxMessageStatus.Succeeded => OutboxMessageState.Dispatched,
+            OrmOutboxMessageStatus.DeadLetter => OutboxMessageState.DeadLetter,
+            _ => row.RetryCount == 0 ? OutboxMessageState.Pending : OutboxMessageState.Retry,
+        };
+        throw new InvalidOperationException($"Message {id} cannot be requeued in state {state}.");
     }
 
     /// <summary>

@@ -34,6 +34,150 @@ public sealed class OutboxMigrationSourceTests
         OutboxOrmMigrations.SqlServer.Name.Should().Be(OutboxSourceName);
     }
 
+    [Theory]
+    [InlineData(OutboxOrmDialect.Sqlite)]
+    [InlineData(OutboxOrmDialect.Postgres)]
+    [InlineData(OutboxOrmDialect.SqlServer)]
+    public void For_default_table_has_the_fixed_source_name(OutboxOrmDialect dialect)
+    {
+        var source = OutboxOrmMigrations.For(dialect, "OutboxMessages");
+
+        source.Name.Should().Be(OutboxSourceName);
+        source.GetMigrations().Select(m => (m.Version, m.Sql)).Should().BeEquivalentTo(
+            DefaultSource(dialect).GetMigrations().Select(m => (m.Version, m.Sql)));
+    }
+
+    [Theory]
+    [InlineData(OutboxOrmDialect.Sqlite)]
+    [InlineData(OutboxOrmDialect.Postgres)]
+    [InlineData(OutboxOrmDialect.SqlServer)]
+    public void For_another_table_has_its_own_source_name(OutboxOrmDialect dialect)
+    {
+        var source = OutboxOrmMigrations.For(dialect, "WorkflowOutbox");
+
+        source.Name.Should().Be("ZeroAlloc.Outbox.Orm:workflowoutbox");
+        var migrations = source.GetMigrations();
+        migrations.Select(m => (m.Version, m.Name)).Should().Equal((1, "create_outbox_messages"), (2, "add_outbox_lease"));
+        migrations[0].Sql.Should().Contain("WorkflowOutbox").And.Contain("IX_WorkflowOutbox_Status_NextRetryAt");
+        migrations[1].Sql.Should().Contain("WorkflowOutbox");
+        string.Concat(migrations.Select(m => m.Sql)).Should().NotContain("OutboxMessages");
+    }
+
+    [Fact]
+    public void For_scopes_the_SqlServer_index_check_to_its_table()
+    {
+        var sql = OutboxOrmMigrations.For(OutboxOrmDialect.SqlServer, "WorkflowOutbox").GetMigrations()[0].Sql;
+
+        sql.Should().Contain("OBJECT_ID(N'WorkflowOutbox', N'U')");
+        sql.Should().Contain("name = N'IX_WorkflowOutbox_Status_NextRetryAt' AND object_id = OBJECT_ID(N'WorkflowOutbox')");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("dbo.Outbox")]
+    [InlineData("\"Outbox\"")]
+    [InlineData("[Outbox]")]
+    [InlineData("Out box")]
+    [InlineData("1Outbox")]
+    [InlineData("Outbox;DROP TABLE x")]
+    public void For_rejects_a_quoted_or_qualified_name(string tableName)
+    {
+        var act = () => OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, tableName);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void For_accepts_40_characters_and_rejects_41()
+    {
+        OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, new string('a', 40)).Should().NotBeNull();
+
+        var act = () => OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, new string('a', 41));
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void For_accepts_underscores_digits_and_mixed_case()
+    {
+        var source = OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, "My_Outbox2");
+
+        source.GetMigrations()[0].Sql.Should().Contain("CREATE TABLE IF NOT EXISTS My_Outbox2");
+    }
+
+    [Theory]
+    [InlineData(OutboxOrmDialect.Sqlite)]
+    [InlineData(OutboxOrmDialect.Postgres)]
+    [InlineData(OutboxOrmDialect.SqlServer)]
+    public void For_folds_case_in_the_default_name_and_the_history_name(OutboxOrmDialect dialect)
+    {
+        OutboxOrmMigrations.For(dialect, "outboxmessages").Should().BeSameAs(DefaultSource(dialect));
+
+        var upper = OutboxOrmMigrations.For(dialect, "WorkflowOutbox");
+        var lower = OutboxOrmMigrations.For(dialect, "workflowoutbox");
+
+        upper.Name.Should().Be("ZeroAlloc.Outbox.Orm:workflowoutbox");
+        lower.Name.Should().Be(upper.Name);
+        upper.GetMigrations()[0].Sql.Should().Contain("WorkflowOutbox").And.NotContain("workflowoutbox");
+    }
+
+    [Fact]
+    public void For_rejects_a_null_name()
+    {
+        var act = () => OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, null!);
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task Two_tables_migrate_side_by_side_on_one_connection()
+    {
+        await using var fx = new SqliteFixture();
+        var connection = await fx.ConnectAsync();
+        await using (connection.ConfigureAwait(false))
+        {
+            foreach (var source in new[] { OutboxOrmMigrations.Sqlite, OutboxOrmMigrations.For(OutboxOrmDialect.Sqlite, "WorkflowOutbox") })
+                await new MigrationRunner(connection, source, new SqliteMigrationDialect()).RunAsync();
+
+            await new OrmOutboxStore(connection).EnqueueAsync("A", new byte[] { 1 }, transaction: null, CancellationToken.None);
+            var second = new OrmOutboxStore(connection, OutboxOrmDialect.Sqlite, "WorkflowOutbox");
+            await second.EnqueueAsync("B", new byte[] { 2 }, transaction: null, CancellationToken.None);
+            await second.EnqueueAsync("C", new byte[] { 3 }, transaction: null, CancellationToken.None);
+        }
+
+        (await fx.CountAsync()).Should().Be(1);
+        (await CountAsync(fx, "WorkflowOutbox")).Should().Be(2);
+        (await HistoryAsync(fx)).Should().BeEquivalentTo(
+        [
+            (OutboxSourceName, 1L, "create_outbox_messages"),
+            (OutboxSourceName, 2L, "add_outbox_lease"),
+            ("ZeroAlloc.Outbox.Orm:workflowoutbox", 1L, "create_outbox_messages"),
+            ("ZeroAlloc.Outbox.Orm:workflowoutbox", 2L, "add_outbox_lease"),
+        ]);
+    }
+
+    private static IMigrationSource DefaultSource(OutboxOrmDialect dialect) => dialect switch
+    {
+        OutboxOrmDialect.Sqlite => OutboxOrmMigrations.Sqlite,
+        OutboxOrmDialect.Postgres => OutboxOrmMigrations.Postgres,
+        _ => OutboxOrmMigrations.SqlServer,
+    };
+
+    private static async Task<long> CountAsync(SqliteFixture fx, string table)
+    {
+        var raw = await fx.OpenRawAsync().ConfigureAwait(false);
+        await using (raw.ConfigureAwait(false))
+        {
+            var cmd = raw.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = $"SELECT COUNT(*) FROM {table}";
+                return Convert.ToInt64(await cmd.ExecuteScalarAsync().ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+    }
+
     [Fact]
     public async Task The_Outbox_And_An_Application_Source_Both_Numbered_From_1_Share_One_Database()
     {
