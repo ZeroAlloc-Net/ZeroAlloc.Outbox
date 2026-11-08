@@ -88,6 +88,8 @@ internal sealed class OutboxSql
             WHERE Id = @id AND Status = @deadLetter
             """;
 
+        ReadState = $"SELECT Status, RetryCount FROM {tableName} WHERE Id = @id";
+
         Claim = BuildClaim(dialect, tableName);
     }
 
@@ -106,6 +108,8 @@ internal sealed class OutboxSql
     public string Claim { get; }
 
     public string Requeue { get; }
+
+    public string ReadState { get; }
 
     private static string BuildClaim(OutboxOrmDialect dialect, string tableName)
         => dialect switch

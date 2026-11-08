@@ -284,4 +284,135 @@ public sealed class OrmOutboxStoreTests
 
         (await fx.CountAsync()).Should().Be(1);
     }
+
+    private static async Task<string> ReadRowAsync(SqliteFixture fx)
+    {
+        var raw = await fx.OpenRawAsync().ConfigureAwait(false);
+        await using (raw.ConfigureAwait(false))
+        {
+            var cmd = raw.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText =
+                    "SELECT Id, Status, RetryCount, DeadLetterError, ProcessedAt, NextRetryAt, LockedBy, LockedUntil "
+                    + "FROM OutboxMessages";
+                var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
+                    (await reader.ReadAsync().ConfigureAwait(false)).Should().BeTrue();
+                    var sb = new System.Text.StringBuilder();
+                    for (var i = 0; i < reader.FieldCount; i++)
+                        sb.Append(reader.GetValue(i)).Append('|');
+                    return sb.ToString();
+                }
+            }
+        }
+    }
+
+    private static async Task<OutboxMessageId> DeadLetteredAsync(OrmOutboxStore store)
+    {
+        await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None)
+            .ConfigureAwait(false);
+        var entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None).ConfigureAwait(false))[0];
+        await store.MarkFailedAsync(entry.Id, 3, DateTimeOffset.UtcNow.AddSeconds(-1), s_lease, CancellationToken.None)
+            .ConfigureAwait(false);
+        entry = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None).ConfigureAwait(false))[0];
+        (await store.DeadLetterAsync(entry.Id, "boom", s_lease, CancellationToken.None).ConfigureAwait(false))
+            .Should().BeTrue();
+        return entry.Id;
+    }
+
+    private static async Task<(long Status, long RetryCount, bool Clean)> ReadResetAsync(SqliteFixture fx)
+    {
+        var raw = await fx.OpenRawAsync().ConfigureAwait(false);
+        await using (raw.ConfigureAwait(false))
+        {
+            var cmd = raw.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText =
+                    "SELECT Status, RetryCount, "
+                    + "DeadLetterError IS NULL AND ProcessedAt IS NULL AND LockedBy IS NULL AND LockedUntil IS NULL "
+                    + "FROM OutboxMessages";
+                var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                await using (reader.ConfigureAwait(false))
+                {
+                    (await reader.ReadAsync().ConfigureAwait(false)).Should().BeTrue();
+                    return (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2) == 1);
+                }
+            }
+        }
+    }
+
+    public enum RequeueSetup { Pending, Leased, Retry, Succeeded }
+
+    [Fact]
+    public async Task Requeue_moves_a_dead_lettered_row_back_to_pending_due_now()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+        var id = await DeadLetteredAsync(store);
+
+        await ((IOutboxRequeue)(object)store).RequeueAsync(id, CancellationToken.None);
+
+        var row = await ReadResetAsync(fx);
+        row.Status.Should().Be(0);
+        row.RetryCount.Should().Be(0);
+        row.Clean.Should().BeTrue("DeadLetterError, ProcessedAt and the lease are cleared");
+        var claimed = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        claimed.Should().ContainSingle().Which.Id.Should().Be(id);
+        claimed[0].RetryCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Requeue_of_an_unknown_id_throws_not_found()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+        var id = OutboxMessageId.New();
+
+        var act = async () => await ((IOutboxRequeue)(object)store).RequeueAsync(id, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage($"Message {id} not found.");
+    }
+
+    [Theory]
+    [InlineData(RequeueSetup.Pending, "Pending")]
+    [InlineData(RequeueSetup.Leased, "Pending")]
+    [InlineData(RequeueSetup.Retry, "Retry")]
+    [InlineData(RequeueSetup.Succeeded, "Dispatched")]
+    public async Task Requeue_of_a_pending_leased_or_succeeded_row_throws_and_changes_nothing(
+        RequeueSetup setup, string expectedState)
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+        await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
+        // Claiming leases the row; the Pending case reads the id from a claim that is then released.
+        var id = (await store.ClaimPendingAsync(1, s_lease, CancellationToken.None))[0].Id;
+        switch (setup)
+        {
+            case RequeueSetup.Pending:
+                await store.ReleaseLeasesAsync([id], s_lease, CancellationToken.None);
+                break;
+            case RequeueSetup.Retry:
+                await store.MarkFailedAsync(id, 2, DateTimeOffset.UtcNow, s_lease, CancellationToken.None);
+                break;
+            case RequeueSetup.Succeeded:
+                await store.MarkSucceededAsync(id, s_lease, CancellationToken.None);
+                break;
+        }
+
+        var before = await ReadRowAsync(fx);
+        var act = async () => await ((IOutboxRequeue)(object)store).RequeueAsync(id, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage($"Message {id} cannot be requeued in state {expectedState}.");
+        (await ReadRowAsync(fx)).Should().Be(before);
+    }
 }

@@ -194,6 +194,56 @@ public sealed class OrmNamedPipelineTests
         reader.GetInt64(1).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Requeue_resolves_per_named_pipeline_and_hits_only_its_table()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var connection = await fx.ConnectAsync();
+        await using var _ = connection;
+        var raw = await fx.OpenRawAsync();
+        await using var __ = raw;
+        foreach (var table in new[] { "OutboxA", "OutboxB" })
+        {
+            await using var create = raw.CreateCommand();
+            create.CommandText = $"CREATE TABLE {table} AS SELECT * FROM OutboxMessages WHERE 0";
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var services = new ServiceCollection();
+        services.AddSingleton(connection);
+        Pipeline(services, "a", "OutboxA");
+        Pipeline(services, "b", "OutboxB");
+        await using var sp = services.BuildServiceProvider();
+        await using var scope = sp.CreateAsyncScope();
+        foreach (var name in new[] { "a", "b" })
+            await scope.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(name)
+                .EnqueueAsync(TypeName, new byte[] { 1 }, transaction: null, CancellationToken.None);
+        await using (var kill = raw.CreateCommand())
+        {
+            kill.CommandText = "UPDATE OutboxA SET Status = 2, RetryCount = 5, DeadLetterError = 'x';"
+                + "UPDATE OutboxB SET Status = 2, RetryCount = 5, DeadLetterError = 'x';";
+            await kill.ExecuteNonQueryAsync();
+        }
+
+        string idA;
+        await using (var read = raw.CreateCommand())
+        {
+            read.CommandText = "SELECT Id FROM OutboxA";
+            idA = (string)(await read.ExecuteScalarAsync())!;
+        }
+
+        await scope.ServiceProvider.GetRequiredKeyedService<IOutboxRequeue>("a")
+            .RequeueAsync(new OutboxMessageId(Guid.Parse(idA)), CancellationToken.None);
+
+        await using var check = raw.CreateCommand();
+        check.CommandText = "SELECT (SELECT Status FROM OutboxA), (SELECT Status FROM OutboxB)";
+        await using var reader = await check.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetInt64(0).Should().Be(0, "pipeline a's row was requeued");
+        reader.GetInt64(1).Should().Be(2, "pipeline b's table is untouched");
+    }
+
     private sealed class RecordingDispatcher(Action<ReadOnlyMemory<byte>> action) : IOutboxTypeDispatcher
     {
         public string TypeName => OrmNamedPipelineTests.TypeName;

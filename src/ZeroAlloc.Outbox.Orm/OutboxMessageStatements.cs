@@ -171,6 +171,65 @@ internal sealed class OutboxMessageStatements(IAsyncDbConnection connection, Out
     }
 
     /// <summary>
+    /// Moves a row back to pending, due <paramref name="now"/>, with a fresh attempt counter and
+    /// no lease, if it is still dead-lettered.
+    /// </summary>
+    /// <returns>The number of rows changed: 1 if requeued, 0 if the row is missing or not dead-lettered.</returns>
+    public async Task<int> RequeueAsync(
+        Guid id, int status, DateTimeOffset now, int deadLetter, CancellationToken ct)
+    {
+        var conn = connection;
+        var openedHere = await OpenAsync(conn, ct).ConfigureAwait(false);
+        try
+        {
+            var cmd = conn.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = sql.Requeue;
+                Add(cmd, "@id", id);
+                Add(cmd, "@status", status);
+                Add(cmd, "@now", now);
+                Add(cmd, "@deadLetter", deadLetter);
+                return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            if (openedHere) await conn.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Reads a row's status and attempt counter, or null if there is no such row.
+    /// </summary>
+    public async Task<(int Status, int RetryCount)?> ReadStateAsync(Guid id, CancellationToken ct)
+    {
+        var conn = connection;
+        var openedHere = await OpenAsync(conn, ct).ConfigureAwait(false);
+        try
+        {
+            var cmd = conn.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = sql.ReadState;
+                Add(cmd, "@id", id);
+                var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                await using (((IAsyncDisposable)reader).ConfigureAwait(false))
+                {
+                    if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+                        return null;
+
+                    return (reader.GetInt32(0), reader.GetInt32(1));
+                }
+            }
+        }
+        finally
+        {
+            if (openedHere) await conn.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Leases up to <paramref name="batchSize"/> messages that are due and unleased to
     /// <paramref name="hostId"/> until <paramref name="until"/>, and returns exactly those messages.
     /// </summary>

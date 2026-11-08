@@ -26,8 +26,9 @@ public static class OrmOutboxServiceCollectionExtensions
     /// <c>MigrationRunner</c>; the store does not create tables on the fly.
     /// </para>
     /// <para>
-    /// No <c>IOutboxDashboardStore</c> is registered. That interface is a much
-    /// larger surface this adapter does not implement, and registering a
+    /// The store is also registered as an <see cref="IOutboxRequeue"/>, so an operator action can
+    /// move a dead-lettered message back to pending. No <c>IOutboxDashboardStore</c> is registered.
+    /// That interface is a much larger surface this adapter does not implement, and registering a
     /// non-functional one would leave the dashboard silently empty rather than
     /// failing where the mistake was made.
     /// </para>
@@ -36,8 +37,8 @@ public static class OrmOutboxServiceCollectionExtensions
     /// </para>
     /// <para>
     /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers the
-    /// store as an <see cref="OrmOutboxStore"/> and an <see cref="IOutboxStore"/> keyed by the
-    /// pipeline's name. The store still uses the container's unkeyed
+    /// store as an <see cref="OrmOutboxStore"/>, an <see cref="IOutboxStore"/> and an
+    /// <see cref="IOutboxRequeue"/>, each keyed by the pipeline's name. The store still uses the container's unkeyed
     /// <see cref="IAsyncDbConnection"/>, so each pipeline needs a table of its own there, set with
     /// <see cref="WithOrm(IOutboxBuilder, OutboxOrmDialect, Action{OrmOutboxOptions})"/>. To point a named
     /// pipeline at a database of its own, use
@@ -319,11 +320,14 @@ public static class OrmOutboxServiceCollectionExtensions
         {
             services.TryAddScoped(factory.Create);
             services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<OrmOutboxStore>());
+            services.TryAddScoped<IOutboxRequeue>(sp => sp.GetRequiredService<OrmOutboxStore>());
         }
         else
         {
             services.TryAddKeyedScoped(pipeline, factory.CreateKeyed);
             services.TryAddKeyedScoped<IOutboxStore>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<OrmOutboxStore>(key));
+            services.TryAddKeyedScoped<IOutboxRequeue>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<OrmOutboxStore>(key));
         }
     }

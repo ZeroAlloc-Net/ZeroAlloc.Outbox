@@ -27,14 +27,15 @@ namespace ZeroAlloc.Outbox.Orm;
 /// expired without being taken over can still record its outcome.
 /// </para>
 /// <para>
-/// This implements <see cref="IOutboxStore"/> only. The dashboard's
-/// <c>IOutboxDashboardStore</c> is a distinctly larger surface — aggregate
-/// views, projections, operator actions — and is deliberately left out rather
+/// This implements <see cref="IOutboxStore"/> and <see cref="IOutboxRequeue"/>, the one operator
+/// action that needs no dashboard: moving a dead-lettered message back to pending. The rest of the
+/// dashboard's <c>IOutboxDashboardStore</c> is a distinctly larger surface — aggregate
+/// views, projections, the other operator actions — and is deliberately left out rather
 /// than stubbed, so a dashboard pointed at this store fails at registration
 /// instead of silently reporting nothing.
 /// </para>
 /// </remarks>
-public sealed class OrmOutboxStore : IOutboxStore
+public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
 {
     private readonly IAsyncDbConnection _connection;
     private readonly OutboxMessageStatements _repo;
@@ -288,6 +289,31 @@ public sealed class OrmOutboxStore : IOutboxStore
             (int)OrmOutboxMessageStatus.Pending, lease.HostId, ct)
             .ConfigureAwait(false);
         return changed == 1;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// One conditional <c>UPDATE</c> guarded by the row being dead-lettered, so the database decides
+    /// and a message that is pending, leased or dispatched is never touched. The state in the
+    /// exception is read only after a miss.
+    /// </remarks>
+    public async ValueTask RequeueAsync(OutboxMessageId id, CancellationToken ct)
+    {
+        var changed = await _repo.RequeueAsync(
+            id.Value, (int)OrmOutboxMessageStatus.Pending, DateTimeOffset.UtcNow,
+            (int)OrmOutboxMessageStatus.DeadLetter, ct)
+            .ConfigureAwait(false);
+        if (changed == 1) return;
+
+        var row = await _repo.ReadStateAsync(id.Value, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Message {id} not found.");
+        var state = (OrmOutboxMessageStatus)row.Status switch
+        {
+            OrmOutboxMessageStatus.Succeeded => OutboxMessageState.Dispatched,
+            OrmOutboxMessageStatus.DeadLetter => OutboxMessageState.DeadLetter,
+            _ => row.RetryCount == 0 ? OutboxMessageState.Pending : OutboxMessageState.Retry,
+        };
+        throw new InvalidOperationException($"Message {id} cannot be requeued in state {state}.");
     }
 
     /// <summary>

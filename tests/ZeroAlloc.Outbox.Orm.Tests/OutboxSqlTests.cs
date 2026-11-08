@@ -23,7 +23,7 @@ public sealed class OutboxSqlTests
     private static string[] All(OutboxSql sql) =>
     [
         sql.Insert, sql.MarkProcessed, sql.MarkForRetry, sql.DeadLetter,
-        sql.ReleaseLease, sql.RenewLease, sql.Claim, sql.Requeue,
+        sql.ReleaseLease, sql.RenewLease, sql.Claim, sql.Requeue, sql.ReadState,
     ];
 
     [Theory]
@@ -60,5 +60,18 @@ public sealed class OutboxSqlTests
         var sql = new OutboxSql(OutboxOrmDialect.Sqlite, "OutboxMessages");
         sql.Insert.Should().Contain("INSERT INTO OutboxMessages");
         sql.Requeue.Should().Contain("UPDATE OutboxMessages").And.Contain("@deadLetter");
+        sql.ReadState.Should().Contain("FROM OutboxMessages").And.Contain("@id");
+    }
+
+    [Fact]
+    public void Requeue_resets_the_row_and_is_guarded_by_the_dead_letter_status()
+    {
+        var sql = new OutboxSql(OutboxOrmDialect.Sqlite, "OutboxMessages").Requeue;
+        var flat = string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        flat.Should().Contain("Status = @status").And.Contain("RetryCount = 0").And.Contain("NextRetryAt = @now")
+            .And.Contain("DeadLetterError = NULL").And.Contain("ProcessedAt = NULL")
+            .And.Contain("LockedBy = NULL").And.Contain("LockedUntil = NULL")
+            .And.Contain("WHERE Id = @id AND Status = @deadLetter");
     }
 }
