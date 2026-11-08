@@ -103,7 +103,7 @@ public sealed class OutboxSqlTests
             var unquoted = Regex.Matches(
                 statement, $@"(?<![\w@{Regex.Escape(open)}])({bare})(?![\w{Regex.Escape(close)}])",
                 RegexOptions.None, TimeSpan.FromSeconds(5));
-            unquoted.Count.Should().Be(0,$"every column is quoted in: {statement}");
+            unquoted.Count.Should().Be(0, $"every column is quoted in: {statement}");
             statement.Should().Contain($"{open}Id{close}");
         }
     }

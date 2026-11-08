@@ -265,7 +265,7 @@ public sealed class OrmNamedPipelineTests
         var act = () => services.AddOutbox("b", _ => { })
             .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "OutboxA"; o.QuoteColumns = true; });
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*OutboxA*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Both use*the table OutboxA*");
     }
 
     [Fact]

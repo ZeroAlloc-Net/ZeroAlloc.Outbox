@@ -8,9 +8,10 @@ namespace ZeroAlloc.Outbox.Orm;
 /// The table name is spliced in verbatim, so quoting is the caller's choice: <c>OutboxMessages</c>,
 /// <c>"OutboxMessages"</c> and <c>public."Outbox Messages"</c> all work. It is trusted
 /// configuration, never user input. The statements are plain ANSI except the batch claim, which
-/// each dialect spells its own way. Column and parameter names are fixed. With <c>quoteColumns</c> every column is quoted in the
-/// dialect's style, <c>"Id"</c> or <c>[Id]</c>, for a table whose columns were created quoted and
-/// mixed case, as EF Core does on PostgreSQL; otherwise the text is unchanged.
+/// each dialect spells its own way. Column and parameter names are fixed. With
+/// <c>quoteColumns</c> every column is quoted in the dialect's style, <c>"Id"</c> or <c>[Id]</c>,
+/// for a table whose columns were created quoted and mixed case, as EF Core does on PostgreSQL;
+/// otherwise the text is unchanged.
 /// </para>
 /// <para>
 /// Every mark is guarded by <c>Status = @pending AND LockedBy = @hostId</c> and the store reads the
