@@ -24,6 +24,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ZeroAlloc.Outbox.Orm.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ZeroAlloc.ORM" Version="2.14.0" />
     <PackageReference Include="AdoNet.Async.Adapters" Version="1.5.6" />
     <PackageReference Include="ZeroAlloc.ORM.Generator" Version="2.14.0">

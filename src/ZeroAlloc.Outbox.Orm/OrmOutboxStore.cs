@@ -37,8 +37,8 @@ namespace ZeroAlloc.Outbox.Orm;
 public sealed class OrmOutboxStore : IOutboxStore
 {
     private readonly IAsyncDbConnection _connection;
-    private readonly OutboxMessageRepository _repo;
-    private readonly IPendingOutboxQuery _pending;
+    private readonly OutboxMessageStatements _repo;
+    private readonly OutboxSql _sql;
 
     /// <summary>
     /// Creates a store over the application's connection.
@@ -59,18 +59,30 @@ public sealed class OrmOutboxStore : IOutboxStore
     /// other statement is plain ANSI.
     /// </param>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
+        : this(connection, dialect, "OutboxMessages")
+    {
+    }
+
+    /// <summary>
+    /// Creates a store over the application's connection, for a specific database and outbox
+    /// table.
+    /// </summary>
+    /// <param name="connection">The connection the outbox table lives on.</param>
+    /// <param name="dialect">
+    /// Selects the batch-claim spelling. Only the batch claim differs; every
+    /// other statement is plain ANSI.
+    /// </param>
+    /// <param name="tableName">
+    /// The outbox table, used verbatim in every statement, so quote it yourself where the
+    /// database needs it. It is trusted configuration, never user input.
+    /// </param>
+    public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName)
     {
         ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _repo = new OutboxMessageRepository(connection);
-        _pending = dialect switch
-        {
-            // SQL Server has neither LIMIT nor RETURNING. Postgres takes row
-            // locks with SKIP LOCKED, which SQLite neither has nor needs.
-            OutboxOrmDialect.SqlServer => new ClaimSqlServerPendingOutboxQuery(connection),
-            OutboxOrmDialect.Postgres => new ClaimPostgresPendingOutboxQuery(connection),
-            _ => new ClaimSqlitePendingOutboxQuery(connection),
-        };
+        _sql = new OutboxSql(dialect, tableName);
+        _repo = new OutboxMessageStatements(connection, _sql);
     }
 
     /// <inheritdoc />
@@ -153,7 +165,7 @@ public sealed class OrmOutboxStore : IOutboxStore
         // connection, the usual case, reuses the store's repository.
         var repo = ReferenceEquals(transaction.Connection, _connection)
             ? _repo
-            : new OutboxMessageRepository(transaction.Connection);
+            : new OutboxMessageStatements(transaction.Connection, _sql);
 
         await repo.InsertInTransactionAsync(
             OutboxMessageId.New().Value, typeName, AsArray(payload),
@@ -178,7 +190,7 @@ public sealed class OrmOutboxStore : IOutboxStore
         ThrowIfNoHost(lease);
 
         var now = DateTimeOffset.UtcNow;
-        var rows = await _pending.ClaimPendingAsync(
+        var rows = await _repo.ClaimPendingAsync(
             (int)OrmOutboxMessageStatus.Pending, now, now + lease.Duration, lease.HostId, batchSize, ct)
             .ConfigureAwait(false);
 

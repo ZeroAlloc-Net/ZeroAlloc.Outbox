@@ -1,1 +1,2 @@
 #nullable enable
+ZeroAlloc.Outbox.Orm.OrmOutboxStore.OrmOutboxStore(System.Data.Async.IAsyncDbConnection! connection, ZeroAlloc.Outbox.Orm.OutboxOrmDialect dialect, string! tableName) -> void
