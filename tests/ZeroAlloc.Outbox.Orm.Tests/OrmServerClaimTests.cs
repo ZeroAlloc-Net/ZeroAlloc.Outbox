@@ -118,6 +118,27 @@ public abstract class OrmServerClaimTests : OutboxServerClaimTests
         ]);
     }
 
+    [Fact]
+    public async Task A_Second_Table_Migrates_Beside_The_Default_And_Is_Idempotent()
+    {
+        var connectionString = await CreateDatabaseAsync();
+        var second = OutboxOrmMigrations.For(Dialect, "WorkflowOutbox");
+        for (var run = 0; run < 2; run++)
+        {
+            await new MigrationRunner(await ConnectAsync(connectionString), Migrations, MigrationDialect).RunAsync();
+            await new MigrationRunner(await ConnectAsync(connectionString), second, MigrationDialect).RunAsync();
+        }
+
+        var store = new OrmOutboxStore(await ConnectAsync(connectionString), Dialect, "WorkflowOutbox");
+        await store.EnqueueAsync("Second", new byte[] { 1 }, transaction: null, CancellationToken.None);
+
+        var lease = new OutboxLease("host", TimeSpan.FromMinutes(1));
+        var claimed = await store.ClaimPendingAsync(10, lease, CancellationToken.None);
+        claimed.Should().ContainSingle().Which.TypeName.Should().Be("Second");
+        var other = new OrmOutboxStore(await ConnectAsync(connectionString), Dialect);
+        (await other.ClaimPendingAsync(10, lease, CancellationToken.None)).Should().BeEmpty();
+    }
+
     protected override async Task<IOutboxStore> StoreAsync()
         => new OrmOutboxStore(await ConnectAsync().ConfigureAwait(false), Dialect);
 
