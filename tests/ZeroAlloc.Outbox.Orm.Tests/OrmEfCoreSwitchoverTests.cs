@@ -17,7 +17,7 @@ namespace ZeroAlloc.Outbox.Orm.Tests;
 
 /// <summary>
 /// Switching a pipeline from the EF Core store to the ORM store without moving its data, with
-/// a second ORM pipeline on the same connection and database.
+/// a second ORM pipeline on the same connection registration and database.
 /// </summary>
 /// <remarks>
 /// Two tables share one SQL Server database. The EF Core store's table is <c>OutboxMessages</c>,
@@ -45,15 +45,12 @@ public sealed class OrmEfCoreSwitchoverTests(SqlServerFixture server) : IClassFi
             var secondBefore = await SnapshotAsync(connectionString, "workflow_outbox");
             secondBefore.Should().HaveCount(3);
 
-            // Both pipelines on the ORM store, one connection, two tables. Their workers run at the
-            // same time on it, so the connection allows multiple active result sets.
-            var shared = new SqlConnection(connectionString + ";MultipleActiveResultSets=true").AsAsync();
-            await using var _ = shared;
-            await shared.OpenAsync();
+            // Both pipelines on the ORM store, on the container's connection. It is registered
+            // scoped, so each worker scope gets a connection of its own.
             var delivered = new ConcurrentQueue<byte>();
             var services = new ServiceCollection();
             services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-            services.AddSingleton(shared);
+            services.AddScoped(_ => new SqlConnection(connectionString).AsAsync());
             services.AddOutbox("first", Configure)
                 .WithOrm(OutboxOrmDialect.SqlServer, o => o.TableName = "[OutboxMessages]");
             services.AddOutbox("second", Configure)

@@ -21,9 +21,10 @@ namespace ZeroAlloc.Outbox.Orm.Tests;
 /// </summary>
 /// <remarks>
 /// Two tables share one PostgreSQL database. The EF Core store's table is the quoted, mixed-case
-/// <c>"OutboxMessages"</c>. The second pipeline's table is the unquoted <c>workflow_outbox</c>,
-/// made by <see cref="OutboxOrmMigrations.For"/>. The names differ on purpose: an unquoted
-/// <c>OutboxMessages</c> would fold to <c>outboxmessages</c>, a different table from the quoted one.
+/// <c>"OutboxMessages"</c>. The second pipeline's table is the unquoted <c>outboxmessages</c>,
+/// made by <see cref="OutboxOrmMigrations.For"/>, which PostgreSQL folds from <c>OutboxMessages</c>
+/// and which is a different table from the quoted one. Rows tell the tables apart: the first
+/// table's rows carry payloads 1 to 3, the second's carry other type names and payloads.
 /// </remarks>
 public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture server) : IClassFixture<PostgresServerFixture>
 {
@@ -42,22 +43,19 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
         {
             var ids = await SeedEfTableAsync(connectionString);
             await SeedSecondTableAsync(connectionString);
-            var secondBefore = await SnapshotAsync(connectionString, "workflow_outbox");
+            var secondBefore = await SnapshotAsync(connectionString, "outboxmessages");
             secondBefore.Should().HaveCount(3);
 
-            // Both pipelines on the ORM store. The two workers run at once and a
-            // connection need not allow concurrent commands, so the second pipeline has one of its own.
-            await using var shared = await OpenAsync(connectionString);
-            await using var other = await OpenAsync(connectionString);
+            // Both pipelines on the ORM store, on the container's connection. It is registered
+            // scoped, so each worker scope gets a connection of its own.
             var delivered = new ConcurrentQueue<byte>();
             var services = new ServiceCollection();
             services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-            services.AddSingleton(shared);
-            services.AddKeyedSingleton("second-db", other);
+            services.AddScoped(_ => new NpgsqlConnection(connectionString).AsAsync());
             services.AddOutbox("first", Configure)
                 .WithOrm(OutboxOrmDialect.Postgres, o => { o.TableName = "\"OutboxMessages\""; o.QuoteColumns = true; });
             services.AddOutbox("second", Configure)
-                .WithOrm(OutboxOrmDialect.Postgres, "second-db", o => o.TableName = "workflow_outbox");
+                .WithOrm(OutboxOrmDialect.Postgres, o => o.TableName = "outboxmessages");
             services.AddSingleton<IOutboxTypeDispatcher>(new RecordingDispatcher(p => delivered.Enqueue(p.Span[0])));
 
             await using var sp = services.BuildServiceProvider();
@@ -85,7 +83,7 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
             }
 
             delivered.Order().Should().Equal(new byte[] { 1, 2, 3 }, "the requeued dead letter is delivered once");
-            (await SnapshotAsync(connectionString, "workflow_outbox")).Should()
+            (await SnapshotAsync(connectionString, "outboxmessages")).Should()
                 .Equal(secondBefore, "the second pipeline's table is unchanged, requeue and workers included");
             (await ScalarAsync(connectionString, "SELECT COUNT(*) FROM \"OutboxMessages\" WHERE \"Status\" = 1"))
                 .Should().Be(3, "all three rows of the quoted table ended succeeded");
@@ -94,13 +92,6 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
         {
             server.ClearPools();
         }
-    }
-
-    private static async Task<System.Data.Async.IAsyncDbConnection> OpenAsync(string connectionString)
-    {
-        var connection = new NpgsqlConnection(connectionString).AsAsync();
-        await connection.OpenAsync().ConfigureAwait(false);
-        return connection;
     }
 
     private static void Configure(OutboxOptions o)
@@ -158,7 +149,9 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
         await using (connection.ConfigureAwait(false))
         {
             await connection.OpenAsync().ConfigureAwait(false);
-            var source = OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, "workflow_outbox");
+            // The table name matches the default case-insensitively, so this is the default source.
+            var source = OutboxOrmMigrations.For(OutboxOrmDialect.Postgres, "outboxmessages");
+            source.Should().BeSameAs(OutboxOrmMigrations.Postgres);
             await new MigrationRunner(connection, source, new PostgresMigrationDialect())
                 .RunAsync().ConfigureAwait(false);
         }
@@ -166,7 +159,7 @@ public sealed class OrmEfCorePostgresSwitchoverTests(PostgresServerFixture serve
         await ExecuteAsync(
             connectionString,
             """
-            INSERT INTO workflow_outbox (Id, TypeName, Payload, Status, RetryCount, NextRetryAt, CreatedAt, DeadLetterError)
+            INSERT INTO outboxmessages (Id, TypeName, Payload, Status, RetryCount, NextRetryAt, CreatedAt, DeadLetterError)
             VALUES
               ('00000000-0000-0000-0000-000000000001', 'Other.Run', '\x0a', 0, 0, NOW() + INTERVAL '1 day', NOW(), NULL),
               ('00000000-0000-0000-0000-000000000002', 'Other.Run', '\x0b', 1, 0, NOW(), NOW(), NULL),
