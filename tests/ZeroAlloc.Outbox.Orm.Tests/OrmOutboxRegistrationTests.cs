@@ -30,6 +30,23 @@ public sealed class OrmOutboxRegistrationTests
     }
 
     [Fact]
+    public async Task WithOrm_Registers_The_Same_Store_As_IOutboxRequeue()
+    {
+        await using var fx = new SqliteFixture();
+        var connection = await fx.ConnectAsync();
+        await using var _ = connection;
+        var services = new ServiceCollection();
+        services.AddSingleton(connection);
+        services.AddOutbox().WithOrm();
+
+        await using var sp = services.BuildServiceProvider();
+        await using var scope = sp.CreateAsyncScope();
+
+        scope.ServiceProvider.GetRequiredService<IOutboxRequeue>()
+            .Should().BeSameAs(scope.ServiceProvider.GetRequiredService<IOutboxStore>());
+    }
+
+    [Fact]
     public void WithOrm_After_WithEfCore_Throws()
     {
         var builder = new ServiceCollection().AddOutbox().WithEfCore<RegistrationDbContext>();

@@ -366,6 +366,32 @@ public sealed class OrmOutboxStoreTests
     }
 
     [Fact]
+    public async Task Requeue_clears_a_stale_foreign_lease_and_the_row_is_claimable()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+        var id = await DeadLetteredAsync(store);
+        var raw = await fx.OpenRawAsync();
+        await using (raw.ConfigureAwait(false))
+        {
+            var cmd = raw.CreateCommand();
+            await using (cmd.ConfigureAwait(false))
+            {
+                cmd.CommandText = "UPDATE OutboxMessages SET LockedBy = 'other-host', LockedUntil = @until";
+                cmd.Parameters.AddWithValue("@until", DateTimeOffset.UtcNow.AddHours(-1));
+                (await cmd.ExecuteNonQueryAsync()).Should().Be(1);
+            }
+        }
+
+        await ((IOutboxRequeue)(object)store).RequeueAsync(id, CancellationToken.None);
+
+        (await ReadResetAsync(fx)).Clean.Should().BeTrue("LockedBy and LockedUntil are cleared");
+        (await store.ClaimPendingAsync(10, s_lease, CancellationToken.None)).Should().ContainSingle()
+            .Which.Id.Should().Be(id);
+    }
+
+    [Fact]
     public async Task Requeue_of_an_unknown_id_throws_not_found()
     {
         await using var fx = new SqliteFixture();
@@ -382,7 +408,7 @@ public sealed class OrmOutboxStoreTests
 
     [Theory]
     [InlineData(RequeueSetup.Pending, "Pending")]
-    [InlineData(RequeueSetup.Leased, "Pending")]
+    [InlineData(RequeueSetup.Leased, "Pending")] // the claim itself leaves the row leased
     [InlineData(RequeueSetup.Retry, "Retry")]
     [InlineData(RequeueSetup.Succeeded, "Dispatched")]
     public async Task Requeue_of_a_pending_leased_or_succeeded_row_throws_and_changes_nothing(
