@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.6...v4.5.0) (2026-11-08)
+
+
+### Features
+
+* configure the Orm outbox table, share a connection and requeue ([d690bb7](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/d690bb7ef4b30dba46440723fb5017e76cf7265d)), closes [#434](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/434)
+
 ## [4.4.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.5...v4.4.6) (2026-10-22)
 
 
