@@ -15,12 +15,13 @@ public static class EfCoreOutboxServiceCollectionExtensions
     /// <c>OnModelCreating</c> to configure the <c>OutboxMessages</c> table.
     /// <para>
     /// Calling this again with the same <typeparamref name="TContext"/> is a no-op. An
-    /// <see cref="IOutboxDashboardStore"/> the application registered first is kept.
+    /// <see cref="IOutboxDashboardStore"/> or <see cref="IOutboxRequeue"/> the application registered
+    /// first is kept.
     /// </para>
     /// <para>
     /// On a named pipeline's builder, from <c>AddOutbox(name, configure)</c>, this registers the
-    /// store as an <see cref="EfCoreOutboxStore{TContext}"/>, an <see cref="IOutboxStore"/> and an
-    /// <see cref="IOutboxDashboardStore"/> keyed by the pipeline's name.
+    /// store as an <see cref="EfCoreOutboxStore{TContext}"/>, an <see cref="IOutboxStore"/>, an
+    /// <see cref="IOutboxDashboardStore"/> and an <see cref="IOutboxRequeue"/> keyed by the pipeline's name.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
@@ -47,6 +48,7 @@ public static class EfCoreOutboxServiceCollectionExtensions
             services.TryAddScoped<EfCoreOutboxStore<TContext>>();
             services.TryAddScoped<IOutboxStore>(sp => sp.GetRequiredService<EfCoreOutboxStore<TContext>>());
             services.TryAddScoped<IOutboxDashboardStore>(sp => sp.GetRequiredService<EfCoreOutboxStore<TContext>>());
+            services.TryAddScoped<IOutboxRequeue>(sp => sp.GetRequiredService<EfCoreOutboxStore<TContext>>());
         }
         else
         {
@@ -55,6 +57,8 @@ public static class EfCoreOutboxServiceCollectionExtensions
             services.TryAddKeyedScoped<IOutboxStore>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<EfCoreOutboxStore<TContext>>(key));
             services.TryAddKeyedScoped<IOutboxDashboardStore>(
+                pipeline, static (sp, key) => sp.GetRequiredKeyedService<EfCoreOutboxStore<TContext>>(key));
+            services.TryAddKeyedScoped<IOutboxRequeue>(
                 pipeline, static (sp, key) => sp.GetRequiredKeyedService<EfCoreOutboxStore<TContext>>(key));
         }
 
