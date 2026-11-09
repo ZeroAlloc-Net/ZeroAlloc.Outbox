@@ -41,7 +41,7 @@ public sealed class OutboxWorkerAllocationTests
         resolutions.Should().Be(0, "an idle poll has nothing to dispatch");
     }
 
-    [Fact]
+    [OptimizedBuildFact]
     public void IdlePoll_AllocatesNothingBeyondItsScope()
     {
         var store = new SyncStore(0);
@@ -63,7 +63,7 @@ public sealed class OutboxWorkerAllocationTests
             "idle poll");
     }
 
-    [Fact]
+    [OptimizedBuildFact]
     public void DispatchLoop_AllocatesNothingPerMessage()
     {
         using var oneProvider = BuildProvider(new SyncStore(1), services =>
