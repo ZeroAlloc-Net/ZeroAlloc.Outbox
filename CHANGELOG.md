@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.5.0...v4.6.0) (2026-11-09)
+
+
+### Features
+
+* implement IOutboxRequeue on the EF Core store ([#441](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/441)) ([864c3d2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/864c3d2eaa88e71bd1f4cfac859b378cd7bb40fc)), closes [#435](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/435)
+
 ## [4.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.4.6...v4.5.0) (2026-11-08)
 
 
