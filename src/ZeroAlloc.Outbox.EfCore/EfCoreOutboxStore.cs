@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace ZeroAlloc.Outbox.EfCore;
 
 /// <summary>EF Core implementation of <see cref="IOutboxStore"/>.</summary>
-public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboardStore
+public sealed class EfCoreOutboxStore<TContext> : IOutboxStore, IOutboxDashboardStore, IOutboxRequeue
     where TContext : DbContext
 {
     private readonly TContext _db;

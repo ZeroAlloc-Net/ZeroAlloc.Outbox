@@ -64,6 +64,10 @@ await tx.CommitAsync(ct);
 
 See [EF Core Transaction](cookbook/01-ef-core-transaction.md) for the complete pattern.
 
+### Requeue
+
+The store also implements `IOutboxRequeue`, like the [ORM store](#requeue), registered next to `IOutboxStore` and keyed by the pipeline's name on a named pipeline. An application that switches between the two stores therefore resolves the same interface for both. `RequeueAsync(id, ct)` moves a dead-lettered message back to pending, due now, with a fresh attempt counter and no lease. It throws `InvalidOperationException` when the message does not exist or is not dead-lettered. `IOutboxDashboardStore.RequeueAsync` is the same operation on the same store instance.
+
 ---
 
 ## ORM store (`ZeroAlloc.Outbox.Orm`)
