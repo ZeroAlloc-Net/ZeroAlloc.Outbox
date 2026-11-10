@@ -195,7 +195,9 @@ public sealed class PostgresOutboxRepositoryTests(PostgresServerFixture server) 
             Pending, s_now, s_now.AddMinutes(1), Host, 2, CancellationToken.None);
 
         claimed.Should().HaveCount(2);
-        claimed.Select(r => r.Id).Should().BeSubsetOf(ids);
+        // CreatedAt increases with the index, so the two oldest rows are the first two. The order of the
+        // returned rows is unspecified, so they are compared as a set.
+        claimed.Select(r => r.Id).Should().BeEquivalentTo(ids.Take(2));
         claimed.Should().OnlyContain(r => r.Payload.SequenceEqual(s_payload));
         (await ScalarAsync(fx, "SELECT COUNT(*) FROM OutboxMessages WHERE LockedBy = 'host-a'"))
             .Should().Be(2L);
@@ -203,8 +205,7 @@ public sealed class PostgresOutboxRepositoryTests(PostgresServerFixture server) 
         // Only the unleased third row is left to claim.
         var rest = await repo.ClaimPendingAsync(
             Pending, s_now, s_now.AddMinutes(1), "host-b", 10, CancellationToken.None);
-        rest.Should().ContainSingle();
-        rest.Select(r => r.Id).Should().NotIntersectWith(claimed.Select(r => r.Id));
+        rest.Should().ContainSingle().Which.Id.Should().Be(ids[2]);
     }
 
     [Fact]
