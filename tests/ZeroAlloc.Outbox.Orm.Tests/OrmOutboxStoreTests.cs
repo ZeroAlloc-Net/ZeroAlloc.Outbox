@@ -1,4 +1,7 @@
+using System.Data;
+using System.Data.Async.Adapters;
 using AwesomeAssertions;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace ZeroAlloc.Outbox.Orm.Tests;
@@ -440,5 +443,83 @@ public sealed class OrmOutboxStoreTests
         (await act.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage($"Message {id} cannot be requeued in state {expectedState}.");
         (await ReadRowAsync(fx)).Should().Be(before);
+    }
+
+    [Fact]
+    public async Task EnqueueInTransaction_Runs_On_The_Transactions_Connection_Not_The_Stores()
+    {
+        // The rollback test proves the row follows the caller's transaction; this pins which
+        // connection the insert's command was created on.
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var own = new RecordingAsyncConnection(await fx.ConnectAsync());
+        var store = new OrmOutboxStore(own);
+
+        var caller = new RecordingAsyncConnection(await fx.ConnectAsync());
+        await using (caller.ConfigureAwait(false))
+        {
+            var tx = await caller.BeginTransactionAsync();
+            await using (tx.ConfigureAwait(false))
+            {
+                await store.EnqueueInTransactionAsync("Test.Cmd", s_payload, tx, CancellationToken.None);
+                await tx.CommitAsync();
+            }
+        }
+
+        own.Commands.Should().BeEmpty();
+        (await fx.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_Connection_That_Was_Open_Stays_Open()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var connection = await fx.ConnectAsync();
+        var store = new OrmOutboxStore(connection);
+
+        await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
+        var claimed = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        await store.MarkSucceededAsync(claimed[0].Id, s_lease, CancellationToken.None);
+
+        connection.State.Should().Be(ConnectionState.Open);
+    }
+
+    [Fact]
+    public async Task A_Connection_The_Store_Opened_Is_Closed_Again()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var raw = new SqliteConnection(fx.ConnectionString);
+        await using var _ = raw.ConfigureAwait(false);
+        var connection = raw.AsAsync();
+        var store = new OrmOutboxStore(connection);
+
+        await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
+        connection.State.Should().Be(ConnectionState.Closed);
+
+        var claimed = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        claimed.Should().ContainSingle();
+        connection.State.Should().Be(ConnectionState.Closed);
+
+        (await store.MarkSucceededAsync(claimed[0].Id, s_lease, CancellationToken.None)).Should().BeTrue();
+        connection.State.Should().Be(ConnectionState.Closed);
+    }
+
+    [Fact]
+    public async Task The_Enqueue_Time_Reads_Back_As_The_Same_Utc_Instant()
+    {
+        await using var fx = new SqliteFixture();
+        await fx.MigrateAsync();
+        var store = new OrmOutboxStore(await fx.ConnectAsync());
+
+        var before = DateTimeOffset.UtcNow;
+        await store.EnqueueAsync("Test.Cmd", s_payload, transaction: null, CancellationToken.None);
+        var after = DateTimeOffset.UtcNow;
+
+        var claimed = await store.ClaimPendingAsync(10, s_lease, CancellationToken.None);
+        var createdAt = claimed.Should().ContainSingle().Which.CreatedAt;
+        createdAt.Offset.Should().Be(TimeSpan.Zero);
+        createdAt.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
     }
 }

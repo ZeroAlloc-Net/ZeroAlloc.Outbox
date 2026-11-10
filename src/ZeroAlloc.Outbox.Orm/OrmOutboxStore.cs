@@ -38,8 +38,10 @@ namespace ZeroAlloc.Outbox.Orm;
 public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
 {
     private readonly IAsyncDbConnection _connection;
-    private readonly OutboxMessageStatements _repo;
-    private readonly OutboxSql _sql;
+    private readonly IOutboxStatements _repo;
+    private readonly OutboxOrmDialect _dialect;
+    private readonly string _tableName;
+    private readonly bool _quoteColumns;
 
     /// <summary>
     /// Creates a store over the application's connection.
@@ -106,16 +108,10 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _sql = OutboxSql.For(dialect, tableName, quoteColumns);
-        _repo = new OutboxMessageStatements(connection, _sql);
-    }
-
-    /// <summary>Creates a store with statements built once for its configuration.</summary>
-    internal OrmOutboxStore(IAsyncDbConnection connection, OutboxSql sql)
-    {
-        _connection = connection;
-        _sql = sql;
-        _repo = new OutboxMessageStatements(connection, sql);
+        _dialect = dialect;
+        _tableName = tableName;
+        _quoteColumns = quoteColumns;
+        _repo = OutboxStatements.Create(dialect, connection, tableName, quoteColumns);
     }
 
     /// <inheritdoc />
@@ -198,7 +194,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         // connection, the usual case, reuses the store's repository.
         var repo = ReferenceEquals(transaction.Connection, _connection)
             ? _repo
-            : new OutboxMessageStatements(transaction.Connection, _sql);
+            : OutboxStatements.Create(_dialect, transaction.Connection, _tableName, _quoteColumns);
 
         await repo.InsertInTransactionAsync(
             OutboxMessageId.New().Value, typeName, AsArray(payload),
