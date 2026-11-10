@@ -1,5 +1,6 @@
 using System.Data.Async;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -18,6 +19,7 @@ public sealed class SqliteOutboxRepositoryTests
     private const string Host = "host-a";
 
     private static readonly byte[] s_payload = [1, 2, 3];
+    private static readonly TimeSpan s_leaseDuration = TimeSpan.FromMinutes(10);
     private static readonly DateTimeOffset s_now = new(2026, 11, 10, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -127,16 +129,17 @@ public sealed class SqliteOutboxRepositoryTests
         await using var fx = await MigratedAsync();
         var repo = new SqliteOutboxRepository(await fx.ConnectAsync(), "OutboxMessages", quoteColumns: false);
         var id = await InsertLeasedAsync(repo);
-        var until = s_now.AddMinutes(10);
+        var renewedUntil = s_now + (2 * s_leaseDuration);
 
-        (await repo.RenewLeaseAsync(id, "other-host", Pending, s_now, until, CancellationToken.None))
+        (await repo.RenewLeaseAsync(id, "other-host", Pending, s_now, renewedUntil, CancellationToken.None))
             .Should().Be(0);
-        (await repo.RenewLeaseAsync(id, Host, Pending, s_now, until, CancellationToken.None)).Should().Be(1);
+        (await repo.RenewLeaseAsync(id, Host, Pending, s_now, renewedUntil, CancellationToken.None)).Should().Be(1);
         (await ScalarAsync(fx, "SELECT COUNT(*) FROM OutboxMessages WHERE LockedUntil IS NOT NULL"))
             .Should().Be(1L);
 
-        // The lease ran out at s_now + 10 minutes; renewing after that is refused.
-        (await repo.RenewLeaseAsync(id, Host, Pending, s_now.AddMinutes(11), s_now.AddMinutes(20), CancellationToken.None))
+        // The renewed lease ran out at renewedUntil; renewing after that is refused.
+        var afterExpiry = renewedUntil.AddMinutes(1);
+        (await repo.RenewLeaseAsync(id, Host, Pending, afterExpiry, afterExpiry + s_leaseDuration, CancellationToken.None))
             .Should().Be(0);
     }
 
@@ -252,6 +255,82 @@ public sealed class SqliteOutboxRepositoryTests
         (await repo.ReadStateAsync(id, CancellationToken.None)).Should().Be(new OutboxRowState(Succeeded, 0));
     }
 
+    [Fact]
+    public async Task ClaimPending_SkipsARowWhoseLeaseIsStillLive()
+    {
+        await using var fx = await MigratedAsync();
+        var repo = new SqliteOutboxRepository(await fx.ConnectAsync(), "OutboxMessages", quoteColumns: false);
+        var id = await InsertLeasedAsync(repo);
+
+        var whileLive = await repo.ClaimPendingAsync(
+            Pending, s_now.AddMinutes(1), s_now.AddMinutes(2), "host-b", 10, CancellationToken.None);
+        whileLive.Should().BeEmpty();
+        (await ScalarAsync(fx, "SELECT LockedBy FROM OutboxMessages")).Should().Be(Host);
+
+        var afterExpiry = s_now + s_leaseDuration + TimeSpan.FromMinutes(1);
+        var takenOver = await repo.ClaimPendingAsync(
+            Pending, afterExpiry, afterExpiry + s_leaseDuration, "host-b", 10, CancellationToken.None);
+        takenOver.Should().ContainSingle().Which.Id.Should().Be(id);
+        (await ScalarAsync(fx, "SELECT LockedBy FROM OutboxMessages")).Should().Be("host-b");
+    }
+
+    [Fact]
+    public async Task EveryStatement_QuotesColumnsOnlyWhenAsked()
+    {
+        string[] columns =
+        [
+            "Id", "TypeName", "Payload", "Status", "RetryCount", "NextRetryAt", "CreatedAt",
+            "ProcessedAt", "DeadLetterError", "LockedBy", "LockedUntil",
+        ];
+        var bareColumn = new Regex("(?<!\"|\\w)(" + string.Join('|', columns) + ")(?!\"|\\w)", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var plain = await RunEveryStatementAsync(quoteColumns: false);
+        var quoted = await RunEveryStatementAsync(quoteColumns: true);
+
+        plain.Should().HaveCount(10);
+        quoted.Should().HaveCount(plain.Count);
+        for (var i = 0; i < plain.Count; i++)
+        {
+            plain[i].Should().NotContain("\"", $"statement {i} is unquoted when quoteColumns is false");
+            quoted[i].Should().Contain("\"Id\"", $"statement {i} quotes its columns");
+            bareColumn.IsMatch(quoted[i]).Should().BeFalse($"statement {i} leaves no column bare: {quoted[i]}");
+            quoted[i].Replace("\"", string.Empty, StringComparison.Ordinal).Should().Be(
+                plain[i], $"statement {i} differs only by the quotes");
+        }
+    }
+
+    /// <summary>Runs all ten statements on a fresh table and returns the SQL text each one sent.</summary>
+    private static async Task<IReadOnlyList<string>> RunEveryStatementAsync(bool quoteColumns)
+    {
+        var fx = new SqliteFixture();
+        await using var _ = fx.ConfigureAwait(false);
+        await CreateTableAsync(fx, "Outbox", quoteColumns).ConfigureAwait(false);
+        var recording = new RecordingAsyncConnection(await fx.ConnectAsync().ConfigureAwait(false));
+        var repo = new SqliteOutboxRepository(recording, "Outbox", quoteColumns);
+        var id = Guid.NewGuid();
+        var ct = CancellationToken.None;
+
+        await repo.InsertAsync(id, "Test.Cmd", s_payload, Pending, s_now, s_now, ct).ConfigureAwait(false);
+        var tx = await recording.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using (tx.ConfigureAwait(false))
+        {
+            await repo.InsertInTransactionAsync(
+                Guid.NewGuid(), "Test.Cmd", s_payload, Pending, s_now, s_now, tx, ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        await repo.ClaimPendingAsync(Pending, s_now, s_now + s_leaseDuration, Host, 10, ct).ConfigureAwait(false);
+        await repo.RenewLeaseAsync(id, Host, Pending, s_now, s_now + s_leaseDuration, ct).ConfigureAwait(false);
+        await repo.MarkForRetryAsync(id, 1, s_now, Pending, Host, ct).ConfigureAwait(false);
+        await repo.ReleaseLeaseAsync(id, Host, Pending, ct).ConfigureAwait(false);
+        await repo.MarkProcessedAsync(id, Succeeded, s_now, Pending, Host, ct).ConfigureAwait(false);
+        await repo.DeadLetterAsync(id, DeadLetter, "e", s_now, Pending, Host, ct).ConfigureAwait(false);
+        await repo.RequeueAsync(id, Pending, s_now, DeadLetter, ct).ConfigureAwait(false);
+        await repo.ReadStateAsync(id, ct).ConfigureAwait(false);
+
+        return recording.Commands.ToList();
+    }
+
     private static async Task<SqliteFixture> MigratedAsync()
     {
         var fx = new SqliteFixture();
@@ -262,13 +341,15 @@ public sealed class SqliteOutboxRepositoryTests
     private static Task<int> InsertAsync(SqliteOutboxRepository repo, Guid id)
         => repo.InsertAsync(id, "Test.Cmd", s_payload, Pending, s_now, s_now, CancellationToken.None);
 
-    /// <summary>Inserts one row and leases it to <see cref="Host"/> until a minute from now.</summary>
+    /// <summary>
+    /// Inserts one row and leases it to <see cref="Host"/> from <c>s_now</c> for <c>s_leaseDuration</c>.
+    /// </summary>
     private static async Task<Guid> InsertLeasedAsync(SqliteOutboxRepository repo)
     {
         var id = Guid.NewGuid();
         await InsertAsync(repo, id).ConfigureAwait(false);
         var claimed = await repo.ClaimPendingAsync(
-            Pending, s_now, s_now.AddMinutes(10), Host, 10, CancellationToken.None).ConfigureAwait(false);
+            Pending, s_now, s_now + s_leaseDuration, Host, 10, CancellationToken.None).ConfigureAwait(false);
         claimed.Should().ContainSingle();
         return id;
     }
