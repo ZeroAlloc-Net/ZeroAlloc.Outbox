@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the runtime `OutboxSql` and `OutboxMessageStatements` with one generated ZeroAlloc.ORM repository per dialect that uses `{table}` and `{col:Name}`.
+**Goal:** Replace the runtime `OutboxSql` and `OutboxRowStatements` with one generated ZeroAlloc.ORM repository per dialect that uses `{table}` and `{col:Name}`.
 
 **Architecture:** Three internal partial repositories (`Sqlite`, `Postgres`, `SqlServer`), each with its own `[Dialect]` and the ten statements as `[Command]` and `[Query]` methods, behind one internal interface. A small factory builds the right repository for a dialect, connection, table and `QuoteColumns` value, and `OrmOutboxStore` uses it instead of the hand-written statements.
 
@@ -14,7 +14,7 @@
 
 - No public API change: `PublicAPI.*.txt` stays as it is; `OrmOutboxOptions`, `OrmOutboxStore`'s public constructor and the registration conflict checks keep their behaviour. The new types are `internal`.
 - `ZeroAlloc.ORM` and `ZeroAlloc.ORM.Generator` package references are `2.16.0` (both in `src/ZeroAlloc.Outbox.Orm/ZeroAlloc.Outbox.Orm.csproj`).
-- The SQL text per dialect is exactly what `OutboxSql` builds today, with `{table}` for the table and `{col:Name}` for each column. Parameter names and order per method equal the corresponding `OutboxMessageStatements` method.
+- The SQL text per dialect is exactly what `OutboxSql` builds today, with `{table}` for the table and `{col:Name}` for each column. Parameter names and order per method equal the corresponding `OutboxRowStatements` method.
 - Each repository's primary constructor is `(IAsyncDbConnection connection, string table, bool quoteColumns)` with `[Dialect(SqlDialect.X)]`. Do not add a property named `Table` or `QuoteColumns` (it would be a second candidate for the placeholder and fail with ZAO115).
 - The table value is trusted configuration: spliced verbatim, never validated by the generator.
 - Conventional Commits, `refactor:` for these changes, no public API change. Commit body lines at most 100 characters, no nested parentheses, no Co-Authored-By or Claude trailer, no session link.
@@ -33,11 +33,11 @@
 
 ## File Structure
 
-- Create `src/ZeroAlloc.Outbox.Orm/IOutboxStatements.cs`: the ten-method internal interface and the `OutboxMessageState` record.
+- Create `src/ZeroAlloc.Outbox.Orm/IOutboxStatements.cs`: the ten-method internal interface and the `OutboxRowState` record.
 - Create `src/ZeroAlloc.Outbox.Orm/SqliteOutboxRepository.cs`, `PostgresOutboxRepository.cs`, `SqlServerOutboxRepository.cs`.
 - Create `src/ZeroAlloc.Outbox.Orm/OutboxStatements.cs`: the factory.
 - Modify `OrmOutboxStore.cs`, `OrmOutboxServiceCollectionExtensions.cs`, `ZeroAlloc.Outbox.Orm.csproj`.
-- Delete `OutboxSql.cs`, `OutboxMessageStatements.cs`, `tests/ZeroAlloc.Outbox.Orm.Tests/OutboxSqlTests.cs`.
+- Delete `OutboxSql.cs`, `OutboxRowStatements.cs`, `tests/ZeroAlloc.Outbox.Orm.Tests/OutboxSqlTests.cs`.
 - New tests: `tests/ZeroAlloc.Outbox.Orm.Tests/SqliteOutboxRepositoryTests.cs`, `PostgresOutboxRepositoryTests.cs`, `SqlServerOutboxRepositoryTests.cs`, in the style of the existing `*OutboxClaimTests.cs` and `SqliteFixture.cs`.
 
 ### Task 1: Interface and the SQLite repository
@@ -49,13 +49,13 @@
 
 **Interfaces:**
 - Produces:
-  - `internal sealed record OutboxMessageState(int Status, int RetryCount)`
-  - `internal interface IOutboxStatements` with `InsertAsync`, `InsertInTransactionAsync`, `MarkProcessedAsync`, `MarkForRetryAsync`, `DeadLetterAsync`, `ReleaseLeaseAsync`, `RenewLeaseAsync`, `RequeueAsync` (each `Task<int>`), `ReadStateAsync` (`Task<OutboxMessageState?>`) and `ClaimPendingAsync` (`Task<IReadOnlyList<OutboxMessageRow>>`). Parameter names, types and order equal the same-named `OutboxMessageStatements` methods, except `ReadStateAsync`'s result.
+  - `internal sealed record OutboxRowState(int Status, int RetryCount)`
+  - `internal interface IOutboxStatements` with `InsertAsync`, `InsertInTransactionAsync`, `MarkProcessedAsync`, `MarkForRetryAsync`, `DeadLetterAsync`, `ReleaseLeaseAsync`, `RenewLeaseAsync`, `RequeueAsync` (each `Task<int>`), `ReadStateAsync` (`Task<OutboxRowState?>`) and `ClaimPendingAsync` (`Task<IReadOnlyList<OutboxMessageRow>>`). Parameter names, types and order equal the same-named `OutboxRowStatements` methods, except `ReadStateAsync`'s result.
   - `internal sealed partial class SqliteOutboxRepository(IAsyncDbConnection connection, string table, bool quoteColumns) : IOutboxStatements` with `[Dialect(SqlDialect.Sqlite)]`.
 
 - [ ] **Step 1: Failing tests** in `SqliteOutboxRepositoryTests`, over a real SQLite table created like the existing fixtures create it: `Insert_ThenReadState_RoundTrips`, `InsertInTransaction_EnlistsInTheCallersTransaction` (rolled back, row absent), `MarkProcessed_RequiresPendingStatusAndLease` (returns 0 for a wrong host, 1 for the lease holder), `MarkForRetry_`, `DeadLetter_`, `ReleaseLease_`, `RenewLease_`, `Requeue_ResetsADeadLetter` and `Requeue_IgnoresANonDeadLetter` (each asserting the row count returned and the row state), `ClaimPending_LeasesAndReturnsExactlyThoseRows` (batch size 2 of 3 due rows), `CustomTable_UsesTheConfiguredName` (table `"Custom Outbox"` quoted by the caller), and `QuotedColumns_RoundTrip` against a table created with quoted mixed-case column names, then the same statements with `quoteColumns: false` against an unquoted table. Take the SQL semantics from the matching tests in `OrmOutboxStoreTests` and `OrmOutboxClaimTests`.
 - [ ] **Step 2: Run to verify failure.** `dotnet test tests/ZeroAlloc.Outbox.Orm.Tests -c Debug --filter SqliteOutboxRepositoryTests`. Expected: compile error, type missing.
-- [ ] **Step 3: Implement** `IOutboxStatements`, `OutboxMessageState` and `SqliteOutboxRepository`. Each method is a `[Command]` or `[Query]` whose SQL is the statement `OutboxSql` builds, with `{table}` and `{col:X}` in place of the table and `Q("X")`. For SQLite the claim is the `UPDATE … RETURNING` over a `LIMIT` subquery. Move the explanatory doc comments for each statement and for the claim from `OutboxSql`. Bump both ORM package references to 2.16.0.
+- [ ] **Step 3: Implement** `IOutboxStatements`, `OutboxRowState` and `SqliteOutboxRepository`. Each method is a `[Command]` or `[Query]` whose SQL is the statement `OutboxSql` builds, with `{table}` and `{col:X}` in place of the table and `Q("X")`. For SQLite the claim is the `UPDATE … RETURNING` over a `LIMIT` subquery. Move the explanatory doc comments for each statement and for the claim from `OutboxSql`. Bump both ORM package references to 2.16.0.
 - [ ] **Step 4: Run to verify pass,** then the whole `ZeroAlloc.Outbox.Orm.Tests` project in Debug. Expected: all pass except tests that need containers you cannot reach.
 - [ ] **Step 5: Commit.** `refactor: add the SQLite outbox repository on ORM placeholders`
 
@@ -96,7 +96,7 @@
 **Files:**
 - Create: `OutboxStatements.cs`
 - Modify: `OrmOutboxStore.cs`, `OrmOutboxServiceCollectionExtensions.cs`
-- Delete: `OutboxSql.cs`, `OutboxMessageStatements.cs`, `tests/ZeroAlloc.Outbox.Orm.Tests/OutboxSqlTests.cs`
+- Delete: `OutboxSql.cs`, `OutboxRowStatements.cs`, `tests/ZeroAlloc.Outbox.Orm.Tests/OutboxSqlTests.cs`
 
 **Interfaces:**
 - Consumes: the three repositories from Tasks 1 to 3.
@@ -104,8 +104,8 @@
 
 - [ ] **Step 1: Failing test** `OutboxStatementsTests.Create_PicksTheRepositoryForTheDialect` (one row per `OutboxOrmDialect` value, asserting the returned type) and `Create_UnknownDialect_Throws`. Run: expected failure, type missing.
 - [ ] **Step 2: Implement `OutboxStatements.Create`** with a `switch` on the dialect.
-- [ ] **Step 3: Switch `OrmOutboxStore`** to hold `IOutboxStatements` built by `Create` in its public constructor, and keep `dialect`, `tableName` and `quoteColumns` as fields so `EnqueueInTransactionAsync` builds a statements object over `transaction.Connection` as `new OutboxMessageStatements(transaction.Connection, _sql)` does at line ~201 today. Adapt `ReadStateAsync` callers to `OutboxMessageState?`. Replace the internal `OrmOutboxStore(IAsyncDbConnection, OutboxSql)` constructor with one taking the dialect, table and flag, and update `OrmOutboxStoreFactory` in `OrmOutboxServiceCollectionExtensions.cs` (it keeps `Dialect`, `Connection`, `TableName` and `QuoteColumns` for the registration conflict check; drop only its `_sql` field).
-- [ ] **Step 4: Delete** `OutboxSql.cs`, `OutboxMessageStatements.cs` and `OutboxSqlTests.cs`. Search the repo for leftover references (docs, comments, the plan and spec under `docs/superpowers` may keep historical mentions; do not edit those).
+- [ ] **Step 3: Switch `OrmOutboxStore`** to hold `IOutboxStatements` built by `Create` in its public constructor, and keep `dialect`, `tableName` and `quoteColumns` as fields so `EnqueueInTransactionAsync` builds a statements object over `transaction.Connection` as `new OutboxRowStatements(transaction.Connection, _sql)` does at line ~201 today. Adapt `ReadStateAsync` callers to `OutboxRowState?`. Replace the internal `OrmOutboxStore(IAsyncDbConnection, OutboxSql)` constructor with one taking the dialect, table and flag, and update `OrmOutboxStoreFactory` in `OrmOutboxServiceCollectionExtensions.cs` (it keeps `Dialect`, `Connection`, `TableName` and `QuoteColumns` for the registration conflict check; drop only its `_sql` field).
+- [ ] **Step 4: Delete** `OutboxSql.cs`, `OutboxRowStatements.cs` and `OutboxSqlTests.cs`. Search the repo for leftover references (docs, comments, the plan and spec under `docs/superpowers` may keep historical mentions; do not edit those).
 - [ ] **Step 5: Run, one project at a time:** the new tests, then `ZeroAlloc.Outbox.Orm.Tests` whole in Debug and in Release, including the allocation tests (budget unchanged) and the EF Core switchover tests. Then build the whole solution in Release with warnings as errors. Expected: everything passes except tests that need unreachable containers, which are named in the report.
 - [ ] **Step 6: Commit.** `refactor: run the Orm outbox store on generated repositories`
 
