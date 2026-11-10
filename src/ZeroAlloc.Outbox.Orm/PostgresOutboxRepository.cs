@@ -27,6 +27,7 @@ namespace ZeroAlloc.Outbox.Orm;
 internal sealed partial class PostgresOutboxRepository(IAsyncDbConnection connection, string table, bool quoteColumns)
     : IOutboxStatements
 {
+    /// <inheritdoc />
     [Command("""
         INSERT INTO {table}
             ({col:Id}, {col:TypeName}, {col:Payload}, {col:Status}, {col:RetryCount}, {col:NextRetryAt}, {col:CreatedAt})
@@ -59,6 +60,7 @@ internal sealed partial class PostgresOutboxRepository(IAsyncDbConnection connec
         IAsyncDbTransaction tx,
         CancellationToken ct);
 
+    /// <inheritdoc />
     [Command("""
         UPDATE {table}
         SET {col:Status} = @status, {col:ProcessedAt} = @processedAt,
@@ -68,6 +70,7 @@ internal sealed partial class PostgresOutboxRepository(IAsyncDbConnection connec
     public partial Task<int> MarkProcessedAsync(
         Guid id, int status, DateTimeOffset processedAt, int pending, string hostId, CancellationToken ct);
 
+    /// <inheritdoc />
     [Command("""
         UPDATE {table}
         SET {col:RetryCount} = @retryCount, {col:NextRetryAt} = @nextRetryAt,
@@ -77,6 +80,7 @@ internal sealed partial class PostgresOutboxRepository(IAsyncDbConnection connec
     public partial Task<int> MarkForRetryAsync(
         Guid id, int retryCount, DateTimeOffset nextRetryAt, int pending, string hostId, CancellationToken ct);
 
+    /// <inheritdoc />
     [Command("""
         UPDATE {table}
         SET {col:Status} = @status, {col:DeadLetterError} = @error, {col:ProcessedAt} = @processedAt,

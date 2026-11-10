@@ -300,7 +300,7 @@ public sealed class SqliteOutboxRepositoryTests
     }
 
     /// <summary>Runs all ten statements on a fresh table and returns the SQL text each one sent.</summary>
-    private static async Task<IReadOnlyList<string>> RunEveryStatementAsync(bool quoteColumns)
+    internal static async Task<IReadOnlyList<string>> RunEveryStatementAsync(bool quoteColumns)
     {
         var fx = new SqliteFixture();
         await using var _ = fx.ConfigureAwait(false);
