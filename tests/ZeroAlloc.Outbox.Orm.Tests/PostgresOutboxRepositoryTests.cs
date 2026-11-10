@@ -347,7 +347,7 @@ public sealed class PostgresOutboxRepositoryTests(PostgresServerFixture server) 
     }
 
     /// <summary>Runs all ten statements on a fresh table and returns the SQL text each one sent.</summary>
-    private async Task<IReadOnlyList<string>> RunEveryStatementAsync(bool quoteColumns)
+    internal async Task<IReadOnlyList<string>> RunEveryStatementAsync(bool quoteColumns)
     {
         var fx = await CreateAsync().ConfigureAwait(false);
         await using var _ = fx.ConfigureAwait(false);
