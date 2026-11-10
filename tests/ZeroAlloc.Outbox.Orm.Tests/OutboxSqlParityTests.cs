@@ -42,7 +42,7 @@ public sealed class OutboxSqlParityTests(PostgresServerFixture server) : IClassF
     /// The statements arrive in the order the shared runner executes them: insert, insert in a
     /// transaction, claim, renew, retry, release, processed, dead letter, requeue, read state.
     /// </summary>
-    private static void AssertParity(IReadOnlyList<string> recorded, OutboxSql sql)
+    internal static void AssertParity(IReadOnlyList<string> recorded, OutboxSql sql)
     {
         string[] expected =
         [

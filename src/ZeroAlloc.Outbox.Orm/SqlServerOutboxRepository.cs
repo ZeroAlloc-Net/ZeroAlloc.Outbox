@@ -1,0 +1,139 @@
+using System.Data.Async;
+using ZeroAlloc.ORM;
+
+namespace ZeroAlloc.Outbox.Orm;
+
+/// <summary>
+/// <see cref="IOutboxStatements"/> for SQL Server, as ZeroAlloc.ORM partial methods. The generator
+/// emits parameter binding and materialisation at compile time, so nothing here reflects at runtime.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <c>{table}</c> is the primary-constructor parameter <c>table</c>, spliced in verbatim, so quoting
+/// is the caller's choice: <c>OutboxMessages</c> and <c>"Outbox Messages"</c> both work. It is
+/// trusted configuration, never user input. <c>{col:X}</c> is the bare column name, or quoted in the
+/// dialect's style when <c>quoteColumns</c> is true, for a table whose columns were created quoted
+/// and mixed case. Parameter names are fixed.
+/// </para>
+/// <para>
+/// The claim is a single statement that leases the rows it takes and returns them. SQL Server has
+/// neither <c>LIMIT</c> nor <c>RETURNING</c>, so it uses an updatable <c>TOP</c> CTE read with
+/// <c>ROWLOCK, READPAST, UPDLOCK</c> hints and an <c>OUTPUT</c> clause. <c>UPDLOCK</c> takes the row
+/// locks as the batch is read, and <c>READPAST</c> makes concurrent claimers pass over each other's
+/// locked rows instead of queueing behind them. The order of the returned rows is unspecified, so
+/// the store sorts them by <c>CreatedAt</c> itself.
+/// </para>
+/// </remarks>
+[Dialect(SqlDialect.SqlServer)]
+internal sealed partial class SqlServerOutboxRepository(IAsyncDbConnection connection, string table, bool quoteColumns)
+    : IOutboxStatements
+{
+    /// <inheritdoc />
+    [Command("""
+        INSERT INTO {table}
+            ({col:Id}, {col:TypeName}, {col:Payload}, {col:Status}, {col:RetryCount}, {col:NextRetryAt}, {col:CreatedAt})
+        VALUES
+            (@id, @typeName, @payload, @status, 0, @nextRetryAt, @createdAt)
+        """)]
+    public partial Task<int> InsertAsync(
+        Guid id,
+        string typeName,
+        byte[] payload,
+        int status,
+        DateTimeOffset nextRetryAt,
+        DateTimeOffset createdAt,
+        CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        INSERT INTO {table}
+            ({col:Id}, {col:TypeName}, {col:Payload}, {col:Status}, {col:RetryCount}, {col:NextRetryAt}, {col:CreatedAt})
+        VALUES
+            (@id, @typeName, @payload, @status, 0, @nextRetryAt, @createdAt)
+        """)]
+    public partial Task<int> InsertInTransactionAsync(
+        Guid id,
+        string typeName,
+        byte[] payload,
+        int status,
+        DateTimeOffset nextRetryAt,
+        DateTimeOffset createdAt,
+        IAsyncDbTransaction tx,
+        CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:Status} = @status, {col:ProcessedAt} = @processedAt,
+            {col:LockedBy} = NULL, {col:LockedUntil} = NULL
+        WHERE {col:Id} = @id AND {col:Status} = @pending AND {col:LockedBy} = @hostId
+        """)]
+    public partial Task<int> MarkProcessedAsync(
+        Guid id, int status, DateTimeOffset processedAt, int pending, string hostId, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:RetryCount} = @retryCount, {col:NextRetryAt} = @nextRetryAt,
+            {col:LockedBy} = NULL, {col:LockedUntil} = NULL
+        WHERE {col:Id} = @id AND {col:Status} = @pending AND {col:LockedBy} = @hostId
+        """)]
+    public partial Task<int> MarkForRetryAsync(
+        Guid id, int retryCount, DateTimeOffset nextRetryAt, int pending, string hostId, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:Status} = @status, {col:DeadLetterError} = @error, {col:ProcessedAt} = @processedAt,
+            {col:LockedBy} = NULL, {col:LockedUntil} = NULL
+        WHERE {col:Id} = @id AND {col:Status} = @pending AND {col:LockedBy} = @hostId
+        """)]
+    public partial Task<int> DeadLetterAsync(
+        Guid id, int status, string error, DateTimeOffset processedAt, int pending, string hostId,
+        CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:LockedBy} = NULL, {col:LockedUntil} = NULL
+        WHERE {col:Id} = @id AND {col:LockedBy} = @hostId AND {col:Status} = @pending
+        """)]
+    public partial Task<int> ReleaseLeaseAsync(Guid id, string hostId, int pending, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:LockedUntil} = @until
+        WHERE {col:Id} = @id AND {col:LockedBy} = @hostId AND {col:LockedUntil} >= @now AND {col:Status} = @status
+        """)]
+    public partial Task<int> RenewLeaseAsync(
+        Guid id, string hostId, int status, DateTimeOffset now, DateTimeOffset until, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Command("""
+        UPDATE {table}
+        SET {col:Status} = @status, {col:RetryCount} = 0, {col:NextRetryAt} = @now,
+            {col:DeadLetterError} = NULL, {col:ProcessedAt} = NULL,
+            {col:LockedBy} = NULL, {col:LockedUntil} = NULL
+        WHERE {col:Id} = @id AND {col:Status} = @deadLetter
+        """)]
+    public partial Task<int> RequeueAsync(Guid id, int status, DateTimeOffset now, int deadLetter, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Query("SELECT {col:Status}, {col:RetryCount} FROM {table} WHERE {col:Id} = @id")]
+    public partial Task<OutboxRowState?> ReadStateAsync(Guid id, CancellationToken ct);
+
+    /// <inheritdoc />
+    [Query("""
+        WITH claim AS (
+            SELECT TOP (@batchSize) {col:Id}, {col:TypeName}, {col:Payload}, {col:RetryCount}, {col:CreatedAt}, {col:LockedBy}, {col:LockedUntil}
+            FROM {table} WITH (ROWLOCK, READPAST, UPDLOCK)
+            WHERE {col:Status} = @status AND {col:NextRetryAt} <= @now
+              AND ({col:LockedUntil} IS NULL OR {col:LockedUntil} < @now)
+            ORDER BY {col:CreatedAt})
+        UPDATE claim SET {col:LockedBy} = @hostId, {col:LockedUntil} = @until
+        OUTPUT inserted.{col:Id}, inserted.{col:TypeName}, inserted.{col:Payload}, inserted.{col:RetryCount}, inserted.{col:CreatedAt}
+        """)]
+    public partial Task<IReadOnlyList<OutboxMessageRow>> ClaimPendingAsync(
+        int status, DateTimeOffset now, DateTimeOffset until, string hostId, int batchSize, CancellationToken ct);
+}
