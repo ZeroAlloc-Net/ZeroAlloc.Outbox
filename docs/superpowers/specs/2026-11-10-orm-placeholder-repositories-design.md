@@ -55,8 +55,9 @@ DbType checks); a runtime quote style in the ORM first (waits on another ORM rel
   tuple) is the builder's call.
 - `OrmOutboxStoreFactory` and `OrmOutboxStore` construct the repository for the registered dialect, table and
   `QuoteColumns` value. The static statement cache goes away: the ORM caches the built SQL per distinct value process-wide.
-- `ZeroAlloc.ORM` and `ZeroAlloc.ORM.Generator` package references move to 2.16.0, the first version with
-  placeholders. This is a floor bump, so it stays a plain `PackageReference` change.
+- `ZeroAlloc.ORM` and `ZeroAlloc.ORM.Generator` package references move to 2.16.1. 2.16.0 was the first version with
+  placeholders, but it emitted a per-instance memo field per method that broke the allocation budget; 2.16.1
+  keeps it static. This is a floor bump, so it stays a plain `PackageReference` change.
 - The connection open and close behaviour of `OutboxMessageStatements` is preserved by the generated code; the
   builder confirms with the existing store tests that a connection that was already open stays open.
 

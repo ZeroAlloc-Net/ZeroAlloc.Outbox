@@ -6,14 +6,14 @@
 
 **Architecture:** Three internal partial repositories (`Sqlite`, `Postgres`, `SqlServer`), each with its own `[Dialect]` and the ten statements as `[Command]` and `[Query]` methods, behind one internal interface. A small factory builds the right repository for a dialect, connection, table and `QuoteColumns` value, and `OrmOutboxStore` uses it instead of the hand-written statements.
 
-**Tech Stack:** C# net10.0, ZeroAlloc.ORM and ZeroAlloc.ORM.Generator 2.16.0, xUnit v3, SQLite, PostgreSQL and SQL Server containers in the tests.
+**Tech Stack:** C# net10.0, ZeroAlloc.ORM and ZeroAlloc.ORM.Generator 2.16.1, xUnit v3, SQLite, PostgreSQL and SQL Server containers in the tests.
 
 **Spec:** `docs/superpowers/specs/2026-11-10-orm-placeholder-repositories-design.md`. Placeholder rules: ZeroAlloc.ORM docs (README section "Table and column placeholders"; diagnostics ZAO115 to ZAO118).
 
 ## Global Constraints
 
 - No public API change: `PublicAPI.*.txt` stays as it is; `OrmOutboxOptions`, `OrmOutboxStore`'s public constructor and the registration conflict checks keep their behaviour. The new types are `internal`.
-- `ZeroAlloc.ORM` and `ZeroAlloc.ORM.Generator` package references are `2.16.0` (both in `src/ZeroAlloc.Outbox.Orm/ZeroAlloc.Outbox.Orm.csproj`).
+- `ZeroAlloc.ORM` and `ZeroAlloc.ORM.Generator` package references are `2.16.1` (both in `src/ZeroAlloc.Outbox.Orm/ZeroAlloc.Outbox.Orm.csproj`).
 - The SQL text per dialect is exactly what `OutboxSql` builds today, with `{table}` for the table and `{col:Name}` for each column. Parameter names and order per method equal the corresponding `OutboxRowStatements` method.
 - Each repository's primary constructor is `(IAsyncDbConnection connection, string table, bool quoteColumns)` with `[Dialect(SqlDialect.X)]`. Do not add a property named `Table` or `QuoteColumns` (it would be a second candidate for the placeholder and fail with ZAO115).
 - The table value is trusted configuration: spliced verbatim, never validated by the generator.
@@ -44,7 +44,7 @@
 
 **Files:**
 - Create: `IOutboxStatements.cs`, `SqliteOutboxRepository.cs`
-- Modify: `ZeroAlloc.Outbox.Orm.csproj` (both ORM references to 2.16.0)
+- Modify: `ZeroAlloc.Outbox.Orm.csproj` (both ORM references to 2.16.1)
 - Test: `SqliteOutboxRepositoryTests.cs`
 
 **Interfaces:**
@@ -55,7 +55,7 @@
 
 - [ ] **Step 1: Failing tests** in `SqliteOutboxRepositoryTests`, over a real SQLite table created like the existing fixtures create it: `Insert_ThenReadState_RoundTrips`, `InsertInTransaction_EnlistsInTheCallersTransaction` (rolled back, row absent), `MarkProcessed_RequiresPendingStatusAndLease` (returns 0 for a wrong host, 1 for the lease holder), `MarkForRetry_`, `DeadLetter_`, `ReleaseLease_`, `RenewLease_`, `Requeue_ResetsADeadLetter` and `Requeue_IgnoresANonDeadLetter` (each asserting the row count returned and the row state), `ClaimPending_LeasesAndReturnsExactlyThoseRows` (batch size 2 of 3 due rows), `CustomTable_UsesTheConfiguredName` (table `"Custom Outbox"` quoted by the caller), and `QuotedColumns_RoundTrip` against a table created with quoted mixed-case column names, then the same statements with `quoteColumns: false` against an unquoted table. Take the SQL semantics from the matching tests in `OrmOutboxStoreTests` and `OrmOutboxClaimTests`.
 - [ ] **Step 2: Run to verify failure.** `dotnet test tests/ZeroAlloc.Outbox.Orm.Tests -c Debug --filter SqliteOutboxRepositoryTests`. Expected: compile error, type missing.
-- [ ] **Step 3: Implement** `IOutboxStatements`, `OutboxRowState` and `SqliteOutboxRepository`. Each method is a `[Command]` or `[Query]` whose SQL is the statement `OutboxSql` builds, with `{table}` and `{col:X}` in place of the table and `Q("X")`. For SQLite the claim is the `UPDATE … RETURNING` over a `LIMIT` subquery. Move the explanatory doc comments for each statement and for the claim from `OutboxSql`. Bump both ORM package references to 2.16.0.
+- [ ] **Step 3: Implement** `IOutboxStatements`, `OutboxRowState` and `SqliteOutboxRepository`. Each method is a `[Command]` or `[Query]` whose SQL is the statement `OutboxSql` builds, with `{table}` and `{col:X}` in place of the table and `Q("X")`. For SQLite the claim is the `UPDATE … RETURNING` over a `LIMIT` subquery. Move the explanatory doc comments for each statement and for the claim from `OutboxSql`. Bump both ORM package references to 2.16.1.
 - [ ] **Step 4: Run to verify pass,** then the whole `ZeroAlloc.Outbox.Orm.Tests` project in Debug. Expected: all pass except tests that need containers you cannot reach.
 - [ ] **Step 5: Commit.** `refactor: add the SQLite outbox repository on ORM placeholders`
 
@@ -113,4 +113,4 @@
 
 - [ ] **Step 1:** Run, one at a time: solution build in Release with warnings as errors; `dotnet test -c Release` for every test project CI runs (read `.github/workflows` for the list and any api-compat or public API check); Debug for `ZeroAlloc.Outbox.Orm.Tests`. Expected: green. Compare any failure with `origin/main` before blaming the change.
 - [ ] **Step 2:** `git diff origin/main -- '*PublicAPI*.txt'` is empty.
-- [ ] **Step 3:** Rebase on `origin/main` if it moved, push, open a PR titled `refactor: run the Orm outbox store on generated ZeroAlloc.ORM repositories`. The body states that behaviour and public API are unchanged, the ORM floor moves to 2.16.0, and what was deleted. Do not merge.
+- [ ] **Step 3:** Rebase on `origin/main` if it moved, push, open a PR titled `refactor: run the Orm outbox store on generated ZeroAlloc.ORM repositories`. The body states that behaviour and public API are unchanged, the ORM floor moves to 2.16.1, and what was deleted. Do not merge.

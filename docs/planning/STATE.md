@@ -12,7 +12,7 @@ whole-branch review, verification and the PR, is NOT done. The branch is not mer
 Delivered: `SqliteOutboxRepository`, `PostgresOutboxRepository`, `SqlServerOutboxRepository`,
 `IOutboxStatements`, `OutboxRowState`, `OutboxStatements.Create`, `OrmOutboxStore` and the registration
 factory moved onto them, `OutboxSql`, `OutboxMessageStatements` and the parity tests deleted, ORM package
-floor 2.16.0, four new store tests. Public API files unchanged. All functional tests pass in Debug and
+floor 2.16.1, four new store tests. Public API files unchanged. All functional tests pass in Debug and
 Release against SQLite, PostgreSQL and SQL Server containers.
 
 ## Position update 2026-11-11
