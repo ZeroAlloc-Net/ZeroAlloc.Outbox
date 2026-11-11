@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!--
-      net10.0 only, unlike the EF Core adapter's net8.0;net9.0;net10.0.
+      net10.0 and net11.0 only, unlike the EF Core adapter's net8.0;net9.0;net10.0;net11.0.
       ZeroAlloc.ORM ships net10.0 only, so there is nothing older to build
       against. Widening this means widening the ORM first.
     -->
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <PackageId>ZeroAlloc.Outbox.Orm</PackageId>
     <Description>ZeroAlloc.ORM store adapter for ZeroAlloc.Outbox. Raw-SQL persistence with compile-time parameter binding, transactional enqueue on the caller's transaction, and MigrationRunner-owned schema. Zero runtime reflection; Native AOT compatible.</Description>
     <PackageTags>zeroalloc;outbox;orm;ado.net;nativeaot;trimming</PackageTags>
