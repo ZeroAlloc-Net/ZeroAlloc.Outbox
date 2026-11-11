@@ -27,6 +27,13 @@ namespace ZeroAlloc.Outbox.Orm;
 /// </remarks>
 internal interface IOutboxStatements
 {
+    /// <summary>
+    /// The same statements, for the same table, over another connection. A transaction belongs to the
+    /// connection that began it, so an enqueue that joins a caller's transaction on a different
+    /// connection runs on a repository for that connection.
+    /// </summary>
+    IOutboxStatements OnConnection(IAsyncDbConnection connection);
+
     Task<int> InsertAsync(
         Guid id,
         string typeName,

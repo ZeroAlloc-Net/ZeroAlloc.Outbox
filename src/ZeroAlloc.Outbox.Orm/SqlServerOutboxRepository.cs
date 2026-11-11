@@ -29,6 +29,10 @@ internal sealed partial class SqlServerOutboxRepository(IAsyncDbConnection conne
     : IOutboxStatements
 {
     /// <inheritdoc />
+    public IOutboxStatements OnConnection(IAsyncDbConnection other)
+        => new SqlServerOutboxRepository(other, table, quoteColumns);
+
+    /// <inheritdoc />
     [Command("""
         INSERT INTO {table}
             ({col:Id}, {col:TypeName}, {col:Payload}, {col:Status}, {col:RetryCount}, {col:NextRetryAt}, {col:CreatedAt})

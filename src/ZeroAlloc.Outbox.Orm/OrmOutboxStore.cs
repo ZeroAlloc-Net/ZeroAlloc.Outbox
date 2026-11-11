@@ -39,9 +39,6 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
 {
     private readonly IAsyncDbConnection _connection;
     private readonly IOutboxStatements _repo;
-    private readonly OutboxOrmDialect _dialect;
-    private readonly string _tableName;
-    private readonly bool _quoteColumns;
 
     /// <summary>
     /// Creates a store over the application's connection.
@@ -108,9 +105,6 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _dialect = dialect;
-        _tableName = tableName;
-        _quoteColumns = quoteColumns;
         _repo = OutboxStatements.Create(dialect, connection, tableName, quoteColumns);
     }
 
@@ -194,7 +188,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         // connection, the usual case, reuses the store's repository.
         var repo = ReferenceEquals(transaction.Connection, _connection)
             ? _repo
-            : OutboxStatements.Create(_dialect, transaction.Connection, _tableName, _quoteColumns);
+            : _repo.OnConnection(transaction.Connection);
 
         await repo.InsertInTransactionAsync(
             OutboxMessageId.New().Value, typeName, AsArray(payload),

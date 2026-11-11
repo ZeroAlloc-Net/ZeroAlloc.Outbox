@@ -28,6 +28,10 @@ internal sealed partial class PostgresOutboxRepository(IAsyncDbConnection connec
     : IOutboxStatements
 {
     /// <inheritdoc />
+    public IOutboxStatements OnConnection(IAsyncDbConnection other)
+        => new PostgresOutboxRepository(other, table, quoteColumns);
+
+    /// <inheritdoc />
     [Command("""
         INSERT INTO {table}
             ({col:Id}, {col:TypeName}, {col:Payload}, {col:Status}, {col:RetryCount}, {col:NextRetryAt}, {col:CreatedAt})
