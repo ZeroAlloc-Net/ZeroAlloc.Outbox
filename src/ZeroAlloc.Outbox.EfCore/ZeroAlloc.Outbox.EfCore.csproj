@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
     <IsAotCompatible>true</IsAotCompatible>
     <PackageId>ZeroAlloc.Outbox.EfCore</PackageId>
     <Description>EF Core store adapter for ZeroAlloc.Outbox.</Description>
@@ -12,12 +12,14 @@
        so a net10.0 build against EF Core 9 throws TypeLoadException on the first claim once the
        app resolves EF Core 10. net8.0 and net9.0 stay on EF Core 9, the newest line they support.
        ZeroAlloc.ValueObjects.EfCore ships net8.0 and net9.0 only, with an EF Core 9 floor, so on
-       net10.0 it takes its net9.0 build and runs on the EF Core 10 referenced here. -->
+       net10.0 it takes its net9.0 build and runs on the EF Core 10 referenced here.
+       net11.0 stays on EF Core 10 as well: Npgsql.EntityFrameworkCore.PostgreSQL has no stable
+       EF Core 11 release yet and its 10.x line caps Microsoft.EntityFrameworkCore below 11. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net9.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.22" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.22" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
   </ItemGroup>

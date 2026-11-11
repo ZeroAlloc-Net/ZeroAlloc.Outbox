@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>ZeroAlloc.Outbox.AotSmoke</RootNamespace>
     <IsPackable>false</IsPackable>
     <PublishAot>true</PublishAot>
@@ -15,9 +15,9 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
 
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox\ZeroAlloc.Outbox.csproj"
-                      SetTargetFramework="TargetFramework=net10.0" />
+                      SetTargetFramework="TargetFramework=net11.0" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.InMemory\ZeroAlloc.Outbox.InMemory.csproj"
-                      SetTargetFramework="TargetFramework=net10.0" />
+                      SetTargetFramework="TargetFramework=net11.0" />
     <ProjectReference Include="..\..\src\ZeroAlloc.Outbox.Generator\ZeroAlloc.Outbox.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
