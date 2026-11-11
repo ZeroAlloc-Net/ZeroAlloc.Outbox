@@ -39,4 +39,15 @@ public sealed class OutboxStatementsTests
 
         act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("dialect");
     }
+
+    [Fact]
+    public async Task Store_UndefinedDialect_Throws()
+    {
+        await using var fx = new SqliteFixture();
+        var connection = await fx.ConnectAsync();
+
+        var act = () => new OrmOutboxStore(connection, (OutboxOrmDialect)99);
+
+        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("dialect");
+    }
 }

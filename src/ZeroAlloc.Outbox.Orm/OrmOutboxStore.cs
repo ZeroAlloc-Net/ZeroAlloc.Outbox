@@ -58,6 +58,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// Selects the batch-claim spelling. Only the batch claim differs; every
     /// other statement is plain ANSI.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
         : this(connection, dialect, OrmOutboxOptions.DefaultTableName)
     {
@@ -76,6 +77,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// The outbox table, used verbatim in every statement, so quote it yourself where the
     /// database needs it. It is trusted configuration, never user input.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName)
         : this(connection, dialect, tableName, quoteColumns: false)
     {
@@ -99,6 +101,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// <c>[Id]</c> on SQL Server. Set it for a table whose columns were created quoted and mixed
     /// case, such as the one EF Core's PostgreSQL provider creates.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(
         IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName, bool quoteColumns)
     {

@@ -305,6 +305,10 @@ public static class OrmOutboxServiceCollectionExtensions
     private static void Register(
         IOutboxBuilder builder, OutboxOrmDialect dialect, OrmConnectionSource connection, OrmOutboxOptions options)
     {
+        // An undefined dialect fails here, at registration, not when the store is first resolved.
+        if (!Enum.IsDefined(dialect))
+            throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unknown outbox dialect.");
+
         var tableName = options.TableName;
         var quoteColumns = options.QuoteColumns;
         var services = builder.Services;

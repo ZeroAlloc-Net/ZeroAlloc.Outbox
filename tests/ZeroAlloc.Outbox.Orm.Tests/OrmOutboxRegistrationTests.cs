@@ -30,6 +30,16 @@ public sealed class OrmOutboxRegistrationTests
     }
 
     [Fact]
+    public void WithOrm_UndefinedDialect_FailsAtRegistration()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => services.AddOutbox().WithOrm((OutboxOrmDialect)99);
+
+        act.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("dialect");
+    }
+
+    [Fact]
     public async Task WithOrm_Registers_The_Same_Store_As_IOutboxRequeue()
     {
         await using var fx = new SqliteFixture();

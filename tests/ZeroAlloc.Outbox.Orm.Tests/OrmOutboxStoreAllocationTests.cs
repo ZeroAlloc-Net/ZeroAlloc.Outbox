@@ -96,12 +96,13 @@ public sealed class OrmOutboxStoreAllocationTests
         bytes.Should().BeLessThan(payloadLength + payloadLength / 2, "the payload is allocated once, not copied again");
     }
 
-    // The store is scoped, so a worker poll and every request scope builds one. Its SQL is built
-    // once per configuration, not per store: what is left is the store and its statement runner.
-    private const long StoreBytes = 72; // the store, 40 bytes, and its statement runner, 32
+    // The store is scoped, so a worker poll and every request scope builds one. A store holds no
+    // SQL: the generated repository builds it on its first statement call and the ORM keeps it per
+    // table and quote flag. What construction costs is the store and its repository.
+    private const long StoreBytes = 72; // the store, 32 bytes, and its repository, 40
 
     // The measured store must escape. Left unused, the Release JIT can stack-allocate it and the
-    // gate reads 32 bytes instead of 72.
+    // gate reads 40 bytes instead of 72.
     private static OrmOutboxStore? s_sink;
 
     [Theory]
@@ -112,7 +113,7 @@ public sealed class OrmOutboxStoreAllocationTests
     {
         await using var fx = new SqliteFixture();
         var connection = await fx.ConnectAsync();
-        _ = new OrmOutboxStore(connection, dialect, table, quote); // fills the SQL cache
+        _ = new OrmOutboxStore(connection, dialect, table, quote); // warms the type and the ORM memo path
 
         var bytes = AllocationGate.MeasureBytesPerCall(
             100, () => s_sink = new OrmOutboxStore(connection, dialect, table, quote));
@@ -142,7 +143,7 @@ public sealed class OrmOutboxStoreAllocationTests
             using var scope = scopes.CreateScope();
         });
 
-        (withScope - scopeOnly).Should().BeLessThan(300, "the store and its runner, with no SQL strings");
+        (withScope - scopeOnly).Should().BeLessThan(300, "the store and its repository, with no SQL strings");
     }
 
     private static long Measure(Func<ValueTask> enqueue) =>
