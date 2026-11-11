@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.6.0...v4.7.0) (2026-11-11)
+
+
+### Features
+
+* add .NET 11 support ([#449](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/449)) ([1f1c2cf](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/1f1c2cf864cab1e9563df97d3d701afe84bc6cfa))
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#447](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/447)) ([1c60842](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/1c608427a84e5090707b6cbac994f18cd6c8558c))
+
 ## [4.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.5.0...v4.6.0) (2026-11-09)
 
 
