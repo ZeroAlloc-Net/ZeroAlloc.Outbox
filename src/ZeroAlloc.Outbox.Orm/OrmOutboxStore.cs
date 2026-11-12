@@ -38,8 +38,7 @@ namespace ZeroAlloc.Outbox.Orm;
 public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
 {
     private readonly IAsyncDbConnection _connection;
-    private readonly OutboxMessageStatements _repo;
-    private readonly OutboxSql _sql;
+    private readonly IOutboxStatements _repo;
 
     /// <summary>
     /// Creates a store over the application's connection.
@@ -59,6 +58,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// Selects the batch-claim spelling. Only the batch claim differs; every
     /// other statement is plain ANSI.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect)
         : this(connection, dialect, OrmOutboxOptions.DefaultTableName)
     {
@@ -77,6 +77,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// The outbox table, used verbatim in every statement, so quote it yourself where the
     /// database needs it. It is trusted configuration, never user input.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName)
         : this(connection, dialect, tableName, quoteColumns: false)
     {
@@ -100,22 +101,14 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
     /// <c>[Id]</c> on SQL Server. Set it for a table whose columns were created quoted and mixed
     /// case, such as the one EF Core's PostgreSQL provider creates.
     /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dialect"/> is not a defined <see cref="OutboxOrmDialect"/> value.</exception>
     public OrmOutboxStore(
         IAsyncDbConnection connection, OutboxOrmDialect dialect, string tableName, bool quoteColumns)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         _connection = connection;
-        _sql = OutboxSql.For(dialect, tableName, quoteColumns);
-        _repo = new OutboxMessageStatements(connection, _sql);
-    }
-
-    /// <summary>Creates a store with statements built once for its configuration.</summary>
-    internal OrmOutboxStore(IAsyncDbConnection connection, OutboxSql sql)
-    {
-        _connection = connection;
-        _sql = sql;
-        _repo = new OutboxMessageStatements(connection, sql);
+        _repo = OutboxStatements.Create(dialect, connection, tableName, quoteColumns);
     }
 
     /// <inheritdoc />
@@ -198,7 +191,7 @@ public sealed class OrmOutboxStore : IOutboxStore, IOutboxRequeue
         // connection, the usual case, reuses the store's repository.
         var repo = ReferenceEquals(transaction.Connection, _connection)
             ? _repo
-            : new OutboxMessageStatements(transaction.Connection, _sql);
+            : _repo.OnConnection(transaction.Connection);
 
         await repo.InsertInTransactionAsync(
             OutboxMessageId.New().Value, typeName, AsArray(payload),
