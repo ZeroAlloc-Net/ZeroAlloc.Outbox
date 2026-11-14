@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.0...v4.7.1) (2026-11-14)
+
+
+### Refactoring
+
+* run the Orm outbox store on generated ZeroAlloc.ORM repositories ([#446](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/446)) ([4f2db7f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/4f2db7fdce16c703d4a99583bbefbf077cadbde6))
+
 ## [4.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.6.0...v4.7.0) (2026-11-11)
 
 
