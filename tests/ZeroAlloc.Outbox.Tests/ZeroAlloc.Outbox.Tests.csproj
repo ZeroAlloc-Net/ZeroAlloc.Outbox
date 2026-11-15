@@ -19,7 +19,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
     <!-- MemoryPackStructMessage: a struct format that reads without allocating, for the read-path gate. -->
-    <PackageReference Include="MemoryPack" Version="1.21.4" />
+    <PackageReference Include="MemoryPack" Version="1.22.0" />
     <PackageReference Include="ZeroAlloc.TestHelpers" Version="1.10.*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>contentfiles;build</IncludeAssets>
