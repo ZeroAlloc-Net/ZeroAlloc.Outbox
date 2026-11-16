@@ -95,7 +95,8 @@ dotnet test tests/ZeroAlloc.Outbox.Tests -c Release -f net8.0 --filter "FullyQua
   an unoptimised `async` method allocates a state-machine class and the figure would measure the compiler.
 - `ZeroAlloc.Outbox.EfCore` is not in the AOT smoke on purpose: EF Core queries run under NativeAOT only
   when precompiled, and this package's own queries never are. `Dashboard.Blazor` is not either, as there
-  is no NativeAOT host for Razor components. The reason is written in the Adapters sample csproj.
+  is no NativeAOT host for Razor components. The reason is written in the Adapters sample csproj. Both are
+  exceptions to the org rule that every package works under NativeAOT and has smoke coverage.
 - The EfCore project pins EF Core 9 for `net8.0` and `net9.0`, and EF Core 10 for `net10.0` and `net11.0`.
   The `net8.0` test target exists to run the EF Core store against EF Core 9.
 - The benchmark project targets `net10.0` only, and the AOT smoke samples `net11.0` only. This is how
