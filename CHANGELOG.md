@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.1...v4.7.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* embed PDBs so Go to Definition shows the package source ([#480](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/480)) ([854a38c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/854a38c634f43f54402228022cff6661193a8b6d))
+
 ## [4.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.0...v4.7.1) (2026-11-14)
 
 
