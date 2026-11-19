@@ -8,7 +8,7 @@
          the newest major so a consumer who upgrades Mediator is covered. -->
     <PackageReference Include="ZeroAlloc.Mediator" Version="6.7.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
-    <PackageReference Include="coverlet.collector" Version="10.1.0">
+    <PackageReference Include="coverlet.collector" Version="10.1.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
