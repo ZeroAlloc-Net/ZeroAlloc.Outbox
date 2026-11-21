@@ -73,7 +73,7 @@ jobs:
   # packages, pushes them, and waits until nuget.org serves every one of them. Shared from
   # ZeroAlloc-Net/.github so a fix there reaches every repository; see ZeroAlloc-Net/.github#49.
   # Destinations: nuget.org and the .nupkg files attached to the GitHub release.
-  # dotnet-version adds the net8.0 runtime that ZeroAlloc.Outbox.Tests also targets.
+  # dotnet-version adds the net10.0 runtime the test projects also target.
   publish:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
@@ -83,7 +83,6 @@ jobs:
       version: ${{ needs.release-please.outputs.version }}
       solution: ZeroAlloc.Outbox.slnx
       dotnet-version: |
-        8.0.x
         10.0.x
         11.0.x
       github-packages: false
@@ -129,9 +128,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-          # ZeroAlloc.Outbox.Tests also targets net8.0.
+          # The libraries also target net10.0.
           dotnet-version: |
-            8.0.x
             10.0.x
 
       - name: Build the release

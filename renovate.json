@@ -9,7 +9,7 @@
   ],
   "packageRules": [
     {
-      "description": "Skip EFCore major bumps \u2014 EFCore 10 dropped net8.0 support; pin via Directory.Packages.props per-TFM until we drop net8.0.",
+      "description": "Skip EF Core major bumps: the store adapter compiles both net10.0 and net11.0 against EF Core 10, and the Npgsql 10.x provider caps EF Core below 11. Revisit with the next framework change.",
       "matchPackagePrefixes": [
         "Microsoft.EntityFrameworkCore"
       ],
