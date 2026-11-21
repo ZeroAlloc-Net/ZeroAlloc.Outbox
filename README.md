@@ -23,7 +23,7 @@ dotnet add package ZeroAlloc.Outbox
 dotnet add package ZeroAlloc.Outbox.InMemory
 ```
 
-The source generator ships inside `ZeroAlloc.Outbox`. The quick start uses the in-memory store; production apps use the ORM or EF Core store below.
+Every package targets `net10.0` and `net11.0`. The source generator ships inside `ZeroAlloc.Outbox`. The quick start uses the in-memory store; production apps use the ORM or EF Core store below.
 
 ## Quick start
 
@@ -80,7 +80,7 @@ public sealed class SendOrderPlaced : IOutboxDispatcher<OrderPlaced>
 
 Stores and integrations:
 
-- [`ZeroAlloc.Outbox.Orm`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/store-adapters.md): raw SQL through ZeroAlloc.ORM on SQLite, PostgreSQL or SQL Server, NativeAOT on net10.0 and net11.0.
+- [`ZeroAlloc.Outbox.Orm`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/store-adapters.md): raw SQL through ZeroAlloc.ORM on SQLite, PostgreSQL or SQL Server, NativeAOT-compatible.
 - [`ZeroAlloc.Outbox.EfCore`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/store-adapters.md): store on your existing `DbContext`.
 - [`ZeroAlloc.Outbox.InMemory`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/testing.md): in-process store for unit and integration tests.
 - [`ZeroAlloc.Outbox.Mediator`](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/blob/main/docs/cookbook/03-mediator-integration.md): dispatch through ZeroAlloc.Mediator `IMediator.Publish`.

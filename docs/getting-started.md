@@ -6,6 +6,8 @@ sidebar_position: 3
 
 # Getting Started
 
+Every ZeroAlloc.Outbox package targets `net10.0` and `net11.0`.
+
 ## 1. Install the NuGet packages
 
 The source generator is bundled into the main package, so a single `PackageReference` is all you
@@ -16,7 +18,7 @@ need for the generator:
 dotnet add package ZeroAlloc.Outbox
 
 # Pick a store:
-dotnet add package ZeroAlloc.Outbox.Orm       # production — ZeroAlloc.ORM raw SQL, Native AOT (net10.0)
+dotnet add package ZeroAlloc.Outbox.Orm       # production — ZeroAlloc.ORM raw SQL, Native AOT
 dotnet add package ZeroAlloc.Outbox.EfCore    # production — Entity Framework Core
 dotnet add package ZeroAlloc.Outbox.InMemory  # testing — in-process, no database
 

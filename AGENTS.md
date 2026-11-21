@@ -31,12 +31,11 @@ runtime of each target framework:
 
 | Test project | Targets | Runtimes |
 |---|---|---|
-| `ZeroAlloc.Outbox.Tests` | `net8.0`, `net10.0`, `net11.0` | .NET 8 and ASP.NET Core 8 (EF Core 9 and `TestHost` 8), 10 and 11 |
-| `Generator.Tests`, `Orm.Tests`, `Mediator.Tests`, `Resilience.Tests`, `Telemetry.Tests` | `net10.0`, `net11.0` | .NET 10 and 11 |
+| every test project | `net10.0`, `net11.0` | .NET 10 and 11; `ZeroAlloc.Outbox.Tests` also ASP.NET Core 10 and 11 |
 
 `Orm.Tests` and `ZeroAlloc.Outbox.Tests` start PostgreSQL and SQL Server containers through
-Testcontainers, so they need a running Docker daemon. Library targets: the core and most packages
-build `net8.0` to `net11.0`; `Orm` builds only `net10.0` and `net11.0`.
+Testcontainers, so they need a running Docker daemon. Library targets: every runtime package builds
+`net10.0` and `net11.0`; the generator stays `netstandard2.0`.
 
 CI job `build` in `.github/workflows/ci.yml`:
 
@@ -86,7 +85,7 @@ Inner loop, scoped to one project (verified on this repo, not run by a CI job as
 
 ```bash
 dotnet test tests/ZeroAlloc.Outbox.Generator.Tests -c Release -f net10.0
-dotnet test tests/ZeroAlloc.Outbox.Tests -c Release -f net8.0 --filter "FullyQualifiedName~OutboxWorkerAllocationTests"
+dotnet test tests/ZeroAlloc.Outbox.Tests -c Release -f net10.0 --filter "FullyQualifiedName~OutboxWorkerAllocationTests"
 ```
 
 ## Conventions and gotchas
@@ -97,8 +96,8 @@ dotnet test tests/ZeroAlloc.Outbox.Tests -c Release -f net8.0 --filter "FullyQua
   when precompiled, and this package's own queries never are. `Dashboard.Blazor` is not either, as there
   is no NativeAOT host for Razor components. The reason is written in the Adapters sample csproj. Both are
   exceptions to the org rule that every package works under NativeAOT and has smoke coverage.
-- The EfCore project pins EF Core 9 for `net8.0` and `net9.0`, and EF Core 10 for `net10.0` and `net11.0`.
-  The `net8.0` test target exists to run the EF Core store against EF Core 9.
+- The EfCore project builds both targets against EF Core 10. `net11.0` stays on EF Core 10 because the
+  Npgsql 10.x provider caps EF Core below 11.
 - The benchmark project targets `net10.0` only, and the AOT smoke samples `net11.0` only. This is how
   the repo is set up, not a defect to fix.
 - Analyzers (Meziantou, Roslynator, ZeroAlloc.Analyzers) and `TreatWarningsAsErrors` apply to every

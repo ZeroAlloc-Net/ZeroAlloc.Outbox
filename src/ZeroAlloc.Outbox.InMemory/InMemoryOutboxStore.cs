@@ -23,11 +23,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore, IOutboxDashboardStore, I
 
     // Serializes claimers against each other, so two of them never pick the same entry. The
     // per-entry lock still guards each entry's fields against the Mark* and dashboard methods.
-#if NET9_0_OR_GREATER
     private readonly Lock _claimGate = new();
-#else
-    private readonly object _claimGate = new();
-#endif
 
     public ValueTask EnqueueAsync(
         string typeName,
