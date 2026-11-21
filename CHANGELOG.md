@@ -1,5 +1,17 @@
 # Changelog
 
+## [5.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.2...v5.0.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* net8.0 and net9.0 assets are no longer shipped and ZeroAlloc.Outbox.EfCore now always compiles against EF Core 10. See the migration notes in the release.
+
+### Features
+
+* build ZeroAlloc.Outbox.EfCore against EF Core 10 on every target, dropping the EF Core 9 build ([190e940](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/190e940ea33108fb5ae97da5765a09d607df2d61))
+* target net10.0 and net11.0, drop net8.0 and net9.0 ([190e940](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/190e940ea33108fb5ae97da5765a09d607df2d61))
+
 ## [4.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.1...v4.7.2) (2026-11-16)
 
 
