@@ -88,7 +88,31 @@ dotnet test tests/ZeroAlloc.Outbox.Generator.Tests -c Release -f net10.0
 dotnet test tests/ZeroAlloc.Outbox.Tests -c Release -f net10.0 --filter "FullyQualifiedName~OutboxWorkerAllocationTests"
 ```
 
+CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.Outbox.Sdk10Smoke/global.json` pins
+10.0.100 with `rollForward: latestPatch`, so a newer band cannot stand in for it. It builds and runs a
+consumer of the packed packages with Roslyn 5.0:
+
+```bash
+v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s)
+dotnet pack src/ZeroAlloc.Outbox -c Release -o artifacts -p:Version="$v"
+dotnet pack src/ZeroAlloc.Outbox.InMemory -c Release -o artifacts -p:Version="$v"
+cd tests/ZeroAlloc.Outbox.Sdk10Smoke/Consumer
+dotnet run -c Release -p:ZeroAllocOutboxVersion="$v"
+```
+
+CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
+solution and fails when a packed DLL references Roslyn above 5.0.0.
+
 ## Conventions and gotchas
+- The generator references `Microsoft.CodeAnalysis.CSharp` 5.0.0, the compiler of SDK band 10.0.1xx, the
+  oldest supported SDK. A compiler older than the Roslyn the generator references skips it with `CS9057`,
+  and nothing is generated. The shared Renovate preset holds it below 5.1. If a newer Roslyn API is
+  needed, change the code; raise the floor only together with the minimum SDK. Test projects may use a
+  newer Roslyn.
+- `ZeroAlloc.ValueObjects` 2.4.1, `ZeroAlloc.Resilience` 3.5.1, `ZeroAlloc.StateMachine` 1.8.1 and
+  `ZeroAlloc.Serialisation` 2.11.1, and the transitive `ZeroAlloc.Collections` 1.3.1, ship generators built against Roslyn 5.9. On a 10.0.1xx SDK those are
+  skipped with `CS9057` until the dependencies are raised to releases built against 5.0.0; the
+  `sdk10-consumer` job keeps `CS9057` a warning for that reason. Tracked in ZeroAlloc-Net/.github#77.
 
 - Run allocation tests with `-c Release`. `[OptimizedBuildFact]` skips them on a Debug build, because
   an unoptimised `async` method allocates a state-machine class and the figure would measure the compiler.
