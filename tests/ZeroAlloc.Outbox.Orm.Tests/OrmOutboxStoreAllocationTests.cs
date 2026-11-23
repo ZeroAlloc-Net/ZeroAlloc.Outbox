@@ -13,6 +13,12 @@ namespace ZeroAlloc.Outbox.Orm.Tests;
 /// each enqueue runs on the test thread and <see cref="AllocationGate"/>, which counts the
 /// calling thread's allocations, sees all of it. SQLite copies a bound blob into native memory, not onto the managed heap.
 /// </summary>
+/// <remarks>
+/// Not run in parallel: while other tests keep calling methods for the first time, the runtime
+/// holds tiered compilation back, and the gate gives up on reaching steady state.
+/// </remarks>
+[Collection(nameof(OrmOutboxStoreAllocationTests))]
+[CollectionDefinition(nameof(OrmOutboxStoreAllocationTests), DisableParallelization = true)]
 public sealed class OrmOutboxStoreAllocationTests
 {
     // Large enough that a copy of it dwarfs everything else an insert allocates.
