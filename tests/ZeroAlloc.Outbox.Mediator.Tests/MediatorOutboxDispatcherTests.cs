@@ -5,6 +5,10 @@ using ZeroAlloc.TestHelpers;
 
 namespace ZeroAlloc.Outbox.Mediator.Tests;
 
+// Not run in parallel: while other tests keep calling methods for the first time, the runtime
+// holds tiered compilation back, and the allocation gate gives up on reaching steady state.
+[Collection(nameof(MediatorOutboxDispatcherTests))]
+[CollectionDefinition(nameof(MediatorOutboxDispatcherTests), DisableParallelization = true)]
 public class MediatorOutboxDispatcherTests
 {
     [Fact]
