@@ -26,7 +26,7 @@ dotnet add package ZeroAlloc.Outbox.Resilience  # wrap dispatchers in a ZeroAllo
 dotnet add package ZeroAlloc.Outbox.Telemetry   # OpenTelemetry instrumentation around dispatch
 ```
 
-The generator needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. It is built against Roslyn 5.0, and an older compiler skips it with warning CS9057, after which the generated writers and registrations are missing. Version 4.7.2 was built against Roslyn 5.9 and loads only in SDK 10.0.4xx or later; on an older .NET 10 SDK, use 4.7.3 or later.
+The generator needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. It is built against Roslyn 5.0, and an older compiler skips it with warning CS9057, after which the generated writers and registrations are missing. Version 4.7.2 was built against Roslyn 5.9 and loads only in SDK 10.0.4xx or later; on an older .NET 10 SDK, use 4.7.4 or later. 4.7.3 still depended on releases of ZeroAlloc.ValueObjects, ZeroAlloc.Serialisation, ZeroAlloc.StateMachine and ZeroAlloc.Resilience whose generators need SDK 10.0.4xx; from 4.7.4 every generator in the dependency graph is built against Roslyn 5.0.
 
 See [Mediator Integration](cookbook/03-mediator-integration.md), [Resilience Bridge](cookbook/07-resilience-bridge.md)
 and [OpenTelemetry integration](cookbook/08-telemetry.md).

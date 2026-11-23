@@ -94,12 +94,16 @@ CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.Outbox.Sdk10Smoke
 consumer of the packed packages with Roslyn 5.0:
 
 ```bash
-v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s)
-dotnet pack src/ZeroAlloc.Outbox -c Release -o artifacts -p:Version="$v"
-dotnet pack src/ZeroAlloc.Outbox.InMemory -c Release -o artifacts -p:Version="$v"
+unset v; r=$(od -An -N4 -tx4 /dev/urandom | tr -d " ") && [ -n "$r" ] && v=9.9.9-local.sha$(git rev-parse --short HEAD).$(date +%s).r$r
+dotnet pack src/ZeroAlloc.Outbox -c Release -o artifacts -p:Version="${v:?no random suffix}"
+dotnet pack src/ZeroAlloc.Outbox.InMemory -c Release -o artifacts -p:Version="${v:?no random suffix}"
 cd tests/ZeroAlloc.Outbox.Sdk10Smoke/Consumer
-dotnet run -c Release -p:ZeroAllocOutboxVersion="$v"
+dotnet run -c Release -p:ZeroAllocOutboxVersion="${v:?no random suffix}"
 ```
+
+Each step stops when the random suffix cannot be generated. Runs in one checkout share its `obj/` and
+`bin/` folders, so they must not overlap: give each concurrent run its own worktree. `CS9057` is an
+error in the consumer, so a generator from any package in its graph that this SDK skips fails it.
 
 CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
 solution and fails when a packed DLL references Roslyn above 5.0.0.
@@ -110,10 +114,6 @@ solution and fails when a packed DLL references Roslyn above 5.0.0.
   and nothing is generated. The shared Renovate preset holds it below 5.1. If a newer Roslyn API is
   needed, change the code; raise the floor only together with the minimum SDK. Test projects may use a
   newer Roslyn.
-- `ZeroAlloc.ValueObjects` 2.4.1, `ZeroAlloc.Resilience` 3.5.1, `ZeroAlloc.StateMachine` 1.8.1 and
-  `ZeroAlloc.Serialisation` 2.11.1, and the transitive `ZeroAlloc.Collections` 1.3.1, ship generators built against Roslyn 5.9. On a 10.0.1xx SDK those are
-  skipped with `CS9057` until the dependencies are raised to releases built against 5.0.0; the
-  `sdk10-consumer` job keeps `CS9057` a warning for that reason. Tracked in ZeroAlloc-Net/.github#77.
 
 - Run allocation tests with `-c Release`. `[OptimizedBuildFact]` skips them on a Debug build, because
   an unoptimised `async` method allocates a state-machine class and the figure would measure the compiler.
