@@ -47,7 +47,7 @@
          The latest EF Core 10.0.13 takes SqlClient 6.1.7, which still depends on Pkcs 9.0.11. Remove
          this pin once Microsoft.EntityFrameworkCore.SqlServer depends on a patched Pkcs. -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.15" />
   </ItemGroup>
   <ItemGroup>
