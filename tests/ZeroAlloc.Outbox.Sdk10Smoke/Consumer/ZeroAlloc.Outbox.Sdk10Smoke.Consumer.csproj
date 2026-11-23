@@ -37,6 +37,6 @@
   <ItemGroup>
     <PackageReference Include="ZeroAlloc.Outbox" Version="[$(ZeroAllocOutboxVersion)]" />
     <PackageReference Include="ZeroAlloc.Outbox.InMemory" Version="[$(ZeroAllocOutboxVersion)]" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
   </ItemGroup>
 </Project>
