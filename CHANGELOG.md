@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v5.0.1...v5.0.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* depend on maintenance patches whose generators load on SDK 10.0.1xx ([#507](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/507)) ([7ee3341](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/7ee33411fb659d90e4c34837fe2e0c21f73a2ae0))
+
 ## [5.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v5.0.0...v5.0.1) (2026-11-22)
 
 
