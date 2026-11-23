@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.3...v4.7.4) (2026-11-23)
+
+
+### Bug Fixes
+
+* depend on maintenance patches whose generators load on SDK 10.0.1xx ([#506](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/506)) ([818bf48](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/818bf48d2a224d08836c4f91b175ccb66e8d500b))
+
 ## [4.7.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v4.7.2...v4.7.3) (2026-11-22)
 
 
