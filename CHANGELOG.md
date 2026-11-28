@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v5.0.2...v5.0.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* depend on ZeroAlloc.ORM 2.17.3 and AdoNet.Async.Adapters 1.6.2 in Outbox.Orm ([#518](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/issues/518)) ([7a7ca31](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/commit/7a7ca318b2f5b655157999c383675265c35835a1))
+
 ## [5.0.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Outbox/compare/v5.0.1...v5.0.2) (2026-11-23)
 
 
