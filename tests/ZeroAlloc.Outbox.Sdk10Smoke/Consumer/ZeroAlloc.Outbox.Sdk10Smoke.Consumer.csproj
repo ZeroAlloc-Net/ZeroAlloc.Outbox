@@ -49,6 +49,6 @@
     <PackageReference Include="ZeroAlloc.Outbox.Telemetry" Version="[$(ZeroAllocOutboxVersion)]" />
     <PackageReference Include="ZeroAlloc.Outbox.Dashboard" Version="[$(ZeroAllocOutboxVersion)]" />
     <PackageReference Include="ZeroAlloc.Outbox.Dashboard.Blazor" Version="[$(ZeroAllocOutboxVersion)]" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
   </ItemGroup>
 </Project>
